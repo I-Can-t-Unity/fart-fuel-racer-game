@@ -1,0 +1,13 @@
+/[Ll]ibrary/
+/[Tt]emp/
+/[Ll]ogs/
+/[Oo]bj/
+/[Uu]serSettings/
+/[Bb]uild/
+/[Bb]uilds/
+.vscode/
+.DS_Store
+*.csproj
+*.sln
+*.slnx
+*.blend[0-9]*
