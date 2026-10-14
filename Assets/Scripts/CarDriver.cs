@@ -171,7 +171,9 @@ public class CarDriver : MonoBehaviour
     {
         if (!showControls)
             return;
-        GUI.Box(new Rect(16, 16, 310, 76),
-            $"{SpeedKmh:0} km/h\nWASD / Arrows: drive and steer\nSpace: brake    R: reset");
+        // GUI.Box(new Rect(16, 16, 310, 76),
+        //     $"{SpeedKmh:0} km/h\nWASD / Arrows: drive and steer\nSpace: brake    R: reset");
+        GUI.Box(new Rect(16, 16, 310, 60),
+            "WASD / Arrows: drive and steer\nSpace: brake    R: reset");
     }
 }
