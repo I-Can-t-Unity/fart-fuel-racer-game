@@ -10,8 +10,8 @@ public class AICarWaypointDriver : MonoBehaviour
     public float carHeight = 0.15f;
 
     [Header("AI Driving")]
-    public float speedKph = 35f;
-    public float cornerSpeedKph = 22f;
+    public float speedKph = 55f;
+    public float cornerSpeedKph = 35f;
     public float steeringSpeed = 180f;
     public int lookAheadPoints = 8;
 
@@ -21,6 +21,12 @@ public class AICarWaypointDriver : MonoBehaviour
     void Awake()
     {
         rb = GetComponent<Rigidbody>();
+
+        // The AI car was copied from the player car. Its CarDriver would read
+        // the keyboard and teleport the AI back to the start whenever R is pressed.
+        CarDriver playerControls = GetComponent<CarDriver>();
+        if (playerControls != null)
+            playerControls.enabled = false;
     }
 
     void Start()

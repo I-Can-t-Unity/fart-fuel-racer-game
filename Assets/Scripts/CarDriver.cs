@@ -40,6 +40,7 @@ public class CarDriver : MonoBehaviour
 
     public float SpeedKmh => body == null ? 0 : body.linearVelocity.magnitude * 3.6f;
     public bool IsBraking { get; private set; }
+    public event Action Respawned;
 
     public void ConfigureWheels(Wheel[] bindings) => wheels = bindings;
 
@@ -115,6 +116,7 @@ public class CarDriver : MonoBehaviour
                 wheel.collider.brakeTorque = brakeTorque;
                 wheel.collider.steerAngle = 0;
             }
+            Respawned?.Invoke();
             return;
         }
 

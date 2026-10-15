@@ -9,8 +9,14 @@ public class RaceManager : MonoBehaviour
 
     public Transform car;
     public Rigidbody carBody;
+    // Optional AI car; the player loses if it finishes first.
+    public Transform opponent;
     public TMP_Text timerText, speedText, fuelText, resultText;
     public Button restartButton;
+
+    // On loop tracks the car starts on the finish line, so a lap only
+    // counts after it has driven through a checkpoint.
+    public bool requireCheckpoint;
 
     public float raceDuration = 30f;
     public float fuel = 100f;
@@ -19,6 +25,7 @@ public class RaceManager : MonoBehaviour
 
     float timeLeft;
     bool finished;
+    bool checkpointReached, opponentCheckpointReached;
     Vector3 previousPosition;
 
     void Awake()
@@ -31,7 +38,15 @@ public class RaceManager : MonoBehaviour
         timeLeft = raceDuration;
 
         if (car != null)
+        {
             previousPosition = car.position;
+
+            // Resetting puts the car back on the start/finish line, so the
+            // lap has to be driven again instead of counting as a finish.
+            CarDriver driver = car.GetComponent<CarDriver>();
+            if (driver != null)
+                driver.Respawned += () => checkpointReached = false;
+        }
 
         if (resultText != null)
             resultText.gameObject.SetActive(false);
@@ -85,10 +100,22 @@ public class RaceManager : MonoBehaviour
                 $"FUEL\n<size=160%><b>{fuel:0}%</b></size>";
     }
 
-    public void CrossFinish()
+    public void ReachCheckpoint(bool byOpponent)
     {
+        if (byOpponent) opponentCheckpointReached = true;
+        else checkpointReached = true;
+    }
+
+    public void CrossFinish(bool byOpponent)
+    {
+        bool reached = byOpponent ? opponentCheckpointReached : checkpointReached;
+        if (requireCheckpoint && !reached) return;
+
         if (!finished && timeLeft > 0)
-            EndRace(true, "FINISH! YOU WIN!");
+        {
+            if (byOpponent) EndRace(false, "AI WINS!");
+            else EndRace(true, "FINISH! YOU WIN!");
+        }
     }
 
     void EndRace(bool won, string message)
