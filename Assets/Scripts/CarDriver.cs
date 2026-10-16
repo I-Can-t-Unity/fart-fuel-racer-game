@@ -25,7 +25,11 @@ public class CarDriver : MonoBehaviour
     [SerializeField, Min(0)] private float steeringResponse = 90f;
     [Tooltip("Limits how sharply the car can corner at speed, in metres per second squared. Lower values give wider, steadier fast turns.")]
     [SerializeField, Min(1)] private float maxCorneringAcceleration = 6f;
+    [Tooltip("Above top speed (only reachable with a boost), keep the turning radius the car has at top speed by scaling cornering and tyre grip with speed.")]
+    [SerializeField] private bool holdTurnRadiusAboveTopSpeed = false;
     [SerializeField] private Vector3 centerOfMass = new Vector3(0, 0.45f, -0.25f);
+    [Tooltip("Brake torque on each wheel while the engine is off (out of fuel), so the car coasts to a stop instead of rolling on forever.")]
+    [SerializeField, Min(0)] private float engineOffDrag = 300f;
     [SerializeField] private bool showControls = true;
 
     private Rigidbody body;
@@ -37,12 +41,19 @@ public class CarDriver : MonoBehaviour
     private bool braking;
     private bool resetRequested;
     private float wheelbase = 2.3f;
+    private float[] baseSidewaysStiffness;
+    private string extraControls = "";
 
     public float SpeedKmh => body == null ? 0 : body.linearVelocity.magnitude * 3.6f;
     public bool IsBraking { get; private set; }
+    // Turned off when the tank is empty: throttle does nothing, but steering and brakes still work.
+    public bool EngineRunning { get; set; } = true;
     public event Action Respawned;
 
     public void ConfigureWheels(Wheel[] bindings) => wheels = bindings;
+
+    // Lets other systems on the car list their keys in the on-screen controls box.
+    public void AddControlsHint(string line) => extraControls += "\n" + line;
 
     private void Awake()
     {
@@ -81,6 +92,7 @@ public class CarDriver : MonoBehaviour
         }
         if (frontCount > 0 && rearCount > 0)
             wheelbase = Mathf.Max(0.1f, Mathf.Abs(frontZ / frontCount - rearZ / rearCount));
+        baseSidewaysStiffness = Array.ConvertAll(wheels, wheel => wheel.collider.sidewaysFriction.stiffness);
     }
 
     private void Update()
@@ -126,24 +138,34 @@ public class CarDriver : MonoBehaviour
         // Coast drag and reverse motor torque are not brake-light triggers.
         IsBraking = applyBrake;
         float limit = (throttle >= 0 ? topSpeedKmh : reverseSpeedKmh) / 3.6f;
-        float torque = applyBrake || Mathf.Abs(forwardSpeed) >= limit ? 0 : throttle * motorTorque;
+        float torque = applyBrake || !EngineRunning || Mathf.Abs(forwardSpeed) >= limit ? 0 : throttle * motorTorque;
+        float idleBrake = !EngineRunning ? engineOffDrag : Mathf.Abs(throttle) < 0.01f ? 40f : 0;
         float speedFraction = Mathf.Clamp01(SpeedKmh / topSpeedKmh);
         float steeringLimit = Mathf.Lerp(steeringAngle, steeringAngle * 0.4f, speedFraction);
         // Bicycle-model estimate: lateral acceleration = speed^2 * tan(angle) / wheelbase.
         // Use planar speed, including sideways motion, so a skid cannot unlock
         // sharp low-speed steering just because forward velocity has dropped.
         float planarSpeedSquared = Vector3.ProjectOnPlane(body.linearVelocity, transform.up).sqrMagnitude;
-        float safeAngle = Mathf.Atan(wheelbase * maxCorneringAcceleration /
+        // Past top speed the allowed cornering grows with speed squared, which holds the
+        // turning radius (and steering angle) at their top-speed values. The tyres get the
+        // same extra grip so they can actually deliver that cornering.
+        float topSpeed = topSpeedKmh / 3.6f;
+        float overspeed = holdTurnRadiusAboveTopSpeed ? Mathf.Max(1f, planarSpeedSquared / (topSpeed * topSpeed)) : 1f;
+        float safeAngle = Mathf.Atan(wheelbase * maxCorneringAcceleration * overspeed /
             Mathf.Max(planarSpeedSquared, 0.01f)) * Mathf.Rad2Deg;
         steeringLimit = Mathf.Min(steeringLimit, safeAngle);
         currentSteering = Mathf.Clamp(currentSteering, -steeringLimit, steeringLimit);
         float targetSteering = steering * steeringLimit;
         currentSteering = Mathf.MoveTowards(currentSteering, targetSteering, steeringResponse * Time.fixedDeltaTime);
-        foreach (Wheel wheel in wheels)
+        for (int i = 0; i < wheels.Length; i++)
         {
+            Wheel wheel = wheels[i];
             wheel.collider.steerAngle = wheel.steering ? currentSteering : 0;
             wheel.collider.motorTorque = torque;
-            wheel.collider.brakeTorque = applyBrake ? brakeTorque : (Mathf.Abs(throttle) < 0.01f ? 40f : 0);
+            wheel.collider.brakeTorque = applyBrake ? brakeTorque : idleBrake;
+            WheelFrictionCurve sideways = wheel.collider.sidewaysFriction;
+            sideways.stiffness = baseSidewaysStiffness[i] * overspeed;
+            wheel.collider.sidewaysFriction = sideways;
         }
     }
 
@@ -175,7 +197,8 @@ public class CarDriver : MonoBehaviour
             return;
         // GUI.Box(new Rect(16, 16, 310, 76),
         //     $"{SpeedKmh:0} km/h\nWASD / Arrows: drive and steer\nSpace: brake    R: reset");
-        GUI.Box(new Rect(16, 16, 310, 60),
-            "WASD / Arrows: drive and steer\nSpace: brake    R: reset");
+        string controls = "WASD / Arrows: drive and steer\nSpace: brake    R: reset" + extraControls;
+        int lines = controls.Split('\n').Length;
+        GUI.Box(new Rect(16, 16, 310, 20 + 20 * lines), controls);
     }
 }

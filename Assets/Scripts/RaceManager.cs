@@ -22,11 +22,14 @@ public class RaceManager : MonoBehaviour
     public float fuel = 100f;
     public float fuelDrainPerSecond = 1.2f;
     public float fuelDrainPerSpeed = .025f;
+    [Tooltip("With an empty tank the engine dies and the car coasts; the race is lost once it has been stopped this long.")]
+    public float stallSeconds = 2f;
 
-    float timeLeft;
+    float timeLeft, stalledFor;
     bool finished;
     bool checkpointReached, opponentCheckpointReached;
     Vector3 previousPosition;
+    CarDriver driver;
 
     void Awake()
     {
@@ -43,7 +46,7 @@ public class RaceManager : MonoBehaviour
 
             // Resetting puts the car back on the start/finish line, so the
             // lap has to be driven again instead of counting as a finish.
-            CarDriver driver = car.GetComponent<CarDriver>();
+            driver = car.GetComponent<CarDriver>();
             if (driver != null)
                 driver.Respawned += () => checkpointReached = false;
         }
@@ -79,9 +82,15 @@ public class RaceManager : MonoBehaviour
                 (fuelDrainPerSecond + speedKph * fuelDrainPerSpeed)
                 * Time.deltaTime);
 
+            // An empty tank kills the engine but the car keeps coasting; the race
+            // is only lost if it rolls to a stop before picking up more fuel.
+            if (driver != null)
+                driver.EngineRunning = fuel > 0;
+            stalledFor = fuel <= 0 && speedKph < 2f ? stalledFor + Time.deltaTime : 0;
+
             if (timeLeft <= 0)
                 EndRace(false, "TIME UP!");
-            else if (fuel <= 0)
+            else if (stalledFor >= stallSeconds)
                 EndRace(false, "OUT OF FUEL!");
         }
 
@@ -98,6 +107,21 @@ public class RaceManager : MonoBehaviour
         if (fuelText != null)
             fuelText.text =
                 $"FUEL\n<size=160%><b>{fuel:0}%</b></size>";
+    }
+
+    public void AddFuel(float amount)
+    {
+        if (!finished)
+            fuel = Mathf.Min(100f, fuel + amount);
+    }
+
+    // Empties the tank and returns how much fuel was in it.
+    public float DumpFuel()
+    {
+        if (finished) return 0;
+        float dumped = fuel;
+        fuel = 0;
+        return dumped;
     }
 
     public void ReachCheckpoint(bool byOpponent)

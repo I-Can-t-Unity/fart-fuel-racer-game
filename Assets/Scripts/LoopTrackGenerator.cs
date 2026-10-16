@@ -14,10 +14,18 @@ public class LoopTrackGenerator : MonoBehaviour
     public float lineWidth = 0.20f;
     public float surfaceY = 0.12f;
 
+    [Header("Walls")]
+    [Tooltip("Low walls along both edges keep cars on the track. Set to 0 to remove them.")]
+    public float wallHeight = 1f;
+    public float wallThickness = 0.6f;
+    [Tooltip("Gap between the curb and the wall. The AI cuts corners up to about 0.5 m past the curb, so keep this at least 0.6 m.")]
+    public float wallGap = 1f;
+
     [Header("Materials (optional)")]
     public Material roadMaterial;
     public Material whiteMaterial;
     public Material redMaterial;
+    public Material wallMaterial;
 
     [Header("Generated points - read only")]
     public List<Vector3> centerline = new List<Vector3>();
@@ -57,10 +65,12 @@ public class LoopTrackGenerator : MonoBehaviour
         int n = centerline.Count;
         Vector3[] left = new Vector3[n], right = new Vector3[n];
         Vector3[] outerLeft = new Vector3[n], outerRight = new Vector3[n];
+        Vector3[] sides = new Vector3[n];
         for (int i = 0; i < n; i++)
         {
             Vector3 tangent = (centerline[(i+1)%n] - centerline[(i-1+n)%n]).normalized;
             Vector3 side = new Vector3(-tangent.z, 0, tangent.x);
+            sides[i] = side;
             left[i] = centerline[i] - side * roadWidth * .5f;
             right[i] = centerline[i] + side * roadWidth * .5f;
             outerLeft[i] = left[i] - side * curbWidth;
@@ -87,6 +97,27 @@ public class LoopTrackGenerator : MonoBehaviour
             CreateStrip("Curb_L_"+i, l0, l1, curbHeight, material);
             CreateStrip("Curb_R_"+i, r0, r1, curbHeight, material);
             distance += Vector3.Distance(centerline[i], centerline[next]);
+        }
+
+        // Walls just outside the curbs. They are frictionless so a car that hits
+        // one slides along it instead of being grabbed and spun round.
+        if (wallHeight > 0)
+        {
+            Material wall = Mat(wallMaterial, new Color(.85f, .85f, .88f));
+            PhysicsMaterial slide = new PhysicsMaterial("TrackWall")
+            {
+                dynamicFriction = 0,
+                staticFriction = 0,
+                frictionCombine = PhysicsMaterialCombine.Minimum,
+                bounciness = 0
+            };
+            float offset = roadWidth * .5f + curbWidth + wallGap + wallThickness * .5f;
+            for (int i = 0; i < n; i++)
+            {
+                int next = (i+1)%n;
+                CreateWall("Wall_L_"+i, centerline[i] - sides[i] * offset, centerline[next] - sides[next] * offset, wall, slide);
+                CreateWall("Wall_R_"+i, centerline[i] + sides[i] * offset, centerline[next] + sides[next] * offset, wall, slide);
+            }
         }
 
         // Dashed white center line.
@@ -248,6 +279,23 @@ public class LoopTrackGenerator : MonoBehaviour
         go.transform.SetParent(transform,false);
         go.AddComponent<MeshFilter>().sharedMesh = MakeStrip(a,b,height);
         go.AddComponent<MeshRenderer>().sharedMaterial = material;
+    }
+
+    void CreateWall(string name, Vector3 a, Vector3 b, Material material, PhysicsMaterial physics)
+    {
+        // The road sits above the grass, so sink the wall a little to avoid a gap underneath.
+        const float sink = 0.3f;
+        Vector3 along = b - a;
+        GameObject wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        wall.name = name;
+        wall.transform.SetParent(transform, false);
+        wall.transform.SetPositionAndRotation(
+            (a + b) * .5f + Vector3.up * (wallHeight - sink) * .5f,
+            Quaternion.LookRotation(along));
+        // Pieces overlap by one wall thickness so the outside of a bend has no gaps.
+        wall.transform.localScale = new Vector3(wallThickness, wallHeight + sink, along.magnitude + wallThickness);
+        wall.GetComponent<Renderer>().sharedMaterial = material;
+        wall.GetComponent<Collider>().sharedMaterial = physics;
     }
 
     Material Mat(Material existing, Color color)
