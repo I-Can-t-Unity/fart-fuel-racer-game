@@ -31,10 +31,22 @@ public class CarDriver : MonoBehaviour
     [Tooltip("Brake torque on each wheel while the engine is off (out of fuel), so the car coasts to a stop instead of rolling on forever.")]
     [SerializeField, Min(0)] private float engineOffDrag = 300f;
     [SerializeField] private bool showControls = true;
+    [Header("Fuel and throttle")]
+    [Tooltip("Top speed and engine power multiplier by fuel level, from 0 (empty) to 1 (full). Flip the curve to make a light, nearly empty car the fastest.")]
+    [SerializeField] private AnimationCurve powerByFuel = new AnimationCurve(
+        new Keyframe(0f, 0.6f), new Keyframe(0.2f, 1f), new Keyframe(1f, 1f));
+    [Tooltip("Below this fuel level the engine sputters, cutting power in short bursts.")]
+    [SerializeField, Range(0, 1)] private float sputterBelowFuel = 0.1f;
+    [Tooltip("How fast the throttle rises to full, per second. 3 takes about a third of a second.")]
+    [SerializeField, Min(0.1f)] private float throttleRise = 3f;
+    [Tooltip("How fast the throttle drops back when the pedal is released, per second.")]
+    [SerializeField, Min(0.1f)] private float throttleFall = 6f;
 
     private Rigidbody body;
     private Vector3 spawnPosition;
     private Quaternion spawnRotation;
+    // What the player is asking for, and the eased value the engine actually uses.
+    private float throttleInput;
     private float throttle;
     private float steering;
     private float currentSteering;
@@ -48,6 +60,9 @@ public class CarDriver : MonoBehaviour
     public bool IsBraking { get; private set; }
     // Turned off when the tank is empty: throttle does nothing, but steering and brakes still work.
     public bool EngineRunning { get; set; } = true;
+    // Set by RaceManager every frame: 0 is an empty tank, 1 a full one.
+    public float FuelFraction { get; set; } = 1f;
+    public float Throttle => throttle;
     public event Action Respawned;
 
     public void ConfigureWheels(Wheel[] bindings) => wheels = bindings;
@@ -97,18 +112,46 @@ public class CarDriver : MonoBehaviour
 
     private void Update()
     {
-        Keyboard keyboard = Keyboard.current;
-        throttle = 0;
+        // Old fuel/speed system: instant, keyboard-only throttle.
+        // Keyboard keyboard = Keyboard.current;
+        // throttle = 0;
+        // steering = 0;
+        // braking = false;
+        // if (keyboard == null || !Application.isFocused)
+        //     return;
+        // throttle = (keyboard.wKey.isPressed || keyboard.upArrowKey.isPressed ? 1 : 0)
+        //     - (keyboard.sKey.isPressed || keyboard.downArrowKey.isPressed ? 1 : 0);
+        // steering = (keyboard.dKey.isPressed || keyboard.rightArrowKey.isPressed ? 1 : 0)
+        //     - (keyboard.aKey.isPressed || keyboard.leftArrowKey.isPressed ? 1 : 0);
+        // braking = keyboard.spaceKey.isPressed;
+        // resetRequested |= keyboard.rKey.wasPressedThisFrame;
+
+        throttleInput = 0;
         steering = 0;
         braking = false;
-        if (keyboard == null || !Application.isFocused)
+        if (!Application.isFocused)
             return;
-        throttle = (keyboard.wKey.isPressed || keyboard.upArrowKey.isPressed ? 1 : 0)
-            - (keyboard.sKey.isPressed || keyboard.downArrowKey.isPressed ? 1 : 0);
-        steering = (keyboard.dKey.isPressed || keyboard.rightArrowKey.isPressed ? 1 : 0)
-            - (keyboard.aKey.isPressed || keyboard.leftArrowKey.isPressed ? 1 : 0);
-        braking = keyboard.spaceKey.isPressed;
-        resetRequested |= keyboard.rKey.wasPressedThisFrame;
+        Keyboard keyboard = Keyboard.current;
+        if (keyboard != null)
+        {
+            throttleInput = (keyboard.wKey.isPressed || keyboard.upArrowKey.isPressed ? 1 : 0)
+                - (keyboard.sKey.isPressed || keyboard.downArrowKey.isPressed ? 1 : 0);
+            steering = (keyboard.dKey.isPressed || keyboard.rightArrowKey.isPressed ? 1 : 0)
+                - (keyboard.aKey.isPressed || keyboard.leftArrowKey.isPressed ? 1 : 0);
+            braking = keyboard.spaceKey.isPressed;
+            resetRequested |= keyboard.rKey.wasPressedThisFrame;
+        }
+        // Triggers give analog throttle and reverse, the left stick steers, A brakes and Start resets.
+        Gamepad pad = Gamepad.current;
+        if (pad != null)
+        {
+            throttleInput += pad.rightTrigger.ReadValue() - pad.leftTrigger.ReadValue();
+            steering += pad.leftStick.x.ReadValue();
+            braking |= pad.buttonSouth.isPressed;
+            resetRequested |= pad.startButton.wasPressedThisFrame;
+        }
+        throttleInput = Mathf.Clamp(throttleInput, -1, 1);
+        steering = Mathf.Clamp(steering, -1, 1);
     }
 
     private void FixedUpdate()
@@ -121,6 +164,7 @@ public class CarDriver : MonoBehaviour
             body.linearVelocity = Vector3.zero;
             body.angularVelocity = Vector3.zero;
             currentSteering = 0;
+            throttle = 0;
             resetRequested = false;
             foreach (Wheel wheel in wheels)
             {
@@ -132,14 +176,29 @@ public class CarDriver : MonoBehaviour
             return;
         }
 
+        // Ease the throttle toward the input: it rises gently and drops quickly.
+        float throttleRate = Mathf.Abs(throttleInput) > Mathf.Abs(throttle) ? throttleRise : throttleFall;
+        throttle = Mathf.MoveTowards(throttle, throttleInput, throttleRate * Time.fixedDeltaTime);
+        // A low tank weakens the engine, and near empty it sputters.
+        float power = powerByFuel.Evaluate(FuelFraction);
+        if (FuelFraction < sputterBelowFuel && Mathf.PerlinNoise(Time.time * 4f, 0) < 0.35f)
+            power = 0;
+
         float forwardSpeed = Vector3.Dot(body.linearVelocity, transform.forward);
-        bool changingDirection = throttle * forwardSpeed < -0.5f;
+        // Old fuel/speed system:
+        // bool changingDirection = throttle * forwardSpeed < -0.5f;
+        // Use the raw input so pressing the other way still brakes instantly.
+        bool changingDirection = throttleInput * forwardSpeed < -0.5f;
         bool applyBrake = braking || changingDirection;
         // Coast drag and reverse motor torque are not brake-light triggers.
         IsBraking = applyBrake;
-        float limit = (throttle >= 0 ? topSpeedKmh : reverseSpeedKmh) / 3.6f;
-        float torque = applyBrake || !EngineRunning || Mathf.Abs(forwardSpeed) >= limit ? 0 : throttle * motorTorque;
-        float idleBrake = !EngineRunning ? engineOffDrag : Mathf.Abs(throttle) < 0.01f ? 40f : 0;
+        // Old fuel/speed system: fixed top speed and full torque whatever the fuel level.
+        // float limit = (throttle >= 0 ? topSpeedKmh : reverseSpeedKmh) / 3.6f;
+        // float torque = applyBrake || !EngineRunning || Mathf.Abs(forwardSpeed) >= limit ? 0 : throttle * motorTorque;
+        // float idleBrake = !EngineRunning ? engineOffDrag : Mathf.Abs(throttle) < 0.01f ? 40f : 0;
+        float limit = (throttle >= 0 ? topSpeedKmh * power : reverseSpeedKmh) / 3.6f;
+        float torque = applyBrake || !EngineRunning || Mathf.Abs(forwardSpeed) >= limit ? 0 : throttle * motorTorque * power;
+        float idleBrake = !EngineRunning ? engineOffDrag : Mathf.Abs(throttleInput) < 0.01f ? 40f : 0;
         float speedFraction = Mathf.Clamp01(SpeedKmh / topSpeedKmh);
         float steeringLimit = Mathf.Lerp(steeringAngle, steeringAngle * 0.4f, speedFraction);
         // Bicycle-model estimate: lateral acceleration = speed^2 * tan(angle) / wheelbase.

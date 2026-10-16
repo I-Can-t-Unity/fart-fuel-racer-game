@@ -1130,8 +1130,9 @@ MonoBehaviour:
   requireCheckpoint: 1
   raceDuration: 60
   fuel: 100
-  fuelDrainPerSecond: 1.2
+  fuelDrainPerSecond: 0
   fuelDrainPerSpeed: 0.025
+  fuelDrainPerThrottle: 1.2
   stallSeconds: 2
 --- !u!4 &206879159
 Transform:
@@ -2161,6 +2162,42 @@ MonoBehaviour:
   centerOfMass: {x: 0, y: 0.45, z: -0.65}
   engineOffDrag: 300
   showControls: 1
+  powerByFuel:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0.6
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.2
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  sputterBelowFuel: 0.1
+  throttleRise: 3
+  throttleFall: 6
 --- !u!65 &408367764
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -2248,6 +2285,13 @@ MonoBehaviour:
   cornerSpeedKph: 35
   steeringSpeed: 180
   lookAheadPoints: 8
+  minImpactKph: 5
+  slowdownPerImpactKph: 1.5
+  maxSlowdownKph: 40
+  speedRecoveryKph: 40
+  knockPerImpactKph: 0.08
+  knockDamping: 8
+  spinPerImpactKph: 1.5
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0
@@ -4129,6 +4173,42 @@ MonoBehaviour:
   centerOfMass: {x: 0, y: 0.45, z: -0.65}
   engineOffDrag: 300
   showControls: 1
+  powerByFuel:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0.6
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.2
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  sputterBelowFuel: 0.1
+  throttleRise: 3
+  throttleFall: 6
 --- !u!114 &684248057
 MonoBehaviour:
   m_ObjectHideFlags: 0

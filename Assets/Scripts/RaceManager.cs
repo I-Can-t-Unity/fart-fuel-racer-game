@@ -20,8 +20,12 @@ public class RaceManager : MonoBehaviour
 
     public float raceDuration = 30f;
     public float fuel = 100f;
-    public float fuelDrainPerSecond = 1.2f;
+    // Old fuel/speed system:
+    // public float fuelDrainPerSecond = 1.2f;
+    public float fuelDrainPerSecond = 0f;
     public float fuelDrainPerSpeed = .025f;
+    [Tooltip("Extra fuel used per second at full throttle, so easing off saves fuel.")]
+    public float fuelDrainPerThrottle = 1.2f;
     [Tooltip("With an empty tank the engine dies and the car coasts; the race is lost once it has been stopped this long.")]
     public float stallSeconds = 2f;
 
@@ -78,14 +82,25 @@ public class RaceManager : MonoBehaviour
         if (!finished)
         {
             timeLeft = Mathf.Max(0, timeLeft - Time.deltaTime);
+            // Old fuel/speed system: drain from time and speed only.
+            // fuel = Mathf.Max(0, fuel -
+            //     (fuelDrainPerSecond + speedKph * fuelDrainPerSpeed)
+            //     * Time.deltaTime);
             fuel = Mathf.Max(0, fuel -
-                (fuelDrainPerSecond + speedKph * fuelDrainPerSpeed)
+                (fuelDrainPerSecond + speedKph * fuelDrainPerSpeed
+                 + (driver != null ? Mathf.Abs(driver.Throttle) * fuelDrainPerThrottle : 0))
                 * Time.deltaTime);
 
             // An empty tank kills the engine but the car keeps coasting; the race
             // is only lost if it rolls to a stop before picking up more fuel.
+            // Old fuel/speed system:
+            // if (driver != null)
+            //     driver.EngineRunning = fuel > 0;
             if (driver != null)
+            {
                 driver.EngineRunning = fuel > 0;
+                driver.FuelFraction = fuel / 100f;
+            }
             stalledFor = fuel <= 0 && speedKph < 2f ? stalledFor + Time.deltaTime : 0;
 
             if (timeLeft <= 0)
