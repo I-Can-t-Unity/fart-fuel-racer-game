@@ -3,22 +3,35 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public enum FuelType { Correct, Green, Purple }
+public enum FuelType { Gasoline, Diesel, Ethanol }
 
 public enum FuelMix { None, Premium, Hybrid, SuperFart, ToxicSludge }
 
-// The car's fuel bag. Each pickup takes a slot; with both slots full, Q mixes
-// them and Q again uses the mix. There is no way to throw fuel away, so grabbing
-// the wrong cubes means having to burn off whatever they mix into.
+// The car's fuel bag. Fuel of the car's own type refuels it; any other type is
+// wrong fuel and gives a fart boost instead. Each pickup takes a slot; picking up
+// a second fuel mixes the two straight away, and Q uses the mix. There is no way
+// to throw fuel away, so grabbing the wrong cubes means having to burn off
+// whatever they mix into.
 // F dumps the whole tank for a boost that lasts longer the more fuel was dumped.
 [RequireComponent(typeof(FartBoost))]
 public class FuelInventory : MonoBehaviour
 {
     public const int Capacity = 2;
 
-    [Tooltip("The car body. The correct fuel cube uses this exact material so it matches the car.")]
+    [Tooltip("The fuel this car runs on. Every other fuel type counts as wrong fuel.")]
+    public FuelType carFuel = FuelType.Gasoline;
+
+    [Tooltip("The car body. Cubes of the car's own fuel use this exact material so they match the car.")]
     public Renderer bodyRenderer;
     public int bodyMaterialSlot;
+
+    [Header("Labels")]
+    [Tooltip("Text colour above cubes, and in the bag, for fuel this car can use.")]
+    public Color suitableColor = new Color(.35f, 1f, .35f);
+    [Tooltip("Text colour for fuel this car can't use.")]
+    public Color unsuitableColor = new Color(1f, .3f, .25f);
+    [Tooltip("Plate behind the labels above cubes, so green text still stands out against grass.")]
+    public Color labelBackground = new Color(0, 0, 0, .55f);
 
     [Header("Pickups")]
     public float pickupRefuel = 25f;
@@ -54,13 +67,17 @@ public class FuelInventory : MonoBehaviour
 
         CarDriver driver = GetComponent<CarDriver>();
         if (driver != null)
-            driver.AddControlsHint("Q: mix / use fuel    F: dump fuel");
+            driver.AddControlsHint("Q: use fuel mix    F: dump fuel");
 
+        materials[FuelType.Gasoline] = MakeMaterial(new Color(.85f, .55f, .1f));
+        materials[FuelType.Diesel] = MakeMaterial(new Color(.3f, .9f, .25f));
+        materials[FuelType.Ethanol] = MakeMaterial(new Color(.6f, .25f, .95f));
         Material body = bodyRenderer != null ? bodyRenderer.sharedMaterials[bodyMaterialSlot] : null;
-        materials[FuelType.Correct] = body != null ? body : MakeMaterial(Color.red);
-        materials[FuelType.Green] = MakeMaterial(new Color(.3f, .9f, .25f));
-        materials[FuelType.Purple] = MakeMaterial(new Color(.6f, .25f, .95f));
+        if (body != null)
+            materials[carFuel] = body;
     }
+
+    public bool IsSuitable(FuelType type) => type == carFuel;
 
     void Update()
     {
@@ -76,13 +93,8 @@ public class FuelInventory : MonoBehaviour
         if (keyboard.fKey.wasPressedThisFrame)
             DumpFuel();
 
-        if (keyboard.qKey.wasPressedThisFrame)
-        {
-            if (HeldMix != FuelMix.None)
-                UseMix();
-            else if (slots.Count == Capacity)
-                MixSlots();
-        }
+        if (keyboard.qKey.wasPressedThisFrame && HeldMix != FuelMix.None)
+            UseMix();
     }
 
     void DumpFuel()
@@ -101,12 +113,12 @@ public class FuelInventory : MonoBehaviour
     {
         if (IsFull)
         {
-            Announced?.Invoke(HeldMix != FuelMix.None ? "BAG FULL - Q TO USE" : "BAG FULL - Q TO MIX");
+            Announced?.Invoke("BAG FULL - Q TO USE");
             return false;
         }
 
         slots.Add(type);
-        if (type == FuelType.Correct)
+        if (IsSuitable(type))
         {
             Refuel(pickupRefuel);
         }
@@ -115,24 +127,27 @@ public class FuelInventory : MonoBehaviour
             fart.Fart(pickupFartSeconds);
             Announced?.Invoke("FART BOOST!");
         }
+
+        // The second fuel mixes straight away; the player still chooses when to use it.
+        if (slots.Count == Capacity)
+            MixSlots();
         Changed?.Invoke();
         return true;
     }
 
     void MixSlots()
     {
-        int correct = 0;
+        int suitable = 0;
         foreach (FuelType type in slots)
-            if (type == FuelType.Correct)
-                correct++;
+            if (IsSuitable(type))
+                suitable++;
 
-        if (correct == 2) HeldMix = FuelMix.Premium;
-        else if (correct == 1) HeldMix = FuelMix.Hybrid;
+        if (suitable == 2) HeldMix = FuelMix.Premium;
+        else if (suitable == 1) HeldMix = FuelMix.Hybrid;
         else if (slots[0] == slots[1]) HeldMix = FuelMix.SuperFart;
         else HeldMix = FuelMix.ToxicSludge;
 
         slots.Clear();
-        Changed?.Invoke();
     }
 
     void UseMix()
@@ -170,7 +185,13 @@ public class FuelInventory : MonoBehaviour
 
     public Color ColorOf(FuelType type) => materials[type].color;
 
-    public string NameOf(FuelType type) => type == FuelType.Correct ? "CAR FUEL" : type.ToString().ToUpper();
+    public string NameOf(FuelType type) => type.ToString().ToUpper();
+
+    // Green for the car's own fuel, red for everything else.
+    public Color LabelColorOf(FuelType type) => IsSuitable(type) ? suitableColor : unsuitableColor;
+
+    // What picking up this fuel does on its own, for the label above each cube.
+    public string PickupEffectOf(FuelType type) => IsSuitable(type) ? $"+{pickupRefuel:0} fuel" : "Fart boost";
 
     public Color ColorOf(FuelMix mix)
     {

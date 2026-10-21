@@ -9068,8 +9068,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FuelPickupSpawner
   track: {fileID: 347017635}
   inventory: {fileID: 1501234021}
-  rowWaypoints: 2b000000420000008700000097000000
-  laneSpacing: 3.5
+  rowWaypoints: 28000000550000007f000000ab000000
+  laneSpacing: 4.5
   cubeSize: 1.2
   hoverHeight: 1.7
 --- !u!1 &1558334173

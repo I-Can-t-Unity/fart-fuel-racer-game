@@ -2,14 +2,14 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// Fuel bag HUD at the top centre of the screen: a coloured square for each
-// carried fuel, or the mixed fuel and what it does, plus what Q will do next.
-// Built at runtime under this canvas.
+// Fuel bag HUD at the bottom centre of the screen, between the speed and fuel
+// gauges: a coloured square for each carried fuel, or the mixed fuel and what it
+// does. Built at runtime under this canvas.
 public class FuelInventoryUI : MonoBehaviour
 {
     public FuelInventory inventory;
-    [Tooltip("Offset from the top centre of the screen; shifted right to stay clear of the controls box in the top-left corner.")]
-    public Vector2 offset = new Vector2(220, -20);
+    [Tooltip("Offset from the bottom centre of the screen. The default lines the bag up with the speed and fuel gauges.")]
+    public Vector2 bottomOffset = new Vector2(0, 20);
     public float slotSize = 80f;
     public float messageSeconds = 1.5f;
 
@@ -31,9 +31,9 @@ public class FuelInventoryUI : MonoBehaviour
             return;
         }
 
-        RectTransform bag = NewRect("FuelBag", transform, offset, new Vector2(520, 230));
-        bag.anchorMin = bag.anchorMax = new Vector2(.5f, 1);
-        bag.pivot = new Vector2(.5f, 1);
+        RectTransform bag = NewRect("FuelBag", transform, bottomOffset, new Vector2(520, 230));
+        bag.anchorMin = bag.anchorMax = new Vector2(.5f, 0);
+        bag.pivot = new Vector2(.5f, 0);
         bag.gameObject.AddComponent<Image>().color = new Color(0, 0, 0, .35f);
         bag.GetComponent<Image>().raycastTarget = false;
 
@@ -99,8 +99,9 @@ public class FuelInventoryUI : MonoBehaviour
             bool filled = i < inventory.Slots.Count;
             slotFills[i].color = filled ? inventory.ColorOf(inventory.Slots[i]) : EmptySlot;
             slotLabels[i].text = filled ? inventory.NameOf(inventory.Slots[i]) : "EMPTY";
+            slotLabels[i].color = filled ? inventory.LabelColorOf(inventory.Slots[i]) : Color.white;
         }
-        hint.text = inventory.Slots.Count == FuelInventory.Capacity ? "Q: MIX" : "";
+        hint.text = "";
     }
 
     void ShowMessage(string text)
