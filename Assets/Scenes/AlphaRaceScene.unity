@@ -839,6 +839,7 @@ GameObject:
   - component: {fileID: 177349824}
   - component: {fileID: 177349823}
   - component: {fileID: 177349822}
+  - component: {fileID: 1501234045}
   m_Layer: 0
   m_Name: TutorialFuelBrown(1)
   m_TagString: Untagged
@@ -855,7 +856,7 @@ Transform:
   m_GameObject: {fileID: 177349820}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 2.1, y: -10.54, z: 9.4}
+  m_LocalPosition: {x: 1.59979, y: -10.82, z: 21.03332}
   m_LocalScale: {x: 1.5, y: 1.5, z: 1.5}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -876,7 +877,7 @@ BoxCollider:
     serializedVersion: 2
     m_Bits: 0
   m_LayerOverridePriority: 0
-  m_IsTrigger: 0
+  m_IsTrigger: 1
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
@@ -3060,6 +3061,7 @@ GameObject:
   - component: {fileID: 515857307}
   - component: {fileID: 515857306}
   - component: {fileID: 515857305}
+  - component: {fileID: 1501234043}
   m_Layer: 0
   m_Name: TutorialFuelPurple
   m_TagString: Untagged
@@ -3076,7 +3078,7 @@ Transform:
   m_GameObject: {fileID: 515857303}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 4.78, y: -10.86, z: -9.32}
+  m_LocalPosition: {x: 6.09979, y: -10.82, z: -9.666679}
   m_LocalScale: {x: 1.5, y: 1.5, z: 1.5}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -3097,7 +3099,7 @@ BoxCollider:
     serializedVersion: 2
     m_Bits: 0
   m_LayerOverridePriority: 0
-  m_IsTrigger: 0
+  m_IsTrigger: 1
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
@@ -3396,6 +3398,7 @@ GameObject:
   - component: {fileID: 539898725}
   - component: {fileID: 539898724}
   - component: {fileID: 539898723}
+  - component: {fileID: 1501234023}
   m_Layer: 5
   m_Name: RaceHUD
   m_TagString: Untagged
@@ -4043,6 +4046,8 @@ GameObject:
   - component: {fileID: 684248053}
   - component: {fileID: 684248056}
   - component: {fileID: 684248057}
+  - component: {fileID: 1501234021}
+  - component: {fileID: 1501234022}
   m_Layer: 0
   m_Name: PlayerCar
   m_TagString: Player
@@ -4469,6 +4474,7 @@ GameObject:
   - component: {fileID: 739663235}
   - component: {fileID: 739663234}
   - component: {fileID: 739663233}
+  - component: {fileID: 1501234044}
   m_Layer: 0
   m_Name: TutorialFuelPurple (1)
   m_TagString: Untagged
@@ -4485,7 +4491,7 @@ Transform:
   m_GameObject: {fileID: 739663231}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -1.6, y: -10.54, z: 9.4}
+  m_LocalPosition: {x: -2.90021, y: -10.82, z: 21.03332}
   m_LocalScale: {x: 1.5, y: 1.5, z: 1.5}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -4506,7 +4512,7 @@ BoxCollider:
     serializedVersion: 2
     m_Bits: 0
   m_LayerOverridePriority: 0
-  m_IsTrigger: 0
+  m_IsTrigger: 1
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
@@ -10023,6 +10029,7 @@ GameObject:
   - component: {fileID: 1851686359}
   - component: {fileID: 1851686358}
   - component: {fileID: 1851686357}
+  - component: {fileID: 1501234042}
   m_Layer: 0
   m_Name: TutorialFuelGreen
   m_TagString: Untagged
@@ -10039,7 +10046,7 @@ Transform:
   m_GameObject: {fileID: 1851686355}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 1.51, y: -10.82, z: -9.666679}
+  m_LocalPosition: {x: 1.59979, y: -10.82, z: -9.666679}
   m_LocalScale: {x: 1.5, y: 1.5, z: 1.5}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -10060,7 +10067,7 @@ BoxCollider:
     serializedVersion: 2
     m_Bits: 0
   m_LayerOverridePriority: 0
-  m_IsTrigger: 0
+  m_IsTrigger: 1
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
@@ -10946,6 +10953,7 @@ GameObject:
   - component: {fileID: 1961921579}
   - component: {fileID: 1961921578}
   - component: {fileID: 1961921577}
+  - component: {fileID: 1501234046}
   m_Layer: 0
   m_Name: TutorialFuelGreen(1)
   m_TagString: Untagged
@@ -10962,7 +10970,7 @@ Transform:
   m_GameObject: {fileID: 1961921575}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 5.73, y: -10.54, z: 9.4}
+  m_LocalPosition: {x: 6.09979, y: -10.82, z: 21.03332}
   m_LocalScale: {x: 1.5, y: 1.5, z: 1.5}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -10983,7 +10991,7 @@ BoxCollider:
     serializedVersion: 2
     m_Bits: 0
   m_LayerOverridePriority: 0
-  m_IsTrigger: 0
+  m_IsTrigger: 1
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
@@ -11454,6 +11462,7 @@ GameObject:
   - component: {fileID: 1978794852}
   - component: {fileID: 1978794851}
   - component: {fileID: 1978794850}
+  - component: {fileID: 1501234041}
   m_Layer: 0
   m_Name: TutorialFuelBrown
   m_TagString: Untagged
@@ -11470,7 +11479,7 @@ Transform:
   m_GameObject: {fileID: 1978794848}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -1.69, y: -10.82, z: -9.666679}
+  m_LocalPosition: {x: -2.90021, y: -10.82, z: -9.666679}
   m_LocalScale: {x: 1.5, y: 1.5, z: 1.5}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -11491,7 +11500,7 @@ BoxCollider:
     serializedVersion: 2
     m_Bits: 0
   m_LayerOverridePriority: 0
-  m_IsTrigger: 0
+  m_IsTrigger: 1
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
@@ -11995,6 +12004,136 @@ WheelCollider:
   m_LayerOverridePriority: 0
   m_Enabled: 1
   m_ProvidesContacts: 0
+--- !u!114 &1501234021
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 684248052}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 954a9fee774a42b69d3e54a39cf8b6ea, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FuelInventory
+  carFuel: 0
+  bodyRenderer: {fileID: 615235897}
+  bodyMaterialSlot: 0
+--- !u!114 &1501234022
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 684248052}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 954773f46e8440029841500e47b9c4b2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FartBoost
+--- !u!114 &1501234023
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 539898722}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ecd8562e25ae40a7b6dfdf274a5e47f4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FuelInventoryUI
+  inventory: {fileID: 1501234021}
+--- !u!114 &1501234041
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1978794848}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 86bf5c0e1630469eb579d8ff7711551b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FuelPickup
+  type: 0
+  inventory: {fileID: 1501234021}
+  raiseLabel: 0
+--- !u!114 &1501234042
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1851686355}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 86bf5c0e1630469eb579d8ff7711551b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FuelPickup
+  type: 1
+  inventory: {fileID: 1501234021}
+  raiseLabel: 1
+--- !u!114 &1501234043
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 515857303}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 86bf5c0e1630469eb579d8ff7711551b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FuelPickup
+  type: 2
+  inventory: {fileID: 1501234021}
+  raiseLabel: 0
+--- !u!114 &1501234044
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 739663231}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 86bf5c0e1630469eb579d8ff7711551b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FuelPickup
+  type: 2
+  inventory: {fileID: 1501234021}
+  raiseLabel: 0
+--- !u!114 &1501234045
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 177349820}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 86bf5c0e1630469eb579d8ff7711551b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FuelPickup
+  type: 0
+  inventory: {fileID: 1501234021}
+  raiseLabel: 1
+--- !u!114 &1501234046
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1961921575}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 86bf5c0e1630469eb579d8ff7711551b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FuelPickup
+  type: 1
+  inventory: {fileID: 1501234021}
+  raiseLabel: 0
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
