@@ -4062,6 +4062,7 @@ GameObject:
   - component: {fileID: 684248057}
   - component: {fileID: 1501234021}
   - component: {fileID: 1501234022}
+  - component: {fileID: 1501234024}
   m_Layer: 0
   m_Name: PlayerCar
   m_TagString: Player
@@ -8979,8 +8980,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 954a9fee774a42b69d3e54a39cf8b6ea, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FuelInventory
+  carFuel: 0
   bodyRenderer: {fileID: 615235897}
   bodyMaterialSlot: 0
+  suitableColor: {r: 0.35, g: 1, b: 0.35, a: 1}
+  unsuitableColor: {r: 1, g: 0.3, b: 0.25, a: 1}
+  labelBackground: {r: 0, g: 0, b: 0, a: 0.55}
   pickupRefuel: 25
   pickupFartSeconds: 0.7
   premiumRefuel: 50
@@ -9019,9 +9024,23 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FuelInventoryUI
   inventory: {fileID: 1501234021}
-  offset: {x: 220, y: -20}
+  bottomOffset: {x: 0, y: 20}
   slotSize: 80
   messageSeconds: 1.5
+--- !u!114 &1501234024
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 684248052}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6cf12128015d224449a9613728bacb0f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ApplySelectedCar
+  dieselBody: {fileID: 2100000, guid: b026de966d9db0d429fddf26adc989ad, type: 2}
+  ethanolBody: {fileID: 2100000, guid: 670bd745810e9484182578fc2bb40eeb, type: 2}
 --- !u!1 &1501234031
 GameObject:
   m_ObjectHideFlags: 0
@@ -9072,6 +9091,10 @@ MonoBehaviour:
   laneSpacing: 4.5
   cubeSize: 1.2
   hoverHeight: 1.7
+  labelFontSize: 8
+  labelGap: 0.4
+  labelReadableDistance: 30
+  labelMaxScale: 1.4
 --- !u!1 &1558334173
 GameObject:
   m_ObjectHideFlags: 0
