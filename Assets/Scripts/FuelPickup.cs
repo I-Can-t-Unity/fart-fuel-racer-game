@@ -102,11 +102,31 @@ public class FuelPickup : MonoBehaviour
         }
     }
 
+    // False while the cube has been taken and is waiting to respawn. The AI uses this to pick a lane.
+    public bool IsAvailable => trigger != null && trigger.enabled;
+
     void OnTriggerEnter(Collider other)
     {
-        if (inventory == null || !other.transform.IsChildOf(inventory.transform))
-            return;
-        if (!inventory.TryCollect(type))
+        // Old: only the player's bag could pick up fuel.
+        // if (inventory == null || !other.transform.IsChildOf(inventory.transform))
+        //     return;
+        // if (!inventory.TryCollect(type))
+        //     return;
+
+        // The player and the AI rival share the cubes, so whoever gets there first takes it.
+        bool collected;
+        if (inventory != null && other.transform.IsChildOf(inventory.transform))
+        {
+            collected = inventory.TryCollect(type);
+        }
+        else
+        {
+            AIFuelTank rival = other.GetComponentInParent<AIFuelTank>();
+            if (rival == null)
+                return;
+            collected = rival.TryCollect(type);
+        }
+        if (!collected)
             return;
 
         SetAvailable(false);

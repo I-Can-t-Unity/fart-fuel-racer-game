@@ -31,6 +31,8 @@ public class RaceManager : MonoBehaviour
 
     float timeLeft, stalledFor;
     bool finished;
+    // Lets the AI's own fuel tank stop draining once the race is over, like the player's.
+    public bool IsFinished => finished;
     bool checkpointReached, opponentCheckpointReached;
     Vector3 previousPosition;
     CarDriver driver;

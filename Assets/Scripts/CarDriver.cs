@@ -64,8 +64,29 @@ public class CarDriver : MonoBehaviour
     public float FuelFraction { get; set; } = 1f;
     public float Throttle => throttle;
     public event Action Respawned;
+    // Set by an AI driver: the car then takes its pedals and steering from SetInput
+    // instead of the keyboard and gamepad, and hides the on-screen controls box.
+    public bool ExternalInput { get; set; }
 
     public void ConfigureWheels(Wheel[] bindings) => wheels = bindings;
+
+    // Used by an AI driver in place of the player's keys: throttle -1 to 1 (negative reverses),
+    // steering -1 (left) to 1 (right). The throttle still eases in, exactly as for the player.
+    public void SetInput(float throttleAmount, float steeringAmount, bool brake)
+    {
+        throttleInput = Mathf.Clamp(throttleAmount, -1, 1);
+        steering = Mathf.Clamp(steeringAmount, -1, 1);
+        braking = brake;
+    }
+
+    // Lets an AI driver give its car its own handling without editing the scene.
+    public void Tune(float topSpeed, float torque, float rise, float cornering)
+    {
+        topSpeedKmh = Mathf.Max(1, topSpeed);
+        motorTorque = Mathf.Max(0, torque);
+        throttleRise = Mathf.Max(0.1f, rise);
+        maxCorneringAcceleration = Mathf.Max(1, cornering);
+    }
 
     // Lets other systems on the car list their keys in the on-screen controls box.
     public void AddControlsHint(string line) => extraControls += "\n" + line;
@@ -125,6 +146,10 @@ public class CarDriver : MonoBehaviour
         //     - (keyboard.aKey.isPressed || keyboard.leftArrowKey.isPressed ? 1 : 0);
         // braking = keyboard.spaceKey.isPressed;
         // resetRequested |= keyboard.rKey.wasPressedThisFrame;
+
+        // An AI-driven car keeps whatever SetInput gave it and ignores the keys (R included).
+        if (ExternalInput)
+            return;
 
         throttleInput = 0;
         steering = 0;
@@ -252,7 +277,9 @@ public class CarDriver : MonoBehaviour
 
     private void OnGUI()
     {
-        if (!showControls)
+        // if (!showControls)
+        //     return;
+        if (!showControls || ExternalInput)
             return;
         // GUI.Box(new Rect(16, 16, 310, 76),
         //     $"{SpeedKmh:0} km/h\nWASD / Arrows: drive and steer\nSpace: brake    R: reset");

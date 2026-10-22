@@ -2280,18 +2280,31 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AICarWaypointDriver
   track: {fileID: 347017635}
   laneOffset: 1.5
-  carHeight: 0.15
-  speedKph: 55
-  cornerSpeedKph: 35
-  steeringSpeed: 180
+  speedKph: 64
+  cornerSpeedKph: 40
   lookAheadPoints: 8
+  fullSteerAtDegrees: 20
+  brakeOverKph: 6
+  overrideHandling: 1
+  topSpeedKmh: 66
+  motorTorque: 950
+  throttleRise: 5
+  maxCorneringAcceleration: 13
+  bodyRenderer: {fileID: 0}
+  bodyMaterialSlot: 0
+  paintWithFuelColour: 1
+  fuelSearchAheadPoints: 30
+  fuelMinAheadPoints: 4
+  laneChangeSpeed: 4
   minImpactKph: 5
-  slowdownPerImpactKph: 1.5
-  maxSlowdownKph: 40
-  speedRecoveryKph: 40
-  knockPerImpactKph: 0.08
-  knockDamping: 8
-  spinPerImpactKph: 1.5
+  recoverySeconds: 1.2
+  spinDamping: 5
+  slideDamping: 3
+  realignAboveDegrees: 15
+  realignDegreesPerSecond: 90
+  catchUpAcceleration: 4
+  stuckSeconds: 2.5
+  respawnHeight: 0.8
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0
