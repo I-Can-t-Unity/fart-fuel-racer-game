@@ -13,6 +13,7 @@ public class RaceManager : MonoBehaviour
     public Transform opponent;
     public TMP_Text timerText, speedText, fuelText, resultText;
     public Button restartButton;
+    public Button mainMenuButton;
 
     // On loop tracks the car starts on the finish line, so a lap only
     // counts after it has driven through a checkpoint.
@@ -66,6 +67,12 @@ public class RaceManager : MonoBehaviour
         {
             restartButton.onClick.AddListener(RestartRace);
             restartButton.gameObject.SetActive(false);
+        }
+
+        if (mainMenuButton != null)
+        {
+            mainMenuButton.onClick.AddListener(ReturnToMainMenu);
+            mainMenuButton.gameObject.SetActive(false);
         }
     }
 
@@ -174,6 +181,9 @@ public class RaceManager : MonoBehaviour
         if (restartButton != null)
             restartButton.gameObject.SetActive(true);
 
+        if (mainMenuButton != null)
+            mainMenuButton.gameObject.SetActive(true);
+
         Debug.Log(message);
         RaceEnded?.Invoke(won, message);
     }
@@ -181,5 +191,10 @@ public class RaceManager : MonoBehaviour
     public void RestartRace()
     {
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+    }
+
+    public void ReturnToMainMenu()
+    {
+        SceneManager.LoadScene("MainMenuCanvas");
     }
 }
