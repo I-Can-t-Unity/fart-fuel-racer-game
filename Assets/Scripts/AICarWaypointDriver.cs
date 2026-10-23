@@ -23,8 +23,8 @@ public class AICarWaypointDriver : MonoBehaviour
     // public float carHeight = 0.15f;
 
     [Header("AI Driving")]
-    public float speedKph = 55f;
-    public float cornerSpeedKph = 35f;
+    public float speedKph = 75f;
+    public float cornerSpeedKph = 45f;
     // Old kinematic AI: turned the car directly at this many degrees per second.
     // public float steeringSpeed = 180f;
     public int lookAheadPoints = 8;
@@ -37,13 +37,13 @@ public class AICarWaypointDriver : MonoBehaviour
     [Tooltip("Gives the rival the handling below instead of the values on its CarDriver in the scene.")]
     public bool overrideHandling = true;
     [Tooltip("The player's car does 70.")]
-    public float topSpeedKmh = 66f;
+    public float topSpeedKmh = 78f;
     [Tooltip("The player's car has 800, so the rival pulls away harder from slow corners.")]
-    public float motorTorque = 950f;
+    public float motorTorque = 1100f;
     [Tooltip("How fast the throttle rises to full, per second. The player's car has 3.")]
     public float throttleRise = 5f;
     [Tooltip("Cornering limit in metres per second squared. The player's car has 15.")]
-    public float maxCorneringAcceleration = 13f;
+    public float maxCorneringAcceleration = 15f;
 
     [Header("Looks")]
     [Tooltip("The car body. Leave empty to use the car model's main mesh.")]
