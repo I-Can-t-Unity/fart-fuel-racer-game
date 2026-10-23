@@ -45,18 +45,24 @@ public class FartBoost : MonoBehaviour
     // Farts stack, and a fart clears a choked engine (and the other way round).
     public void Fart(float seconds)
     {
+        if (driver != null && driver.IsStopped)
+            return;
         fartUntil = Mathf.Max(fartUntil, Time.time) + seconds;
         chokeUntil = 0;
     }
 
     public void Choke(float seconds)
     {
+        if (driver != null && driver.IsStopped)
+            return;
         chokeUntil = Mathf.Max(chokeUntil, Time.time) + seconds;
         fartUntil = 0;
     }
 
     void FixedUpdate()
     {
+        if (driver != null && driver.IsStopped)
+            return;
         Vector3 forward = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
         Vector3 velocity = body.linearVelocity;
 
@@ -83,7 +89,7 @@ public class FartBoost : MonoBehaviour
 
     void Update()
     {
-        if ((IsFarting || IsChoking) && Time.time >= nextPuff)
+        if ((driver == null || !driver.IsStopped) && (IsFarting || IsChoking) && Time.time >= nextPuff)
         {
             nextPuff = Time.time + (IsFarting ? .04f : .12f);
             SpawnPuff(IsFarting ? fartMaterial : chokeMaterial, IsFarting ? 1.4f : .8f);

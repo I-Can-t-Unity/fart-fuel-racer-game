@@ -81,6 +81,8 @@ public class FuelInventory : MonoBehaviour
 
     void Update()
     {
+        if (RaceManager.Instance != null && RaceManager.Instance.IsFinished)
+            return;
         bool tankEmpty = RaceManager.Instance != null && RaceManager.Instance.fuel <= 0;
         if (tankEmpty && !tankWasEmpty)
             Announced?.Invoke("OUT OF FUEL - COASTING");
@@ -111,6 +113,8 @@ public class FuelInventory : MonoBehaviour
     // Returns false when the bag is full, in which case the pickup stays on the track.
     public bool TryCollect(FuelType type)
     {
+        if (RaceManager.Instance != null && RaceManager.Instance.IsFinished)
+            return false;
         if (IsFull)
         {
             Announced?.Invoke("BAG FULL - Q TO USE");

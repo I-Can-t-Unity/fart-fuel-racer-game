@@ -170,7 +170,12 @@ public class RaceManager : MonoBehaviour
 
     void EndRace(bool won, string message)
     {
+        if (finished)
+            return;
         finished = true;
+
+        foreach (CarDriver vehicle in FindObjectsByType<CarDriver>(FindObjectsSortMode.None))
+            vehicle.StopDriving();
 
         if (resultText != null)
         {

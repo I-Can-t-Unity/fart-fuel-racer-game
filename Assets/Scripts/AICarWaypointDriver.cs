@@ -201,6 +201,8 @@ public class AICarWaypointDriver : MonoBehaviour
 
     void FixedUpdate()
     {
+        if (driver.IsStopped)
+            return;
         if (track == null || track.centerline.Count == 0)
             return;
 

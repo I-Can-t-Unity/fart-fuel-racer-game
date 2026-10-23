@@ -97,13 +97,12 @@ public class AIFuelTank : MonoBehaviour
     void Update()
     {
         bool raceOver = RaceManager.Instance != null && RaceManager.Instance.IsFinished;
-        if (!raceOver)
-        {
-            float speedKph = body != null ? body.linearVelocity.magnitude * 3.6f : 0;
-            float throttle = driver != null ? Mathf.Abs(driver.Throttle) : 0;
-            fuel = Mathf.Max(0, fuel -
-                (drainPerSecond + speedKph * drainPerSpeed + throttle * drainPerThrottle) * Time.deltaTime);
-        }
+        if (raceOver)
+            return;
+        float speedKph = body != null ? body.linearVelocity.magnitude * 3.6f : 0;
+        float throttle = driver != null ? Mathf.Abs(driver.Throttle) : 0;
+        fuel = Mathf.Max(0, fuel -
+            (drainPerSecond + speedKph * drainPerSpeed + throttle * drainPerThrottle) * Time.deltaTime);
 
         // Same as the player: an empty tank kills the engine and a low one weakens it.
         if (driver != null)
@@ -125,6 +124,8 @@ public class AIFuelTank : MonoBehaviour
     // Returns false when the bag is full, in which case the cube stays on the track.
     public bool TryCollect(FuelType type)
     {
+        if (RaceManager.Instance != null && RaceManager.Instance.IsFinished)
+            return false;
         if (IsFull)
             return false;
 
