@@ -4154,7 +4154,7 @@ MonoBehaviour:
   reverseSpeedKmh: 30
   steeringAngle: 20
   steeringResponse: 30
-  maxCorneringAcceleration: 6
+  maxCorneringAcceleration: 9
   holdTurnRadiusAboveTopSpeed: 0
   centerOfMass: {x: 0, y: 0.45, z: -0.65}
   engineOffDrag: 300

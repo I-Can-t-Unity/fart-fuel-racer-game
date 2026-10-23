@@ -24,7 +24,7 @@ public class CarDriver : MonoBehaviour
     [SerializeField, Range(0, 45)] private float steeringAngle = 28f;
     [SerializeField, Min(0)] private float steeringResponse = 90f;
     [Tooltip("Limits how sharply the car can corner at speed, in metres per second squared. Lower values give wider, steadier fast turns.")]
-    [SerializeField, Min(1)] private float maxCorneringAcceleration = 6f;
+    [SerializeField, Min(1)] private float maxCorneringAcceleration = 9f;
     [Tooltip("Above top speed (only reachable with a boost), keep the turning radius the car has at top speed by scaling cornering and tyre grip with speed.")]
     [SerializeField] private bool holdTurnRadiusAboveTopSpeed = false;
     [SerializeField] private Vector3 centerOfMass = new Vector3(0, 0.45f, -0.25f);
