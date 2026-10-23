@@ -5,10 +5,11 @@ using UnityEngine.SceneManagement;
 public class MainMenuController : MonoBehaviour
 {
     public GameObject instructionPanel;
+    public CarSelectionMenu carSelectionMenu;
 
     public void PlayGame()
     {
-        SceneManager.LoadScene("LoopRaceScene");
+        carSelectionMenu.OpenSelection();
     }
 
     public void OpenInstruction()

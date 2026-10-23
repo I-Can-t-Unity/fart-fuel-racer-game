@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class CarSelectionMenu : MonoBehaviour
 {
@@ -28,6 +29,6 @@ public class CarSelectionMenu : MonoBehaviour
 
         PlayerPrefs.SetInt("SelectedCarFuel", fuelType);
         PlayerPrefs.Save();
-        CloseSelection();
+        SceneManager.LoadScene("LoopRaceScene");
     }
 }
