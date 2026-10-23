@@ -1,8 +1,10 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 // Puts rows of fuel cubes across the loop track. Each row has one cube of every
-// fuel type in a random order, so the player has to pick a lane.
+// fuel type in a random order, so the player has to pick a lane. Behind each row
+// an invisible gate tells analytics that the player drove past it.
 public class FuelPickupSpawner : MonoBehaviour
 {
     public LoopTrackGenerator track;
@@ -11,6 +13,10 @@ public class FuelPickupSpawner : MonoBehaviour
     public int[] rowWaypoints = { 40, 85, 127, 171 };
     [Tooltip("Distance between cube centres in a row. From about 4 m the car fits between two cubes; keep it under about 5 m so the outer cubes stay on the road.")]
     public float laneSpacing = 4.5f;
+    [Tooltip("A/B test: each race picks one of these lane spacings at random, so analytics can compare pickup rates. Leave empty to always use Lane Spacing.")]
+    public float[] abTestLaneSpacings = { 3.5f, 4.5f };
+    [Tooltip("How far past each row its analytics gate sits, in metres.")]
+    public float gateOffset = 6f;
     public float cubeSize = 1.2f;
     [Tooltip("Keeps the cubes above the wheels (about 1 m) so they never touch the suspension, while still hitting the car body.")]
     public float hoverHeight = 1.7f;
@@ -23,6 +29,16 @@ public class FuelPickupSpawner : MonoBehaviour
     [Tooltip("Largest a label grows to. Above about 2.2, long names in neighbouring lanes start to overlap.")]
     public float labelMaxScale = 1.4f;
 
+    // The lane spacing this race actually uses (picked from the A/B list if there is one).
+    public float LaneSpacingUsed { get; private set; }
+
+    void Awake()
+    {
+        LaneSpacingUsed = abTestLaneSpacings != null && abTestLaneSpacings.Length > 0
+            ? abTestLaneSpacings[Random.Range(0, abTestLaneSpacings.Length)]
+            : laneSpacing;
+    }
+
     IEnumerator Start()
     {
         // The track fills in its centerline in its own Start.
@@ -31,19 +47,25 @@ public class FuelPickupSpawner : MonoBehaviour
 
         // One cube per fuel type, so a new type added to FuelType gets its own lane.
         FuelType[] types = (FuelType[])System.Enum.GetValues(typeof(FuelType));
-        foreach (int waypoint in rowWaypoints)
+        for (int row = 0; row < rowWaypoints.Length; row++)
         {
+            int waypoint = rowWaypoints[row];
             Shuffle(types);
             Vector3 center = track.GetPoint(waypoint) + Vector3.up * hoverHeight;
             Vector3 forward = track.GetForward(waypoint);
             Vector3 across = new Vector3(-forward.z, 0, forward.x);
+            var rowPickups = new List<FuelPickup>();
             for (int lane = 0; lane < types.Length; lane++)
-                Spawn(types[lane], center + across * (lane - (types.Length - 1) * .5f) * laneSpacing, forward, lane % 2 == 1);
+            {
+                Vector3 position = center + across * (lane - (types.Length - 1) * .5f) * LaneSpacingUsed;
+                rowPickups.Add(Spawn(types[lane], position, forward, row, lane));
+            }
+            SpawnGate(row, track.GetPoint(waypoint) + forward * gateOffset, forward, rowPickups);
         }
     }
 
     // Every other lane gets a raised label, so neighbouring labels never overlap.
-    void Spawn(FuelType type, Vector3 position, Vector3 forward, bool raiseLabel)
+    FuelPickup Spawn(FuelType type, Vector3 position, Vector3 forward, int row, int lane)
     {
         GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
         cube.name = "Fuel_" + type;
@@ -60,7 +82,25 @@ public class FuelPickupSpawner : MonoBehaviour
         pickup.labelGap = labelGap;
         pickup.labelReadableDistance = labelReadableDistance;
         pickup.labelMaxScale = labelMaxScale;
-        pickup.raiseLabel = raiseLabel;
+        pickup.raiseLabel = lane % 2 == 1;
+        pickup.row = row;
+        pickup.lane = lane;
+        return pickup;
+    }
+
+    // A trigger spanning the road, curbs and the gap to the walls, so the car can't miss it.
+    void SpawnGate(int row, Vector3 position, Vector3 forward, List<FuelPickup> rowPickups)
+    {
+        var gate = new GameObject("RowGate_" + row).AddComponent<FuelRowGate>();
+        gate.transform.SetParent(transform, false);
+        gate.transform.SetPositionAndRotation(position, Quaternion.LookRotation(forward));
+        var box = gate.gameObject.AddComponent<BoxCollider>();
+        box.isTrigger = true;
+        box.size = new Vector3(track.roadWidth + 2 * (track.curbWidth + track.wallGap), 4, 1);
+        box.center = new Vector3(0, 2, 0);
+        gate.row = row;
+        gate.inventory = inventory;
+        gate.pickups = rowPickups;
     }
 
     static void Shuffle(FuelType[] items)

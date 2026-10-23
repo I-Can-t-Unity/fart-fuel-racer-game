@@ -19,6 +19,11 @@ public class FuelPickup : MonoBehaviour
     public float labelMaxScale = 1.4f;
     [Tooltip("Lift this label above its neighbours' so labels in the same row never overlap.")]
     public bool raiseLabel;
+    // Which row of cubes this is in and which lane, counted from 0 (set by the spawner).
+    public int row = -1, lane = -1;
+
+    // The player's car hit this cube; true if the fuel went into the bag (for analytics).
+    public static event System.Action<FuelPickup, bool> PlayerTouched;
 
     Vector3 basePosition;
     Renderer cubeRenderer;
@@ -29,11 +34,17 @@ public class FuelPickup : MonoBehaviour
 
     static Sprite plateSprite;
 
+    // Looked up in Awake, not Start: a car can touch a cube in the same frame it is
+    // spawned, before Start has run.
+    void Awake()
+    {
+        cubeRenderer = GetComponent<Renderer>();
+        trigger = GetComponent<Collider>();
+    }
+
     void Start()
     {
         basePosition = transform.position;
-        cubeRenderer = GetComponent<Renderer>();
-        trigger = GetComponent<Collider>();
         if (inventory != null)
             label = CreateLabel();
     }
@@ -118,6 +129,7 @@ public class FuelPickup : MonoBehaviour
         if (inventory != null && other.transform.IsChildOf(inventory.transform))
         {
             collected = inventory.TryCollect(type);
+            PlayerTouched?.Invoke(this, collected);
         }
         else
         {

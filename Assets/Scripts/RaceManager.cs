@@ -33,6 +33,8 @@ public class RaceManager : MonoBehaviour
     bool finished;
     // Lets the AI's own fuel tank stop draining once the race is over, like the player's.
     public bool IsFinished => finished;
+    // Whether the player won, and the result shown on screen (for analytics).
+    public event System.Action<bool, string> RaceEnded;
     bool checkpointReached, opponentCheckpointReached;
     Vector3 previousPosition;
     CarDriver driver;
@@ -173,6 +175,7 @@ public class RaceManager : MonoBehaviour
             restartButton.gameObject.SetActive(true);
 
         Debug.Log(message);
+        RaceEnded?.Invoke(won, message);
     }
 
     public void RestartRace()

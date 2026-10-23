@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fuel Pickup Analytics</title>
+<style>
+/* Layout: one reading column; headline numbers first, then the two charts, the
+   hypothesis test and the tables behind the charts. */
+:root {
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --baseline: #c3c2b7; --border: rgba(11, 11, 11, .1); --accent: #2a78d6;
+  --fuel-green: #2f9e44; --fuel-purple: #7a4fd6; --fuel-brown: #8a5a2b;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --baseline: #383835; --border: rgba(255, 255, 255, .1); --accent: #3987e5;
+    --fuel-green: #4cbb5c; --fuel-purple: #9a7be8; --fuel-brown: #b88352;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --baseline: #383835; --border: rgba(255, 255, 255, .1); --accent: #3987e5;
+  --fuel-green: #4cbb5c; --fuel-purple: #9a7be8; --fuel-brown: #b88352;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+main { max-width: 860px; margin: 0 auto; padding-block: 32px 56px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 20px; }
+h1 { font-size: 26px; margin: 0; text-wrap: balance; }
+h2 { font-size: 17px; margin: 0 0 8px; }
+p { margin: 0; max-width: 68ch; }
+.status { color: var(--ink-2); margin-top: 4px; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+.controls label { display: inline-flex; gap: 8px; align-items: center; color: var(--ink-2); }
+button, .file { font: inherit; font-size: 13px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--ink); cursor: pointer; }
+button:focus-visible, .file:focus-within, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.file input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.tile { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.tile .label { color: var(--ink-2); font-size: 13px; }
+.tile .value { font-size: 28px; font-weight: 600; line-height: 1.2; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; min-width: 0; }
+.chart svg { width: 100%; height: auto; display: block; }
+.chart button { margin-top: 10px; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--ink-2); font-weight: 600; font-size: 13px; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 8px; vertical-align: 0; }
+.result { font-weight: 600; margin-top: 8px; }
+.note { color: var(--ink-2); margin-top: 6px; }
+ul { margin: 0; padding-left: 20px; display: grid; gap: 4px; max-width: 70ch; }
+footer { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Fuel Pickup Analytics</h1>
+    <p class="status" id="status">Loading…</p>
+  </header>
+
+  <div class="controls">
+    <label><input type="checkbox" id="include-editor"> Include editor test sessions</label>
+    <button type="button" id="refresh">Refresh live data</button>
+    <label class="file">Load a CSV file<input type="file" id="csv-file" accept=".csv,text/csv"></label>
+  </div>
+
+  <section class="tiles" aria-label="Headline numbers">
+    <div class="tile"><div class="label">Races</div><div class="value" id="tile-races">–</div></div>
+    <div class="tile"><div class="label">Pickup opportunities</div><div class="value" id="tile-opportunities">–</div></div>
+    <div class="tile"><div class="label">Pickups collected</div><div class="value" id="tile-collected">–</div></div>
+    <div class="tile"><div class="label">Collection rate</div><div class="value" id="tile-rate">–</div></div>
+  </section>
+
+  <section class="card chart">
+    <div id="chart-colors"></div>
+    <button type="button" data-png="chart-colors" data-name="fuel_pickups_by_color.png">Download PNG</button>
+  </section>
+
+  <section class="card chart">
+    <div id="chart-spacing"></div>
+    <button type="button" data-png="chart-spacing" data-name="collection_rate_by_spacing.png">Download PNG</button>
+  </section>
+
+  <section class="card" id="hypothesis"></section>
+
+  <section class="card">
+    <h2>Pickups by colour</h2>
+    <div class="table-wrap"><table id="table-colors"></table></div>
+  </section>
+
+  <section class="card">
+    <h2>Collection rate by lane spacing</h2>
+    <div class="table-wrap"><table id="table-spacing"></table></div>
+  </section>
+
+  <section class="card">
+    <h2>How the numbers are defined</h2>
+    <ul>
+      <li>Each row of cubes on the track holds one green (Diesel), one purple (Ethanol) and one brown (Gasoline, the car's own fuel) cube. The player can take at most one per row.</li>
+      <li>A <strong>pickup opportunity</strong> is a row the player drives past while the bag has room and at least one cube is still there (the AI rival also takes cubes).</li>
+      <li><strong>Collection rate</strong> = rows where the player picked up a cube ÷ pickup opportunities. A colour's rate counts only pickups of that colour, so the three add up to the total.</li>
+      <li>For the A/B test each race uses a lane spacing (the gap between cube centres) picked at random, so rates can be compared across spacings.</li>
+      <li>Races played in the Unity editor are hidden unless "Include editor test sessions" is ticked.</li>
+    </ul>
+  </section>
+
+  <footer>Data is collected by FuelPickupAnalytics.cs in the game and stored in Google Sheets through Analytics/google-apps-script/Code.gs. This page recomputes everything each time it loads.</footer>
+</main>
+
+<script>
+// Paste the Google Apps Script web app URL here (see Analytics/README.md).
+const ENDPOINT = "https://script.google.com/macros/s/AKfycbwX0ofSvhpkOaYmR1kqW71L0SZAoMqasyj_bD5aVa2FxneYdROPrjuL104ex8xmuswp/exec";
+
+const COLORS = [
+  { color: "green", fuel: "Diesel", token: "--fuel-green" },
+  { color: "purple", fuel: "Ethanol", token: "--fuel-purple" },
+  { color: "brown", fuel: "Gasoline", token: "--fuel-brown" },
+];
+
+let allEvents = [];
+let source = "";
+let problem = "";
+
+const $ = id => document.getElementById(id);
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const pct = (part, whole) => whole > 0 ? Math.round(part / whole * 100) + "%" : "–";
+const cap = text => text.charAt(0).toUpperCase() + text.slice(1);
+const esc = text => String(text).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// ---------- Loading ----------
+
+async function loadLive() {
+  if (!ENDPOINT) {
+    problem = "Live data isn't connected yet: set ENDPOINT at the bottom of this page (see Analytics/README.md), or load a CSV file.";
+    render();
+    return;
+  }
+  $("status").textContent = "Loading live data…";
+  try {
+    const response = await fetch(ENDPOINT, { cache: "no-store" });
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    allEvents = (await response.json()).map(event =>
+      Object.fromEntries(Object.entries(event).map(([key, value]) => [key, value == null ? "" : String(value)])));
+    source = "Live data, loaded " + new Date().toLocaleTimeString();
+    problem = "";
+  } catch (error) {
+    problem = "Couldn't load live data (" + error.message + "). Check ENDPOINT and that the web app is deployed with access for anyone.";
+  }
+  render();
+}
+
+function loadCsv(file) {
+  file.text().then(text => {
+    const lines = text.trim().split(/\r?\n/);
+    const header = lines.shift().split(",");
+    allEvents = lines.filter(Boolean).map(line => {
+      const cells = line.split(",");
+      return Object.fromEntries(header.map((column, i) => [column, cells[i] ?? ""]));
+    });
+    source = "Loaded from " + file.name;
+    problem = "";
+    render();
+  });
+}
+
+// ---------- Numbers ----------
+
+function summarise(events) {
+  const starts = events.filter(e => e.event === "race_start");
+  const rows = events.filter(e => e.event === "row_passed");
+  const opportunities = rows.filter(e => e.bag_full === "0" && Number(e.cubes_available) > 0);
+  const pickups = events.filter(e => e.event === "pickup_collected");
+  const blocked = events.filter(e => e.event === "pickup_blocked");
+  const spacings = [...new Set(starts.map(e => e.lane_spacing).filter(s => Number(s) > 0))]
+    .sort((a, b) => Number(a) - Number(b));
+  return {
+    races: new Set(starts.map(e => e.session_id)).size,
+    opportunities: opportunities.length,
+    collectedRows: opportunities.filter(e => e.collected_in_row === "1").length,
+    pickups: pickups.length,
+    byColor: COLORS.map(c => ({
+      ...c,
+      collected: pickups.filter(p => p.color === c.color).length,
+      blocked: blocked.filter(p => p.color === c.color).length,
+    })),
+    bySpacing: spacings.map(spacing => {
+      const inGroup = opportunities.filter(e => e.lane_spacing === spacing);
+      return {
+        spacing,
+        races: new Set(starts.filter(e => e.lane_spacing === spacing).map(e => e.session_id)).size,
+        opportunities: inGroup.length,
+        collected: inGroup.filter(e => e.collected_in_row === "1").length,
+      };
+    }),
+  };
+}
+
+// One-sided two-proportion z-test: is the wider spacing's collection rate higher?
+function zTest(narrow, wide) {
+  const p1 = narrow.collected / narrow.opportunities;
+  const p2 = wide.collected / wide.opportunities;
+  const pooled = (narrow.collected + wide.collected) / (narrow.opportunities + wide.opportunities);
+  const se = Math.sqrt(pooled * (1 - pooled) * (1 / narrow.opportunities + 1 / wide.opportunities));
+  if (se === 0) return null;
+  const z = (p2 - p1) / se;
+  return { p1, p2, z, p: 1 - normalCdf(z) };
+}
+
+function normalCdf(z) {
+  // Abramowitz and Stegun 7.1.26 approximation of erf, accurate to about 1e-7.
+  const x = Math.abs(z) / Math.SQRT2;
+  const t = 1 / (1 + 0.3275911 * x);
+  const erf = 1 - ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+  return 0.5 * (1 + Math.sign(z) * erf);
+}
+
+// ---------- Charts ----------
+
+function niceMax(value, ticks) {
+  const raw = Math.max(value, 1) / ticks;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 5, 10].map(m => m * magnitude).find(v => v >= raw);
+  return { step: Math.max(1, step), max: Math.max(1, step) * ticks };
+}
+
+function svgStart(width, height, title, subtitle) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(title)}" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">` +
+    `<rect width="${width}" height="${height}" fill="${css("--surface")}"/>` +
+    `<text x="20" y="36" font-size="20" font-weight="600" fill="${css("--ink")}">${esc(title)}</text>` +
+    `<text x="20" y="62" font-size="14" fill="${css("--ink-2")}">${esc(subtitle)}</text>`;
+}
+
+// Horizontal bars with a 4px rounded data end and a square base.
+function hBar(x, y, w, h, fill) {
+  if (w <= 0) return "";
+  const r = Math.min(4, w);
+  return `<path d="M${x} ${y} H${x + w - r} Q${x + w} ${y} ${x + w} ${y + r} V${y + h - r} Q${x + w} ${y + h} ${x + w - r} ${y + h} H${x} Z" fill="${fill}"/>`;
+}
+
+function colorChart(s) {
+  const W = 760, H = 300, left = 160, right = 700, top = 96, band = 52, barH = 22;
+  const { step, max } = niceMax(Math.max(...s.byColor.map(c => c.collected)) * 1.1, 5);
+  const X = v => left + v / max * (right - left);
+  const bottom = top + band * s.byColor.length;
+  let svg = svgStart(W, H, "Fuel pickups collected by colour", `${s.pickups} pickups across ${s.races} races`);
+  for (let v = 0; v <= max; v += step) {
+    svg += `<line x1="${X(v)}" x2="${X(v)}" y1="${top - 8}" y2="${bottom}" stroke="${css("--grid")}" stroke-width="1"/>`;
+    svg += `<text x="${X(v)}" y="${bottom + 20}" text-anchor="middle" font-size="12" fill="${css("--muted")}">${v}</text>`;
+  }
+  s.byColor.forEach((c, i) => {
+    const y = top + band * i + (band - barH) / 2;
+    svg += `<text x="${left - 14}" y="${y + barH / 2 + 5}" text-anchor="end" font-size="14" fill="${css("--ink-2")}">${cap(c.color)} · ${c.fuel}</text>`;
+    svg += `<g><title>${cap(c.color)} (${c.fuel}): ${c.collected} collected, ${pct(c.collected, s.opportunities)} of opportunities</title>` +
+      hBar(left, y, X(c.collected) - left, barH, css(c.token)) + `</g>`;
+    svg += `<text x="${X(c.collected) + 8}" y="${y + barH / 2 + 5}" font-size="13" fill="${css("--ink-2")}">${c.collected}</text>`;
+  });
+  svg += `<line x1="${left}" x2="${left}" y1="${top - 8}" y2="${bottom}" stroke="${css("--baseline")}" stroke-width="1"/>`;
+  svg += `<text x="${(left + right) / 2}" y="${bottom + 44}" text-anchor="middle" font-size="13" fill="${css("--ink-2")}">Pickups collected</text>`;
+  return svg + "</svg>";
+}
+
+function spacingChart(s) {
+  const W = 760, H = 380, left = 70, right = 730, top = 100, bottom = 300, barW = 24;
+  const Y = v => bottom - v * (bottom - top);
+  let svg = svgStart(W, H, "Collection rate by lane spacing",
+    "Hypothesis: wider spacing between cubes raises the share of opportunities collected.");
+  for (let v = 0; v <= 1.0001; v += 0.25) {
+    svg += `<line x1="${left}" x2="${right}" y1="${Y(v)}" y2="${Y(v)}" stroke="${css("--grid")}" stroke-width="1"/>`;
+    svg += `<text x="${left - 10}" y="${Y(v) + 4}" text-anchor="end" font-size="12" fill="${css("--muted")}">${Math.round(v * 100)}%</text>`;
+  }
+  const groups = s.bySpacing.filter(g => g.opportunities > 0);
+  if (groups.length === 0) {
+    svg += `<text x="${(left + right) / 2}" y="${(top + bottom) / 2}" text-anchor="middle" font-size="14" fill="${css("--muted")}">No pickup opportunities recorded yet</text>`;
+  }
+  const slot = (right - left) / Math.max(groups.length, 1);
+  groups.forEach((g, i) => {
+    const rate = g.collected / g.opportunities;
+    const cx = left + slot * (i + 0.5), x = cx - barW / 2, h = Y(0) - Y(rate);
+    const r = Math.min(4, h);
+    if (h > 0) {
+      svg += `<g><title>${g.spacing} m lanes: ${g.collected} of ${g.opportunities} opportunities collected</title>` +
+        `<path d="M${x} ${Y(0)} V${Y(rate) + r} Q${x} ${Y(rate)} ${x + r} ${Y(rate)} H${x + barW - r} Q${x + barW} ${Y(rate)} ${x + barW} ${Y(rate) + r} V${Y(0)} Z" fill="${css("--accent")}"/></g>`;
+    }
+    svg += `<text x="${cx}" y="${Y(rate) - 8}" text-anchor="middle" font-size="13" fill="${css("--ink-2")}">${pct(g.collected, g.opportunities)}</text>`;
+    svg += `<text x="${cx}" y="${bottom + 24}" text-anchor="middle" font-size="14" fill="${css("--ink-2")}">${g.spacing} m between cubes</text>`;
+    svg += `<text x="${cx}" y="${bottom + 44}" text-anchor="middle" font-size="12" fill="${css("--muted")}">${g.opportunities} opportunities, ${g.races} races</text>`;
+  });
+  svg += `<line x1="${left}" x2="${right}" y1="${bottom}" y2="${bottom}" stroke="${css("--baseline")}" stroke-width="1"/>`;
+  return svg + "</svg>";
+}
+
+// ---------- Page ----------
+
+function render() {
+  const includeEditor = $("include-editor").checked;
+  const events = allEvents.filter(e => includeEditor || !String(e.platform).includes("Editor"));
+  const s = summarise(events);
+
+  $("status").textContent = problem ||
+    `${source}. ${s.races} races${includeEditor ? "" : " (editor test sessions hidden)"}.`;
+  $("tile-races").textContent = s.races;
+  $("tile-opportunities").textContent = s.opportunities;
+  $("tile-collected").textContent = s.pickups;
+  $("tile-rate").textContent = pct(s.collectedRows, s.opportunities);
+
+  $("chart-colors").innerHTML = colorChart(s);
+  $("chart-spacing").innerHTML = spacingChart(s);
+
+  $("table-colors").innerHTML =
+    "<tr><th>Colour</th><th>Fuel</th><th>Collected</th><th>Share of opportunities</th><th>Hit with a full bag</th></tr>" +
+    s.byColor.map(c => `<tr><td><span class="swatch" style="background:var(${c.token})"></span>${cap(c.color)}</td><td>${c.fuel}</td>` +
+      `<td>${c.collected}</td><td>${pct(c.collected, s.opportunities)}</td><td>${c.blocked}</td></tr>`).join("");
+  $("table-spacing").innerHTML =
+    "<tr><th>Lane spacing</th><th>Races</th><th>Opportunities</th><th>Rows collected</th><th>Collection rate</th></tr>" +
+    s.bySpacing.map(g => `<tr><td>${g.spacing} m</td><td>${g.races}</td><td>${g.opportunities}</td><td>${g.collected}</td>` +
+      `<td>${pct(g.collected, g.opportunities)}</td></tr>`).join("");
+
+  let h = "<h2>Hypothesis</h2><p>Increasing the spacing between fuel pickups increases the proportion of available pickups players collect.</p>";
+  const tested = s.bySpacing.filter(g => g.opportunities > 0);
+  if (tested.length < 2) {
+    h += `<p class="result">Not testable yet: data from at least two lane spacings is needed.</p>`;
+  } else {
+    const narrow = tested[0], wide = tested[tested.length - 1];
+    const test = narrow.opportunities >= 10 && wide.opportunities >= 10 ? zTest(narrow, wide) : null;
+    if (!test) {
+      h += `<p class="result">Not enough data yet: at least 10 opportunities at both ${narrow.spacing} m and ${wide.spacing} m are needed (now ${narrow.opportunities} and ${wide.opportunities}).</p>`;
+    } else {
+      h += `<p class="note">${narrow.spacing} m: ${pct(narrow.collected, narrow.opportunities)} of ${narrow.opportunities} opportunities. ` +
+        `${wide.spacing} m: ${pct(wide.collected, wide.opportunities)} of ${wide.opportunities}. ` +
+        `One-sided two-proportion z-test: z = ${test.z.toFixed(2)}, p = ${test.p.toFixed(3)}.</p>`;
+      h += `<p class="result">${test.p < 0.05 ? "Supported" : "Not supported"} at the 0.05 level.</p>`;
+    }
+  }
+  $("hypothesis").innerHTML = h;
+}
+
+// Draws a chart's SVG onto a canvas at twice its size and saves it as a PNG.
+function savePng(containerId, fileName) {
+  const svg = $(containerId).querySelector("svg");
+  const box = svg.viewBox.baseVal;
+  const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: "image/svg+xml" }));
+  const image = new Image();
+  image.onload = () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = box.width * 2;
+    canvas.height = box.height * 2;
+    const context = canvas.getContext("2d");
+    context.scale(2, 2);
+    context.drawImage(image, 0, 0, box.width, box.height);
+    URL.revokeObjectURL(url);
+    canvas.toBlob(blob => {
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = fileName;
+      link.click();
+    });
+  };
+  image.src = url;
+}
+
+$("include-editor").addEventListener("change", render);
+$("refresh").addEventListener("click", loadLive);
+$("csv-file").addEventListener("change", e => { if (e.target.files[0]) loadCsv(e.target.files[0]); });
+document.querySelectorAll("[data-png]").forEach(button =>
+  button.addEventListener("click", () => savePng(button.dataset.png, button.dataset.name)));
+// Chart colours are written into the SVG, so redraw when the system theme changes.
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
+loadLive();
+</script>
+</body>
+</html>

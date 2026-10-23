@@ -2293,6 +2293,9 @@ MonoBehaviour:
   bodyRenderer: {fileID: 0}
   bodyMaterialSlot: 0
   paintWithFuelColour: 1
+  pickCarFromMenu: 1
+  sameCarAsPlayer: 0
+  alwaysNextCar: 0
   fuelSearchAheadPoints: 30
   fuelMinAheadPoints: 4
   laneChangeSpeed: 4
@@ -4076,6 +4079,7 @@ GameObject:
   - component: {fileID: 1501234021}
   - component: {fileID: 1501234022}
   - component: {fileID: 1501234024}
+  - component: {fileID: 1876500051}
   m_Layer: 0
   m_Name: PlayerCar
   m_TagString: Player
@@ -9102,6 +9106,10 @@ MonoBehaviour:
   inventory: {fileID: 1501234021}
   rowWaypoints: 28000000550000007f000000ab000000
   laneSpacing: 4.5
+  abTestLaneSpacings:
+  - 3.5
+  - 4.5
+  gateOffset: 6
   cubeSize: 1.2
   hoverHeight: 1.7
   labelFontSize: 8
@@ -10186,6 +10194,19 @@ Transform:
   - {fileID: 2072052777}
   m_Father: {fileID: 952032947}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1876500051
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 684248052}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e9f849125e574bea84b3e8410099a63f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FuelPickupAnalytics
+  endpointUrl: https://script.google.com/macros/s/AKfycbwX0ofSvhpkOaYmR1kqW71L0SZAoMqasyj_bD5aVa2FxneYdROPrjuL104ex8xmuswp/exec
 --- !u!1 &1890349192
 GameObject:
   m_ObjectHideFlags: 0
