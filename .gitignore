@@ -11,3 +11,5 @@
 *.sln
 *.slnx
 *.blend[0-9]*
+# Local analytics playtest output
+/Analytics/fuel_pickup_events.csv

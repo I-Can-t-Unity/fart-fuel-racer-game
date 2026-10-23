@@ -7,10 +7,13 @@ using UnityEngine;
 public class FuelRowGate : MonoBehaviour
 {
     public int row;
+    public bool capturesApproach;
+    bool passed;
     public FuelInventory inventory;
     public List<FuelPickup> pickups = new List<FuelPickup>();
 
     public static event Action<FuelRowGate> PlayerPassed;
+    public static event Action<FuelRowGate> PlayerApproached;
 
     // Cubes in this row that can still be picked up (the AI may have taken some).
     public int AvailableCount
@@ -27,7 +30,12 @@ public class FuelRowGate : MonoBehaviour
 
     void OnTriggerEnter(Collider other)
     {
-        if (inventory != null && other.transform.IsChildOf(inventory.transform))
-            PlayerPassed?.Invoke(this);
+        if (passed || inventory == null || !other.transform.IsChildOf(inventory.transform)) return;
+        if (RaceManager.Instance != null && !RaceManager.Instance.IsRacing) return;
+        Rigidbody body = other.attachedRigidbody;
+        if (body != null && Vector3.Dot(body.linearVelocity, transform.forward) <= 0) return;
+        passed = true; // One forward encounter per row per race, even with several car colliders.
+        if (capturesApproach) PlayerApproached?.Invoke(this);
+        else PlayerPassed?.Invoke(this);
     }
 }

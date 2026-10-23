@@ -60,6 +60,8 @@ public class FuelInventory : MonoBehaviour
     public float dumpFullTankSeconds = 3f;
 
     public event Action Changed;
+    public event Action<FuelMix> MixCreated, MixUsed;
+    public event Action<float> FuelDumped;
     // Short messages for the HUD, such as "+25 FUEL" or "BAG FULL".
     public event Action<string> Announced;
 
@@ -117,6 +119,7 @@ public class FuelInventory : MonoBehaviour
             return;
 
         fart.Fart(Mathf.Lerp(dumpMinSeconds, dumpFullTankSeconds, dumped / 100f));
+        FuelDumped?.Invoke(dumped);
         tankWasEmpty = true;
         Announced?.Invoke($"DUMPED {dumped:0} FUEL!");
     }
@@ -163,6 +166,7 @@ public class FuelInventory : MonoBehaviour
         else HeldMix = FuelMix.ToxicSludge;
 
         slots.Clear();
+        MixCreated?.Invoke(HeldMix);
     }
 
     void UseMix()
@@ -185,6 +189,7 @@ public class FuelInventory : MonoBehaviour
                 Announced?.Invoke("ENGINE CHOKED!");
                 break;
         }
+        MixUsed?.Invoke(HeldMix);
         HeldMix = FuelMix.None;
         Changed?.Invoke();
     }
