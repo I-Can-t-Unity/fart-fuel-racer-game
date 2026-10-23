@@ -96,8 +96,8 @@ public class AIFuelTank : MonoBehaviour
 
     void Update()
     {
-        bool raceOver = RaceManager.Instance != null && RaceManager.Instance.IsFinished;
-        if (raceOver)
+        bool raceInactive = RaceManager.Instance != null && !RaceManager.Instance.IsRacing;
+        if (raceInactive)
             return;
         float speedKph = body != null ? body.linearVelocity.magnitude * 3.6f : 0;
         float throttle = driver != null ? Mathf.Abs(driver.Throttle) : 0;
@@ -124,7 +124,7 @@ public class AIFuelTank : MonoBehaviour
     // Returns false when the bag is full, in which case the cube stays on the track.
     public bool TryCollect(FuelType type)
     {
-        if (RaceManager.Instance != null && RaceManager.Instance.IsFinished)
+        if (RaceManager.Instance != null && !RaceManager.Instance.IsRacing)
             return false;
         if (IsFull)
             return false;
@@ -209,7 +209,7 @@ public class AIFuelTank : MonoBehaviour
 
     void AddFuel(float amount)
     {
-        if (RaceManager.Instance != null && RaceManager.Instance.IsFinished)
+        if (RaceManager.Instance != null && !RaceManager.Instance.IsRacing)
             return;
         fuel = Mathf.Min(100f, fuel + amount);
     }

@@ -61,6 +61,10 @@ public class CarDriver : MonoBehaviour
     public float SpeedKmh => body == null ? 0 : body.linearVelocity.magnitude * 3.6f;
     public bool IsBraking { get; private set; }
     public bool IsStopped { get; private set; }
+    public bool IsCountdownHeld { get; private set; }
+    public bool CanDrive => !IsStopped && !IsCountdownHeld
+        && (RaceManager.Instance == null || RaceManager.Instance.IsRacing);
+    private RigidbodyConstraints constraintsBeforeCountdown;
     // Turned off when the tank is empty: throttle does nothing, but steering and brakes still work.
     public bool EngineRunning { get; set; } = true;
     // Set by RaceManager every frame: 0 is an empty tank, 1 a full one.
@@ -77,11 +81,45 @@ public class CarDriver : MonoBehaviour
     // steering -1 (left) to 1 (right). The throttle still eases in, exactly as for the player.
     public void SetInput(float throttleAmount, float steeringAmount, bool brake)
     {
-        if (IsStopped)
+        if (!CanDrive)
             return;
         throttleInput = Mathf.Clamp(throttleAmount, -1, 1);
         steering = Mathf.Clamp(steeringAmount, -1, 1);
         braking = brake;
+    }
+
+    public void SetCountdownHold(bool hold)
+    {
+        if (IsCountdownHeld == hold)
+            return;
+        if (body == null)
+            body = GetComponent<Rigidbody>();
+
+        throttleInput = throttle = steering = currentSteering = 0;
+        braking = resetRequested = false;
+        IsBraking = hold;
+        if (hold)
+        {
+            constraintsBeforeCountdown = body.constraints;
+            if (!body.isKinematic)
+            {
+                body.linearVelocity = Vector3.zero;
+                body.angularVelocity = Vector3.zero;
+            }
+            body.constraints = RigidbodyConstraints.FreezeAll;
+        }
+        else
+            body.constraints = constraintsBeforeCountdown;
+
+        IsCountdownHeld = hold;
+        foreach (Wheel wheel in wheels)
+        {
+            if (wheel?.collider == null)
+                continue;
+            wheel.collider.motorTorque = 0;
+            wheel.collider.brakeTorque = hold ? brakeTorque : 0;
+            wheel.collider.steerAngle = 0;
+        }
     }
 
     // Disable driving immediately, then slow down before holding the car in place.
@@ -184,7 +222,7 @@ public class CarDriver : MonoBehaviour
 
     private void Update()
     {
-        if (IsStopped)
+        if (!CanDrive)
             return;
         // Old fuel/speed system: instant, keyboard-only throttle.
         // Keyboard keyboard = Keyboard.current;
@@ -239,6 +277,8 @@ public class CarDriver : MonoBehaviour
             SlowToStop();
             return;
         }
+        if (!CanDrive)
+            return;
         if (resetRequested)
         {
             IsBraking = false;
@@ -313,7 +353,7 @@ public class CarDriver : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (IsStopped && body.isKinematic)
+        if (IsCountdownHeld || (IsStopped && body.isKinematic))
             return;
         foreach (Wheel wheel in wheels)
         {

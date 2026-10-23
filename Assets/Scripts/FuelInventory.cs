@@ -81,7 +81,7 @@ public class FuelInventory : MonoBehaviour
 
     void Update()
     {
-        if (RaceManager.Instance != null && RaceManager.Instance.IsFinished)
+        if (RaceManager.Instance != null && !RaceManager.Instance.IsRacing)
             return;
         bool tankEmpty = RaceManager.Instance != null && RaceManager.Instance.fuel <= 0;
         if (tankEmpty && !tankWasEmpty)
@@ -113,7 +113,7 @@ public class FuelInventory : MonoBehaviour
     // Returns false when the bag is full, in which case the pickup stays on the track.
     public bool TryCollect(FuelType type)
     {
-        if (RaceManager.Instance != null && RaceManager.Instance.IsFinished)
+        if (RaceManager.Instance != null && !RaceManager.Instance.IsRacing)
             return false;
         if (IsFull)
         {

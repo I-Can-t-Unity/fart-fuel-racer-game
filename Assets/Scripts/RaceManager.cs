@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -34,6 +35,8 @@ public class RaceManager : MonoBehaviour
     bool finished;
     // Lets the AI's own fuel tank stop draining once the race is over, like the player's.
     public bool IsFinished => finished;
+    public bool IsCountingDown { get; private set; } = true;
+    public bool IsRacing => !IsCountingDown && !finished;
     // Whether the player won, and the result shown on screen (for analytics).
     public event System.Action<bool, string> RaceEnded;
     bool checkpointReached, opponentCheckpointReached;
@@ -74,6 +77,46 @@ public class RaceManager : MonoBehaviour
             mainMenuButton.onClick.AddListener(ReturnToMainMenu);
             mainMenuButton.gameObject.SetActive(false);
         }
+
+        StartCoroutine(StartCountdown());
+    }
+
+    IEnumerator StartCountdown()
+    {
+        CarDriver[] vehicles = FindObjectsByType<CarDriver>(FindObjectsSortMode.None);
+        foreach (CarDriver vehicle in vehicles)
+            vehicle.SetCountdownHold(true);
+
+        TMP_Text countdownText = null;
+        if (resultText != null)
+        {
+            countdownText = Instantiate(resultText, resultText.transform.parent);
+            countdownText.name = "CountdownText";
+            countdownText.fontSize = 96;
+            countdownText.raycastTarget = false;
+            countdownText.transform.SetAsLastSibling();
+            countdownText.gameObject.SetActive(true);
+        }
+
+        for (int count = 3; count > 0; count--)
+        {
+            if (countdownText != null)
+                countdownText.text = count.ToString();
+            yield return new WaitForSeconds(1f);
+        }
+
+        IsCountingDown = false;
+        foreach (CarDriver vehicle in vehicles)
+        {
+            if (vehicle != null)
+                vehicle.SetCountdownHold(false);
+        }
+
+        if (countdownText != null)
+            countdownText.text = "GO!";
+        yield return new WaitForSeconds(1f);
+        if (countdownText != null)
+            Destroy(countdownText.gameObject);
     }
 
     void Update()
@@ -90,7 +133,7 @@ public class RaceManager : MonoBehaviour
 
         previousPosition = car.position;
 
-        if (!finished)
+        if (IsRacing)
         {
             timeLeft = Mathf.Max(0, timeLeft - Time.deltaTime);
             // Old fuel/speed system: drain from time and speed only.
@@ -137,14 +180,14 @@ public class RaceManager : MonoBehaviour
 
     public void AddFuel(float amount)
     {
-        if (!finished)
+        if (IsRacing)
             fuel = Mathf.Min(100f, fuel + amount);
     }
 
     // Empties the tank and returns how much fuel was in it.
     public float DumpFuel()
     {
-        if (finished) return 0;
+        if (!IsRacing) return 0;
         float dumped = fuel;
         fuel = 0;
         return dumped;
@@ -152,12 +195,14 @@ public class RaceManager : MonoBehaviour
 
     public void ReachCheckpoint(bool byOpponent)
     {
+        if (!IsRacing) return;
         if (byOpponent) opponentCheckpointReached = true;
         else checkpointReached = true;
     }
 
     public void CrossFinish(bool byOpponent)
     {
+        if (!IsRacing) return;
         bool reached = byOpponent ? opponentCheckpointReached : checkpointReached;
         if (requireCheckpoint && !reached) return;
 
