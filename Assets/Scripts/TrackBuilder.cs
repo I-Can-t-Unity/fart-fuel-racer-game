@@ -32,14 +32,10 @@ public class TrackBuilder : MonoBehaviour
 
     void Start()
     {
-        var random = new System.Random(seed);
         var asphalt = MakeMaterial(new Color(.18f,.20f,.24f));
         var stripe = MakeMaterial(Color.white);
-        var grass = MakeMaterial(new Color(.22f,.48f,.24f));
-        var trunk = MakeMaterial(new Color(.38f,.23f,.13f));
-        var leaves = MakeMaterial(new Color(.10f,.34f,.16f));
-        var red = MakeMaterial(new Color(.85f,.15f,.12f));
-        Cube("Grass terrain", new Vector3(0,-.6f,segmentCount*segmentLength/2f), new Vector3(150,1,segmentCount*segmentLength+100), grass,transform);
+        var ground = MakeMaterial(new Color(.5f,.5f,.5f));
+        Cube("Ground terrain", new Vector3(0,-.6f,segmentCount*segmentLength/2f), new Vector3(150,1,segmentCount*segmentLength+100), ground,transform);
         for (int i=0;i<segmentCount;i++)
         {
             float z = i*segmentLength+segmentLength/2f;
@@ -49,21 +45,6 @@ public class TrackBuilder : MonoBehaviour
             foreach (int side in new int[]{-1,1})
             {
                 Cube("Edge line",new Vector3(x+side*(roadWidth/2-.35f),.15f,z),new Vector3(.16f,.03f,segmentLength),stripe,transform);
-                if(i%2==0)
-                {
-                    float tx=x+side*(roadWidth/2+6+(float)random.NextDouble()*10);
-                    var tree= new GameObject("Tree");
-                    tree.transform.SetParent(transform);
-                    tree.transform.position=new Vector3(tx,0,z);
-                    Cube("Trunk",tree.transform.position+Vector3.up*1.5f,new Vector3(.7f,3,.7f),trunk,tree.transform);
-                    var crown=GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                    crown.name="Crown";
-                    crown.transform.SetParent(tree.transform);
-                    crown.transform.position=tree.transform.position+Vector3.up*3.6f;
-                    crown.transform.localScale=new Vector3(3.5f,4,3.5f);
-                    crown.GetComponent<Renderer>().sharedMaterial=leaves;
-                    Destroy(crown.GetComponent<Collider>());
-                }
             }
         }
         float finishZ=segmentCount*segmentLength-6;

@@ -425,7 +425,7 @@ public class AICarWaypointDriver : MonoBehaviour
         }
     }
 
-    // Uses the exact material of the AI's fuel cubes, the same way the player's red cubes
+    // Uses the exact material of the AI's fuel cubes, the same way the player's fuel cubes
     // use the player's body material, so the colours always match.
     void PaintBody()
     {

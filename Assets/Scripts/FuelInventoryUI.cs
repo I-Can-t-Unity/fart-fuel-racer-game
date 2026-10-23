@@ -54,7 +54,7 @@ public class FuelInventoryUI : MonoBehaviour
         mixEffect = NewText("MixEffect", mixGroup.transform, new Vector2(50, 0), new Vector2(340, 34), 22, TextAlignmentOptions.Left);
 
         hint = NewText("Hint", bag, new Vector2(0, -62), new Vector2(500, 32), 26, TextAlignmentOptions.Center);
-        hint.color = new Color(1f, .85f, .2f);
+        hint.color = Color.white;
         message = NewText("Message", bag, new Vector2(0, -95), new Vector2(500, 32), 26, TextAlignmentOptions.Center);
         message.fontStyle = FontStyles.Bold;
 

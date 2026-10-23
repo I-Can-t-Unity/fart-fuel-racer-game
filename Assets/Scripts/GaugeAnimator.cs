@@ -12,6 +12,17 @@ public class GaugeAnimator : MonoBehaviour
 
     public float maxSpeedKph = 120f;
 
+    void Start()
+    {
+        FuelInventory inventory = FindFirstObjectByType<FuelInventory>();
+        if (inventory == null) return;
+
+        Color fuelColor = FuelPalette.ColorOf(inventory.carFuel);
+        if (fuelRing != null) fuelRing.color = fuelColor;
+        if (raceManager != null && raceManager.fuelText != null)
+            raceManager.fuelText.color = fuelColor;
+    }
+
     void Update()
     {
         if (carBody != null && speedRing != null)

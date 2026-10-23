@@ -5,6 +5,21 @@ using UnityEngine.InputSystem;
 
 public enum FuelType { Gasoline, Diesel, Ethanol }
 
+// Shared fuel identity colors for vehicles, pickups and UI.
+public static class FuelPalette
+{
+    public static Color ColorOf(FuelType type)
+    {
+        switch (type)
+        {
+            case FuelType.Gasoline: return new Color32(232, 214, 106, 255); // #E8D66A
+            case FuelType.Diesel: return new Color32(197, 138, 50, 255); // #C58A32
+            case FuelType.Ethanol: return new Color32(166, 220, 239, 255); // #A6DCEF
+            default: return Color.white;
+        }
+    }
+}
+
 public enum FuelMix { None, Premium, Hybrid, SuperFart, ToxicSludge }
 
 // The car's fuel bag. Fuel of the car's own type refuels it; any other type is
@@ -26,11 +41,7 @@ public class FuelInventory : MonoBehaviour
     public int bodyMaterialSlot;
 
     [Header("Labels")]
-    [Tooltip("Text colour above cubes, and in the bag, for fuel this car can use.")]
-    public Color suitableColor = new Color(.35f, 1f, .35f);
-    [Tooltip("Text colour for fuel this car can't use.")]
-    public Color unsuitableColor = new Color(1f, .3f, .25f);
-    [Tooltip("Plate behind the labels above cubes, so green text still stands out against grass.")]
+    [Tooltip("Dark plate behind the fuel-colored labels so they stand out against the ground.")]
     public Color labelBackground = new Color(0, 0, 0, .55f);
 
     [Header("Pickups")]
@@ -69,9 +80,9 @@ public class FuelInventory : MonoBehaviour
         if (driver != null)
             driver.AddControlsHint("Q: use fuel mix    F: dump fuel");
 
-        materials[FuelType.Gasoline] = MakeMaterial(new Color(.85f, .55f, .1f));
-        materials[FuelType.Diesel] = MakeMaterial(new Color(.3f, .9f, .25f));
-        materials[FuelType.Ethanol] = MakeMaterial(new Color(.6f, .25f, .95f));
+        materials[FuelType.Gasoline] = MakeMaterial(FuelPalette.ColorOf(FuelType.Gasoline));
+        materials[FuelType.Diesel] = MakeMaterial(FuelPalette.ColorOf(FuelType.Diesel));
+        materials[FuelType.Ethanol] = MakeMaterial(FuelPalette.ColorOf(FuelType.Ethanol));
         Material body = bodyRenderer != null ? bodyRenderer.sharedMaterials[bodyMaterialSlot] : null;
         if (body != null)
             materials[carFuel] = body;
@@ -187,12 +198,12 @@ public class FuelInventory : MonoBehaviour
 
     public Material MaterialOf(FuelType type) => materials[type];
 
-    public Color ColorOf(FuelType type) => materials[type].color;
+    public Color ColorOf(FuelType type) => FuelPalette.ColorOf(type);
 
     public string NameOf(FuelType type) => type.ToString().ToUpper();
 
-    // Green for the car's own fuel, red for everything else.
-    public Color LabelColorOf(FuelType type) => IsSuitable(type) ? suitableColor : unsuitableColor;
+    // Fuel identity stays consistent; the effect text explains suitability.
+    public Color LabelColorOf(FuelType type) => FuelPalette.ColorOf(type);
 
     // What picking up this fuel does on its own, for the label above each cube.
     public string PickupEffectOf(FuelType type) => IsSuitable(type) ? $"+{pickupRefuel:0} fuel" : "Fart boost";
@@ -237,6 +248,17 @@ public class FuelInventory : MonoBehaviour
     {
         Shader shader = Shader.Find("Universal Render Pipeline/Lit");
         if (shader == null) shader = Shader.Find("Standard");
-        return new Material(shader) { color = color };
+        Material material = new Material(shader) { color = color };
+        // Match the matte vehicle and tutorial pickup materials.
+        material.SetFloat("_Metallic", 0f);
+        material.SetFloat("_Glossiness", 0f);
+        if (material.HasProperty("_Smoothness")) material.SetFloat("_Smoothness", 0f);
+        if (material.HasProperty("_SpecularHighlights")) material.SetFloat("_SpecularHighlights", 0f);
+        if (material.HasProperty("_EnvironmentReflections")) material.SetFloat("_EnvironmentReflections", 0f);
+        if (material.HasProperty("_GlossyReflections")) material.SetFloat("_GlossyReflections", 0f);
+        material.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");
+        material.EnableKeyword("_ENVIRONMENTREFLECTIONS_OFF");
+        material.EnableKeyword("_GLOSSYREFLECTIONS_OFF");
+        return material;
     }
 }

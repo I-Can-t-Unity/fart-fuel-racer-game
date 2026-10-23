@@ -4,7 +4,7 @@ using UnityEngine;
 // The AI rival's fuel. It works like the player's: a tank that drains with speed and
 // throttle, a two-slot bag, and the same mixes. The difference is which fuel is "good":
 // cubes of the rival's own fuel type refuel it (set from the main menu car choice by
-// AICarWaypointDriver; Diesel, the green cubes, if that is turned off), every
+// AICarWaypointDriver; Diesel, the amber cubes, if that is turned off), every
 // other cube is a fart boost. Like the player's bag, the second pickup mixes straight away;
 // the AI decides for itself when to use the mix.
 // AICarWaypointDriver adds this component at runtime, so nothing has to be set up in the scene.
@@ -15,7 +15,7 @@ public class AIFuelTank : MonoBehaviour
     // Old fuel names (Correct/Green/Purple), before the cars ran on Gasoline/Diesel/Ethanol:
     // [Tooltip("The cube colour that refuels the AI. The AI car is painted this colour.")]
     // public FuelType ownFuel = FuelType.Green;
-    [Tooltip("The fuel the AI runs on; its cubes refuel it and the AI car is painted their colour. Diesel cubes are green.")]
+    [Tooltip("The fuel the AI runs on; its cubes refuel it and the AI car is painted their colour. Diesel cubes are amber.")]
     public FuelType ownFuel = FuelType.Diesel;
     public float fuel = 100f;
 
@@ -29,8 +29,8 @@ public class AIFuelTank : MonoBehaviour
 
     [Header("Fuel drain (copied from the RaceManager at the start)")]
     public float drainPerSecond = 0f;
-    public float drainPerSpeed = .025f;
-    public float drainPerThrottle = 1.2f;
+    public float drainPerSpeed = .05f;
+    public float drainPerThrottle = 2.4f;
 
     [Header("AI decisions")]
     // Old: the player pressed Q to mix, so the AI waited a moment before mixing too.

@@ -1,16 +1,16 @@
 using TMPro;
 using UnityEngine;
 
-// A floating fuel cube. Driving through it puts the fuel in the car's bag;
-// if the bag is full the cube stays where it is. A label above the cube names
-// the fuel and what it does, green if the car can use it and red if not.
+// A floating jerry can. Driving through it puts the fuel in the car's bag;
+// if the bag is full the can stays where it is. A label above the can names
+// the fuel and what it does, using the same color as its fuel type.
 public class FuelPickup : MonoBehaviour
 {
     public FuelType type;
     public FuelInventory inventory;
     public float respawnSeconds = 10f;
     public float spinSpeed = 90f;
-    [Tooltip("Gap between the top of the cube and the bottom of its label, in metres.")]
+    [Tooltip("Gap between the top of the can and the bottom of its label, in metres.")]
     public float labelGap = .4f;
     public float labelFontSize = 8f;
     [Tooltip("Beyond this distance from the camera the label grows, so it stays readable from further away.")]
@@ -26,20 +26,57 @@ public class FuelPickup : MonoBehaviour
     public static event System.Action<FuelPickup, bool> PlayerTouched;
 
     Vector3 basePosition;
-    Renderer cubeRenderer;
+    Renderer pickupRenderer;
     Collider trigger;
     TextMeshPro label;
     float labelLift;
     float respawnAt = -1;
 
     static Sprite plateSprite;
+    static Mesh jerryCanMesh;
 
     // Looked up in Awake, not Start: a car can touch a cube in the same frame it is
     // spawned, before Start has run.
     void Awake()
     {
-        cubeRenderer = GetComponent<Renderer>();
+        pickupRenderer = GetComponent<Renderer>();
         trigger = GetComponent<Collider>();
+        MeshFilter filter = GetComponent<MeshFilter>();
+        if (filter != null)
+            filter.sharedMesh = LoadJerryCanMesh();
+    }
+
+    // One Blender mesh shared by race and tutorial pickups. Keep the existing
+    // material, trigger and unit-height bounds so colors and gameplay stay consistent.
+    static Mesh LoadJerryCanMesh()
+    {
+        if (jerryCanMesh != null) return jerryCanMesh;
+
+        GameObject model = Resources.Load<GameObject>("FuelJerryCan");
+        MeshFilter source = model != null ? model.GetComponentInChildren<MeshFilter>() : null;
+        if (source == null || source.sharedMesh == null)
+        {
+            Debug.LogError("FuelJerryCan model is missing from Resources.");
+            return null;
+        }
+
+        jerryCanMesh = Instantiate(source.sharedMesh);
+        jerryCanMesh.name = "Fuel Jerry Can";
+        Vector3[] vertices = jerryCanMesh.vertices;
+        Matrix4x4 importedTransform = source.transform.localToWorldMatrix;
+        Bounds bounds = new Bounds(importedTransform.MultiplyPoint3x4(vertices[0]), Vector3.zero);
+        for (int i = 0; i < vertices.Length; i++)
+        {
+            vertices[i] = importedTransform.MultiplyPoint3x4(vertices[i]);
+            bounds.Encapsulate(vertices[i]);
+        }
+        float height = Mathf.Max(bounds.size.y, .001f);
+        for (int i = 0; i < vertices.Length; i++)
+            vertices[i] = (vertices[i] - bounds.center) / height;
+        jerryCanMesh.vertices = vertices;
+        jerryCanMesh.RecalculateNormals();
+        jerryCanMesh.RecalculateBounds();
+        return jerryCanMesh;
     }
 
     void Start()
@@ -148,7 +185,7 @@ public class FuelPickup : MonoBehaviour
 
     void SetAvailable(bool available)
     {
-        cubeRenderer.enabled = available;
+        pickupRenderer.enabled = available;
         trigger.enabled = available;
         if (label != null)
             label.gameObject.SetActive(available);

@@ -8,9 +8,8 @@ public class LoopTrackGenerator : MonoBehaviour
     public float scale = 1f;
     public float roadWidth = 12f;
     [Range(4, 20)] public int samplesPerSegment = 12;
+    [Tooltip("Unmarked shoulder width retained for wall spacing and AI driving limits.")]
     public float curbWidth = 1.3f;
-    public float curbHeight = 0.10f;
-    public float stripeLength = 2.2f;
     public float lineWidth = 0.20f;
     public float surfaceY = 0.12f;
 
@@ -18,13 +17,12 @@ public class LoopTrackGenerator : MonoBehaviour
     [Tooltip("Low walls along both edges keep cars on the track. Set to 0 to remove them.")]
     public float wallHeight = 1f;
     public float wallThickness = 0.6f;
-    [Tooltip("Gap between the curb and the wall. The AI cuts corners up to about 0.5 m past the curb, so keep this at least 0.6 m.")]
+    [Tooltip("Gap between the shoulder and the wall. The AI cuts corners up to about 0.5 m past the shoulder, so keep this at least 0.6 m.")]
     public float wallGap = 1f;
 
     [Header("Materials (optional)")]
     public Material roadMaterial;
     public Material whiteMaterial;
-    public Material redMaterial;
     public Material wallMaterial;
 
     [Header("Generated points - read only")]
@@ -64,7 +62,6 @@ public class LoopTrackGenerator : MonoBehaviour
 
         int n = centerline.Count;
         Vector3[] left = new Vector3[n], right = new Vector3[n];
-        Vector3[] outerLeft = new Vector3[n], outerRight = new Vector3[n];
         Vector3[] sides = new Vector3[n];
         for (int i = 0; i < n; i++)
         {
@@ -73,8 +70,6 @@ public class LoopTrackGenerator : MonoBehaviour
             sides[i] = side;
             left[i] = centerline[i] - side * roadWidth * .5f;
             right[i] = centerline[i] + side * roadWidth * .5f;
-            outerLeft[i] = left[i] - side * curbWidth;
-            outerRight[i] = right[i] + side * curbWidth;
         }
 
         Mesh roadMesh = MakeStrip(left, right, 0f);
@@ -83,23 +78,7 @@ public class LoopTrackGenerator : MonoBehaviour
         GetComponent<MeshCollider>().sharedMesh = roadMesh;
         GetComponent<MeshRenderer>().sharedMaterial = Mat(roadMaterial, new Color(.29f,.30f,.32f));
 
-        // Curbs alternate red and white in short strips all around both edges.
-        float distance = 0;
-        for (int i = 0; i < n; i++)
-        {
-            int next = (i+1)%n;
-            Vector3[] l0 = { outerLeft[i], outerLeft[next] };
-            Vector3[] l1 = { left[i], left[next] };
-            Vector3[] r0 = { right[i], right[next] };
-            Vector3[] r1 = { outerRight[i], outerRight[next] };
-            bool red = Mathf.FloorToInt(distance / Mathf.Max(.3f,stripeLength)) % 2 == 0;
-            Material material = red ? Mat(redMaterial, Color.red) : Mat(whiteMaterial, Color.white);
-            CreateStrip("Curb_L_"+i, l0, l1, curbHeight, material);
-            CreateStrip("Curb_R_"+i, r0, r1, curbHeight, material);
-            distance += Vector3.Distance(centerline[i], centerline[next]);
-        }
-
-        // Walls just outside the curbs. They are frictionless so a car that hits
+        // Walls just outside the unmarked shoulders. They are frictionless so a car that hits
         // one slides along it instead of being grabbed and spun round.
         if (wallHeight > 0)
         {
@@ -122,7 +101,7 @@ public class LoopTrackGenerator : MonoBehaviour
 
         // Dashed white center line.
         Material white = Mat(whiteMaterial, Color.white);
-        distance = 0;
+        float distance = 0;
         for (int i = 0; i < n; i++)
         {
             int next = (i+1)%n;

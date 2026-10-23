@@ -22,10 +22,10 @@ public class AlphaTutorialManager : MonoBehaviour
         tutorialFuelGroup.SetActive(false);
 
         tutorialMessage.text =
-            "WELCOME TO FUEL FRENZY!\n\n" +
-            "WASD / Arrow Keys - Drive and Steer\n" +
-            "SPACE - Brake\n\n" +
-            "Start driving to continue...";
+            "<b>GET MOVING</b>\n" +
+            "WASD / arrows: drive and steer.\n" +
+            "Space: brake.\n" +
+            "Drive forward to continue.";
     }
 
     void Update()
@@ -49,8 +49,9 @@ public class AlphaTutorialManager : MonoBehaviour
         tutorialFuelGroup.SetActive(true);
 
         tutorialMessage.text =
-            "COLLECT YOUR FUEL!\n\n" +
-            "Drive into the colored fuel blocks\n" +
-            "to collect them!";
+            "<b>COLLECT FUEL</b>\n" +
+            "Drive through a fuel can.\n" +
+            "Match your car's fuel color\n" +
+            "to refuel.";
     }
 }

@@ -25,9 +25,9 @@ public class RaceManager : MonoBehaviour
     // Old fuel/speed system:
     // public float fuelDrainPerSecond = 1.2f;
     public float fuelDrainPerSecond = 0f;
-    public float fuelDrainPerSpeed = .025f;
+    public float fuelDrainPerSpeed = .05f;
     [Tooltip("Extra fuel used per second at full throttle, so easing off saves fuel.")]
-    public float fuelDrainPerThrottle = 1.2f;
+    public float fuelDrainPerThrottle = 2.4f;
     [Tooltip("With an empty tank the engine dies and the car coasts; the race is lost once it has been stopped this long.")]
     public float stallSeconds = 2f;
 

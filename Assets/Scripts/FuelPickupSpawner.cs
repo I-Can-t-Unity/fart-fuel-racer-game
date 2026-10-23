@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-// Puts rows of fuel cubes across the loop track. Each row has one cube of every
+// Puts rows of fuel cans across the loop track. Each row has one can of every
 // fuel type in a random order, so the player has to pick a lane. Behind each row
 // an invisible gate tells analytics that the player drove past it.
 public class FuelPickupSpawner : MonoBehaviour
@@ -17,6 +17,7 @@ public class FuelPickupSpawner : MonoBehaviour
     public float[] abTestLaneSpacings = { 3.5f, 4.5f };
     [Tooltip("How far past each row its analytics gate sits, in metres.")]
     public float gateOffset = 6f;
+    [Tooltip("Height of each jerry can in metres. The serialized field name is retained for existing scenes.")]
     public float cubeSize = 1.2f;
     [Tooltip("Keeps the cubes above the wheels (about 1 m) so they never touch the suspension, while still hitting the car body.")]
     public float hoverHeight = 1.7f;
@@ -67,15 +68,18 @@ public class FuelPickupSpawner : MonoBehaviour
     // Every other lane gets a raised label, so neighbouring labels never overlap.
     FuelPickup Spawn(FuelType type, Vector3 position, Vector3 forward, int row, int lane)
     {
-        GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        cube.name = "Fuel_" + type;
-        cube.transform.SetParent(transform, false);
-        cube.transform.SetPositionAndRotation(position, Quaternion.LookRotation(forward));
-        cube.transform.localScale = Vector3.one * cubeSize;
-        cube.GetComponent<Collider>().isTrigger = true;
-        cube.GetComponent<Renderer>().sharedMaterial = inventory.MaterialOf(type);
+        GameObject can = new GameObject();
+        can.AddComponent<MeshFilter>();
+        can.AddComponent<MeshRenderer>();
+        can.AddComponent<BoxCollider>();
+        can.name = "Fuel_" + type;
+        can.transform.SetParent(transform, false);
+        can.transform.SetPositionAndRotation(position, Quaternion.LookRotation(forward));
+        can.transform.localScale = Vector3.one * cubeSize;
+        can.GetComponent<Collider>().isTrigger = true;
+        can.GetComponent<Renderer>().sharedMaterial = inventory.MaterialOf(type);
 
-        FuelPickup pickup = cube.AddComponent<FuelPickup>();
+        FuelPickup pickup = can.AddComponent<FuelPickup>();
         pickup.type = type;
         pickup.inventory = inventory;
         pickup.labelFontSize = labelFontSize;

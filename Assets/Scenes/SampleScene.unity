@@ -920,6 +920,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: StarterCar
       objectReference: {fileID: 0}
+    - target: {fileID: -6652725513331149018, guid: 1750975b64e804958b67f83f125752ad, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value:
+      objectReference: {fileID: 2100000, guid: a67ad7e78bee84a8ebdb7eb3deae69cc, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []

@@ -118,14 +118,14 @@ public class FuelPickupAnalytics : MonoBehaviour
         });
     }
 
-    // The colour players see: the car's own fuel is brown, Diesel green and Ethanol purple.
+    // Keep recorded color names aligned with the fuel palette players see.
     static string ColorName(FuelType type)
     {
         switch (type)
         {
-            case FuelType.Gasoline: return "brown";
-            case FuelType.Diesel: return "green";
-            case FuelType.Ethanol: return "purple";
+            case FuelType.Gasoline: return "straw_yellow";
+            case FuelType.Diesel: return "golden_amber";
+            case FuelType.Ethanol: return "pale_blue";
             default: return type.ToString().ToLowerInvariant();
         }
     }
