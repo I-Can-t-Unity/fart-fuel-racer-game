@@ -2900,7 +2900,6 @@ GameObject:
   - component: {fileID: 684248057}
   - component: {fileID: 1501234021}
   - component: {fileID: 1501234022}
-  - component: {fileID: 1876500051}
   m_Layer: 0
   m_Name: PlayerCar
   m_TagString: Player
@@ -7096,23 +7095,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ea2383ae079245a9896611dc0e196f32, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FuelPickupSpawner
-  authoredRows:
-  - pickups:
-    - {fileID: 1501234041}
-    - {fileID: 1501234042}
-    - {fileID: 1501234043}
-  - pickups:
-    - {fileID: 1501234044}
-    - {fileID: 1501234045}
-    - {fileID: 1501234046}
   track: {fileID: 0}
-  inventory: {fileID: 1501234021}
+  inventory: {fileID: 0}
   rowWaypoints: 2b000000420000008700000097000000
   laneSpacing: 3.5
-  abTestLaneSpacings:
-  - 3.5
-  - 4.5
-  gateOffset: 6
   cubeSize: 1.2
   hoverHeight: 1.7
 --- !u!4 &1820023762
@@ -8935,17 +8921,3 @@ SceneRoots:
   - {fileID: 1804686597}
   - {fileID: 1390151923}
   - {fileID: 1948927004}
-
---- !u!114 &1876500051
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 684248052}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e9f849125e574bea84b3e8410099a63f, type: 3}
-  m_Name:
-  m_EditorClassIdentifier: Assembly-CSharp::FuelPickupAnalytics
-  endpointUrl: https://script.google.com/macros/s/AKfycbwX0ofSvhpkOaYmR1kqW71L0SZAoMqasyj_bD5aVa2FxneYdROPrjuL104ex8xmuswp/exec

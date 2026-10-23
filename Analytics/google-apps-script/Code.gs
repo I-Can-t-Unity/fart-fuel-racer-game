@@ -8,7 +8,7 @@ const SHEET_NAME = 'events';
 const COLUMNS = [
   'session_id', 'timestamp_utc', 'platform', 'event', 'race_time_s', 'lane_spacing', 'row',
   'fuel_type', 'color', 'lane', 'suitable', 'collected_in_row', 'cubes_available', 'bag_full',
-  'race_result', 'won', 'event_id', 'schema_version', 'build_id', 'scene', 'car_fuel', 'mix', 'fuel_amount',
+  'race_result', 'won',
 ];
 
 // The game sends a JSON array of events as text/plain (no CORS preflight needed).
@@ -18,18 +18,9 @@ function doPost(e) {
   try {
     const body = JSON.parse(e.postData.contents);
     const events = Array.isArray(body) ? body : [body];
-    const sheet = getSheet_();
-    const idColumn = COLUMNS.indexOf('event_id') + 1;
-    const ids = new Set(sheet.getLastRow() > 1
-      ? sheet.getRange(2, idColumn, sheet.getLastRow() - 1, 1).getValues().flat().filter(String) : []);
-    const rows = [];
-    for (const event of events) {
-      if (!event.session_id || !event.event) throw new Error('Missing event identity');
-      if (event.event_id && ids.has(String(event.event_id))) continue;
-      if (event.event_id) ids.add(String(event.event_id));
-      rows.push(COLUMNS.map(column => String(event[column] ?? '')));
-    }
+    const rows = events.map(event => COLUMNS.map(column => String(event[column] ?? '')));
     if (rows.length > 0) {
+      const sheet = getSheet_();
       sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, COLUMNS.length).setValues(rows);
     }
     return json_({ ok: true, added: rows.length });
@@ -58,11 +49,6 @@ function getSheet_() {
     sheet.appendRow(COLUMNS);
     sheet.setFrozenRows(1);
   }
-  // Append schema v2 columns without moving or deleting legacy data.
-  if (sheet.getMaxColumns() < COLUMNS.length)
-    sheet.insertColumnsAfter(sheet.getMaxColumns(), COLUMNS.length - sheet.getMaxColumns());
-  sheet.getRange(1, 1, 1, COLUMNS.length).setValues([COLUMNS]);
-  sheet.getRange(1, 1, sheet.getMaxRows(), COLUMNS.length).setNumberFormat('@');
   return sheet;
 }
 

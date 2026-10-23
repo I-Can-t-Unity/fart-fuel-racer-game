@@ -7,10 +7,6 @@ using UnityEngine;
 // an invisible gate tells analytics that the player drove past it.
 public class FuelPickupSpawner : MonoBehaviour
 {
-    [System.Serializable]
-    public class AuthoredRow { public FuelPickup[] pickups; }
-    [Tooltip("Hand-placed rows, in driving order. Empty on procedural loop tracks.")]
-    public AuthoredRow[] authoredRows;
     public LoopTrackGenerator track;
     public FuelInventory inventory;
     [Tooltip("Centerline points (0-179) where a row is placed. These are about 100 m apart around the lap, so there is time to pick a lane before the next row.")]
@@ -46,26 +42,6 @@ public class FuelPickupSpawner : MonoBehaviour
 
     IEnumerator Start()
     {
-        if (authoredRows != null && authoredRows.Length > 0)
-        {
-            Vector3 forward = inventory.transform.forward;
-            Vector3 across = inventory.transform.right;
-            for (int row = 0; row < authoredRows.Length; row++)
-            {
-                var pickups = new List<FuelPickup>(authoredRows[row].pickups);
-                Vector3 center = Vector3.zero;
-                foreach (FuelPickup pickup in pickups) center += pickup.transform.position;
-                center /= pickups.Count;
-                for (int lane = 0; lane < pickups.Count; lane++)
-                {
-                    pickups[lane].row = row;
-                    pickups[lane].lane = lane;
-                    pickups[lane].SetPlacement(center + across * (lane - (pickups.Count - 1) * .5f) * LaneSpacingUsed);
-                }
-                SpawnGates(row, center, forward, pickups);
-            }
-            yield break;
-        }
         // The track fills in its centerline in its own Start.
         while (track == null || track.centerline.Count == 0)
             yield return null;
@@ -85,7 +61,7 @@ public class FuelPickupSpawner : MonoBehaviour
                 Vector3 position = center + across * (lane - (types.Length - 1) * .5f) * LaneSpacingUsed;
                 rowPickups.Add(Spawn(types[lane], position, forward, row, lane));
             }
-            SpawnGates(row, center, forward, rowPickups);
+            SpawnGate(row, track.GetPoint(waypoint) + forward * gateOffset, forward, rowPickups);
         }
     }
 
@@ -117,22 +93,15 @@ public class FuelPickupSpawner : MonoBehaviour
     }
 
     // A trigger spanning the road, curbs and the gap to the walls, so the car can't miss it.
-    void SpawnGates(int row, Vector3 center, Vector3 forward, List<FuelPickup> pickups)
-    {
-        SpawnGate(row, center - forward * gateOffset, forward, pickups, true);
-        SpawnGate(row, center + forward * gateOffset, forward, pickups, false);
-    }
-
-    void SpawnGate(int row, Vector3 position, Vector3 forward, List<FuelPickup> rowPickups, bool approach)
+    void SpawnGate(int row, Vector3 position, Vector3 forward, List<FuelPickup> rowPickups)
     {
         var gate = new GameObject("RowGate_" + row).AddComponent<FuelRowGate>();
         gate.transform.SetParent(transform, false);
         gate.transform.SetPositionAndRotation(position, Quaternion.LookRotation(forward));
         var box = gate.gameObject.AddComponent<BoxCollider>();
         box.isTrigger = true;
-        box.size = new Vector3(track != null ? track.roadWidth + 2 * (track.curbWidth + track.wallGap) : LaneSpacingUsed * 2 + 10, 6, 1);
+        box.size = new Vector3(track.roadWidth + 2 * (track.curbWidth + track.wallGap), 4, 1);
         box.center = new Vector3(0, 2, 0);
-        gate.capturesApproach = approach;
         gate.row = row;
         gate.inventory = inventory;
         gate.pickups = rowPickups;

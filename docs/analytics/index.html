@@ -10,21 +10,21 @@
 :root {
   --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
   --grid: #e1e0d9; --baseline: #c3c2b7; --border: rgba(11, 11, 11, .1); --accent: #2a78d6;
-  --fuel-amber: #C58A32; --fuel-blue: #A6DCEF; --fuel-yellow: #E8D66A;
+  --fuel-green: #2f9e44; --fuel-purple: #7a4fd6; --fuel-brown: #8a5a2b;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
     --grid: #2c2c2a; --baseline: #383835; --border: rgba(255, 255, 255, .1); --accent: #3987e5;
-    --fuel-amber: #C58A32; --fuel-blue: #A6DCEF; --fuel-yellow: #E8D66A;
+    --fuel-green: #4cbb5c; --fuel-purple: #9a7be8; --fuel-brown: #b88352;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
   --grid: #2c2c2a; --baseline: #383835; --border: rgba(255, 255, 255, .1); --accent: #3987e5;
-  --fuel-amber: #C58A32; --fuel-blue: #A6DCEF; --fuel-yellow: #E8D66A;
+  --fuel-green: #4cbb5c; --fuel-purple: #9a7be8; --fuel-brown: #b88352;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -67,8 +67,6 @@ footer { color: var(--muted); font-size: 13px; }
 
   <div class="controls">
     <label><input type="checkbox" id="include-editor"> Include editor test sessions</label>
-    <label>Build <select id="build-filter"><option value="alpha-analytics-v2">alpha-analytics-v2</option><option value="all">All builds (including legacy)</option></select></label>
-    <label>Scene <select id="scene-filter"><option value="AlphaRaceScene">AlphaRaceScene</option><option value="LoopRaceScene">LoopRaceScene</option><option value="all">All scenes</option></select></label>
     <button type="button" id="refresh">Refresh live data</button>
     <label class="file">Load a CSV file<input type="file" id="csv-file" accept=".csv,text/csv"></label>
   </div>
@@ -79,8 +77,6 @@ footer { color: var(--muted); font-size: 13px; }
     <div class="tile"><div class="label">Pickups collected</div><div class="value" id="tile-collected">–</div></div>
     <div class="tile"><div class="label">Collection rate</div><div class="value" id="tile-rate">–</div></div>
   </section>
-
-  <section class="card" id="session-health"></section>
 
   <section class="card chart">
     <div id="chart-colors"></div>
@@ -95,7 +91,7 @@ footer { color: var(--muted); font-size: 13px; }
   <section class="card" id="hypothesis"></section>
 
   <section class="card">
-    <h2>Fuel collection by colour</h2>
+    <h2>Pickups by colour</h2>
     <div class="table-wrap"><table id="table-colors"></table></div>
   </section>
 
@@ -107,9 +103,9 @@ footer { color: var(--muted); font-size: 13px; }
   <section class="card">
     <h2>How the numbers are defined</h2>
     <ul>
-      <li>Each Alpha row holds straw yellow Gasoline, golden amber Diesel and pale blue Ethanol. Suitability depends on the selected car. A collected row counts once, even if more than one can is taken.</li>
-      <li>A <strong>pickup opportunity</strong> is the first forward pass of a row with room in the bag and an available cube at the approach gate, or a pass on which fuel was collected. Full or empty rows without a collection are excluded.</li>
-      <li><strong>Collection rate</strong> = rows where the player picked up a cube ÷ pickup opportunities. A colour's share uses the first collected fuel in each eligible row; the shares add up to the total. Pickups collected also includes pickups before a row's exit gate is reached.</li>
+      <li>Each row of cubes on the track holds one green (Diesel), one purple (Ethanol) and one brown (Gasoline, the car's own fuel) cube. The player can take at most one per row.</li>
+      <li>A <strong>pickup opportunity</strong> is a row the player drives past while the bag has room and at least one cube is still there (the AI rival also takes cubes).</li>
+      <li><strong>Collection rate</strong> = rows where the player picked up a cube ÷ pickup opportunities. A colour's rate counts only pickups of that colour, so the three add up to the total.</li>
       <li>For the A/B test each race uses a lane spacing (the gap between cube centres) picked at random, so rates can be compared across spacings.</li>
       <li>Races played in the Unity editor are hidden unless "Include editor test sessions" is ticked.</li>
     </ul>
@@ -123,9 +119,9 @@ footer { color: var(--muted); font-size: 13px; }
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwX0ofSvhpkOaYmR1kqW71L0SZAoMqasyj_bD5aVa2FxneYdROPrjuL104ex8xmuswp/exec";
 
 const COLORS = [
-  { color: "golden amber", fuel: "Diesel", token: "--fuel-amber" },
-  { color: "pale blue", fuel: "Ethanol", token: "--fuel-blue" },
-  { color: "straw yellow", fuel: "Gasoline", token: "--fuel-yellow" },
+  { color: "green", fuel: "Diesel", token: "--fuel-green" },
+  { color: "purple", fuel: "Ethanol", token: "--fuel-purple" },
+  { color: "brown", fuel: "Gasoline", token: "--fuel-brown" },
 ];
 
 let allEvents = [];
@@ -177,16 +173,8 @@ function loadCsv(file) {
 // ---------- Numbers ----------
 
 function summarise(events) {
-  const seen = new Set();
-  events = events.filter(e => !e.event_id || (!seen.has(e.event_id) && seen.add(e.event_id)));
   const starts = events.filter(e => e.event === "race_start");
-  const seenRows = new Set();
-  const rows = events.filter(e => {
-    if (e.event !== "row_passed") return false;
-    const key = `${e.session_id}:${e.row}`;
-    if (seenRows.has(key)) return false;
-    seenRows.add(key); return true;
-  });
+  const rows = events.filter(e => e.event === "row_passed");
   const opportunities = rows.filter(e => e.bag_full === "0" && Number(e.cubes_available) > 0);
   const pickups = events.filter(e => e.event === "pickup_collected");
   const blocked = events.filter(e => e.event === "pickup_blocked");
@@ -197,25 +185,15 @@ function summarise(events) {
     opportunities: opportunities.length,
     collectedRows: opportunities.filter(e => e.collected_in_row === "1").length,
     pickups: pickups.length,
-    ended: new Set(events.filter(e => e.event === "race_end").map(e => e.session_id)).size,
-    wins: new Set(events.filter(e => e.event === "race_end" && e.won === "1").map(e => e.session_id)).size,
-    mixesCreated: events.filter(e => e.event === "mix_created").length,
-    mixesUsed: events.filter(e => e.event === "mix_used").length,
-    dumps: events.filter(e => e.event === "fuel_dumped").length,
     byColor: COLORS.map(c => ({
       ...c,
-      collected: opportunities.filter(e => e.collected_in_row === "1" && e.fuel_type === c.fuel).length,
-      raw: pickups.filter(p => p.fuel_type === c.fuel).length,
-      blocked: blocked.filter(p => p.fuel_type === c.fuel).length,
+      collected: pickups.filter(p => p.color === c.color).length,
+      blocked: blocked.filter(p => p.color === c.color).length,
     })),
     bySpacing: spacings.map(spacing => {
       const inGroup = opportunities.filter(e => e.lane_spacing === spacing);
       return {
         spacing,
-        raceRates: [...new Set(inGroup.map(e => e.session_id))].map(id => {
-          const raceRows = inGroup.filter(e => e.session_id === id);
-          return raceRows.filter(e => e.collected_in_row === "1").length / raceRows.length;
-        }),
         races: new Set(starts.filter(e => e.lane_spacing === spacing).map(e => e.session_id)).size,
         opportunities: inGroup.length,
         collected: inGroup.filter(e => e.collected_in_row === "1").length,
@@ -223,6 +201,27 @@ function summarise(events) {
     }),
   };
 }
+
+// One-sided two-proportion z-test: is the wider spacing's collection rate higher?
+function zTest(narrow, wide) {
+  const p1 = narrow.collected / narrow.opportunities;
+  const p2 = wide.collected / wide.opportunities;
+  const pooled = (narrow.collected + wide.collected) / (narrow.opportunities + wide.opportunities);
+  const se = Math.sqrt(pooled * (1 - pooled) * (1 / narrow.opportunities + 1 / wide.opportunities));
+  if (se === 0) return null;
+  const z = (p2 - p1) / se;
+  return { p1, p2, z, p: 1 - normalCdf(z) };
+}
+
+function normalCdf(z) {
+  // Abramowitz and Stegun 7.1.26 approximation of erf, accurate to about 1e-7.
+  const x = Math.abs(z) / Math.SQRT2;
+  const t = 1 / (1 + 0.3275911 * x);
+  const erf = 1 - ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+  return 0.5 * (1 + Math.sign(z) * erf);
+}
+
+// ---------- Charts ----------
 
 function niceMax(value, ticks) {
   const raw = Math.max(value, 1) / ticks;
@@ -246,8 +245,8 @@ function hBar(x, y, w, h, fill) {
 }
 
 function colorChart(s) {
-  const W = 760, H = 300, left = 225, right = 700, top = 96, band = 52, barH = 22;
-  const { step, max } = niceMax(Math.max(...s.byColor.map(c => c.raw)) * 1.1, 5);
+  const W = 760, H = 300, left = 160, right = 700, top = 96, band = 52, barH = 22;
+  const { step, max } = niceMax(Math.max(...s.byColor.map(c => c.collected)) * 1.1, 5);
   const X = v => left + v / max * (right - left);
   const bottom = top + band * s.byColor.length;
   let svg = svgStart(W, H, "Fuel pickups collected by colour", `${s.pickups} pickups across ${s.races} races`);
@@ -258,9 +257,9 @@ function colorChart(s) {
   s.byColor.forEach((c, i) => {
     const y = top + band * i + (band - barH) / 2;
     svg += `<text x="${left - 14}" y="${y + barH / 2 + 5}" text-anchor="end" font-size="14" fill="${css("--ink-2")}">${cap(c.color)} · ${c.fuel}</text>`;
-    svg += `<g><title>${cap(c.color)} (${c.fuel}): ${c.raw} pickups; first fuel in ${c.collected} eligible rows (${pct(c.collected, s.opportunities)} of opportunities)</title>` +
-      hBar(left, y, X(c.raw) - left, barH, css(c.token)) + `</g>`;
-    svg += `<text x="${X(c.raw) + 8}" y="${y + barH / 2 + 5}" font-size="13" fill="${css("--ink-2")}">${c.raw}</text>`;
+    svg += `<g><title>${cap(c.color)} (${c.fuel}): ${c.collected} collected, ${pct(c.collected, s.opportunities)} of opportunities</title>` +
+      hBar(left, y, X(c.collected) - left, barH, css(c.token)) + `</g>`;
+    svg += `<text x="${X(c.collected) + 8}" y="${y + barH / 2 + 5}" font-size="13" fill="${css("--ink-2")}">${c.collected}</text>`;
   });
   svg += `<line x1="${left}" x2="${left}" y1="${top - 8}" y2="${bottom}" stroke="${css("--baseline")}" stroke-width="1"/>`;
   svg += `<text x="${(left + right) / 2}" y="${bottom + 44}" text-anchor="middle" font-size="13" fill="${css("--ink-2")}">Pickups collected</text>`;
@@ -271,7 +270,7 @@ function spacingChart(s) {
   const W = 760, H = 380, left = 70, right = 730, top = 100, bottom = 300, barW = 24;
   const Y = v => bottom - v * (bottom - top);
   let svg = svgStart(W, H, "Collection rate by lane spacing",
-    "Hypothesis: wider spacing between fuel cans raises the share of opportunities collected.");
+    "Hypothesis: wider spacing between cubes raises the share of opportunities collected.");
   for (let v = 0; v <= 1.0001; v += 0.25) {
     svg += `<line x1="${left}" x2="${right}" y1="${Y(v)}" y2="${Y(v)}" stroke="${css("--grid")}" stroke-width="1"/>`;
     svg += `<text x="${left - 10}" y="${Y(v) + 4}" text-anchor="end" font-size="12" fill="${css("--muted")}">${Math.round(v * 100)}%</text>`;
@@ -301,9 +300,7 @@ function spacingChart(s) {
 
 function render() {
   const includeEditor = $("include-editor").checked;
-  const build = $("build-filter").value, scene = $("scene-filter").value;
-  const events = allEvents.filter(e => (includeEditor || !String(e.platform).includes("Editor"))
-    && (build === "all" || e.build_id === build) && (scene === "all" || e.scene === scene));
+  const events = allEvents.filter(e => includeEditor || !String(e.platform).includes("Editor"));
   const s = summarise(events);
 
   $("status").textContent = problem ||
@@ -312,9 +309,6 @@ function render() {
   $("tile-opportunities").textContent = s.opportunities;
   $("tile-collected").textContent = s.pickups;
   $("tile-rate").textContent = pct(s.collectedRows, s.opportunities);
-  $("session-health").textContent = `${s.ended} sessions ended of ${s.races} started; ${s.wins} wins. ` +
-    `${s.mixesCreated} mixes created; ${s.mixesUsed} mixes used; ${s.dumps} fuel dumps. ` +
-    "Missing race_end events may indicate an interrupted session. Race counts are not unique player counts.";
 
   $("chart-colors").innerHTML = colorChart(s);
   $("chart-spacing").innerHTML = spacingChart(s);
@@ -322,7 +316,7 @@ function render() {
   $("table-colors").innerHTML =
     "<tr><th>Colour</th><th>Fuel</th><th>Collected</th><th>Share of opportunities</th><th>Hit with a full bag</th></tr>" +
     s.byColor.map(c => `<tr><td><span class="swatch" style="background:var(${c.token})"></span>${cap(c.color)}</td><td>${c.fuel}</td>` +
-      `<td>${c.raw}</td><td>${pct(c.collected, s.opportunities)}</td><td>${c.blocked}</td></tr>`).join("");
+      `<td>${c.collected}</td><td>${pct(c.collected, s.opportunities)}</td><td>${c.blocked}</td></tr>`).join("");
   $("table-spacing").innerHTML =
     "<tr><th>Lane spacing</th><th>Races</th><th>Opportunities</th><th>Rows collected</th><th>Collection rate</th></tr>" +
     s.bySpacing.map(g => `<tr><td>${g.spacing} m</td><td>${g.races}</td><td>${g.opportunities}</td><td>${g.collected}</td>` +
@@ -330,13 +324,20 @@ function render() {
 
   let h = "<h2>Hypothesis</h2><p>Increasing the spacing between fuel pickups increases the proportion of available pickups players collect.</p>";
   const tested = s.bySpacing.filter(g => g.opportunities > 0);
-  for (const group of tested) {
-    const mean = group.raceRates.reduce((a, b) => a + b, 0) / group.raceRates.length;
-    h += `<p>${esc(group.spacing)} m: ${pct(group.collected, group.opportunities)} pooled collection rate; ` +
-      `${Math.round(mean * 100)}% mean per-race rate across ${group.raceRates.length} races with opportunities.</p>`;
+  if (tested.length < 2) {
+    h += `<p class="result">Not testable yet: data from at least two lane spacings is needed.</p>`;
+  } else {
+    const narrow = tested[0], wide = tested[tested.length - 1];
+    const test = narrow.opportunities >= 10 && wide.opportunities >= 10 ? zTest(narrow, wide) : null;
+    if (!test) {
+      h += `<p class="result">Not enough data yet: at least 10 opportunities at both ${narrow.spacing} m and ${wide.spacing} m are needed (now ${narrow.opportunities} and ${wide.opportunities}).</p>`;
+    } else {
+      h += `<p class="note">${narrow.spacing} m: ${pct(narrow.collected, narrow.opportunities)} of ${narrow.opportunities} opportunities. ` +
+        `${wide.spacing} m: ${pct(wide.collected, wide.opportunities)} of ${wide.opportunities}. ` +
+        `One-sided two-proportion z-test: z = ${test.z.toFixed(2)}, p = ${test.p.toFixed(3)}.</p>`;
+      h += `<p class="result">${test.p < 0.05 ? "Supported" : "Not supported"} at the 0.05 level.</p>`;
+    }
   }
-  if (tested.length < 2) h += '<p class="result">Data from both lane spacings is needed for comparison.</p>';
-  h += '<p class="note">Exploratory Alpha comparison. Rows within a race and repeated races by one player are related; no statistical significance is claimed. Zero-opportunity races are excluded from the mean per-race rate. Legacy rows lack the new first-fuel attribution.</p>';
   $("hypothesis").innerHTML = h;
 }
 
@@ -365,8 +366,6 @@ function savePng(containerId, fileName) {
 }
 
 $("include-editor").addEventListener("change", render);
-$("build-filter").addEventListener("change", render);
-$("scene-filter").addEventListener("change", render);
 $("refresh").addEventListener("click", loadLive);
 $("csv-file").addEventListener("change", e => { if (e.target.files[0]) loadCsv(e.target.files[0]); });
 document.querySelectorAll("[data-png]").forEach(button =>

@@ -240,13 +240,11 @@ public class RaceManager : MonoBehaviour
 
     public void RestartRace()
     {
-        if (car != null) car.GetComponent<FuelPickupAnalytics>()?.EndSession();
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 
     public void ReturnToMainMenu()
     {
-        if (car != null) car.GetComponent<FuelPickupAnalytics>()?.EndSession();
         SceneManager.LoadScene("MainMenuCanvas");
     }
 }

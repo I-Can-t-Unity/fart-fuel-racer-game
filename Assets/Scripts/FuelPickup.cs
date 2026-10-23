@@ -79,8 +79,6 @@ public class FuelPickup : MonoBehaviour
         return jerryCanMesh;
     }
 
-    public void SetPlacement(Vector3 position) { basePosition = position; transform.position = position; }
-
     void Start()
     {
         basePosition = transform.position;
@@ -153,11 +151,10 @@ public class FuelPickup : MonoBehaviour
     }
 
     // False while the cube has been taken and is waiting to respawn. The AI uses this to pick a lane.
-    public bool IsAvailable => gameObject.activeInHierarchy && trigger != null && trigger.enabled;
+    public bool IsAvailable => trigger != null && trigger.enabled;
 
     void OnTriggerEnter(Collider other)
     {
-        if (!IsAvailable) return; // A queued second collider cannot collect the same can twice.
         // Old: only the player's bag could pick up fuel.
         // if (inventory == null || !other.transform.IsChildOf(inventory.transform))
         //     return;
