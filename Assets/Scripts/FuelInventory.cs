@@ -12,9 +12,9 @@ public static class FuelPalette
     {
         switch (type)
         {
-            case FuelType.Gasoline: return new Color32(232, 214, 106, 255); // #E8D66A
-            case FuelType.Diesel: return new Color32(197, 138, 50, 255); // #C58A32
-            case FuelType.Ethanol: return new Color32(166, 220, 239, 255); // #A6DCEF
+            case FuelType.Gasoline: return new Color32(95, 58, 41, 255); // #5F3A29
+            case FuelType.Diesel: return new Color32(75, 230, 65, 255); // #4BE641
+            case FuelType.Ethanol: return new Color32(153, 64, 242, 255); // #9940F2
             default: return Color.white;
         }
     }

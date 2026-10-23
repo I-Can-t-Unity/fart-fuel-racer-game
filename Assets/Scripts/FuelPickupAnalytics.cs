@@ -153,9 +153,9 @@ public class FuelPickupAnalytics : MonoBehaviour
     {
         switch (type)
         {
-            case FuelType.Gasoline: return "straw_yellow";
-            case FuelType.Diesel: return "golden_amber";
-            case FuelType.Ethanol: return "pale_blue";
+            case FuelType.Gasoline: return "brown";
+            case FuelType.Diesel: return "green";
+            case FuelType.Ethanol: return "purple";
             default: return type.ToString().ToLowerInvariant();
         }
     }
