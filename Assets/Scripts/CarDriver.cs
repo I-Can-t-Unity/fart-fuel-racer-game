@@ -22,17 +22,28 @@ public class CarDriver : MonoBehaviour
     [SerializeField, Min(1)] private float topSpeedKmh = 100f;
     [SerializeField, Min(1)] private float reverseSpeedKmh = 30f;
     [SerializeField, Range(0, 45)] private float steeringAngle = 28f;
-    [SerializeField, Min(0)] private float steeringResponse = 90f;
+    [SerializeField, Min(0)] private float steeringResponse = 180f;
     [Tooltip("Limits how sharply the car can corner at speed, in metres per second squared. Lower values give wider, steadier fast turns.")]
-    [SerializeField, Min(1)] private float maxCorneringAcceleration = 9f;
-    [Tooltip("Above top speed (only reachable with a boost), keep the turning radius the car has at top speed by scaling cornering and tyre grip with speed.")]
+    [SerializeField, Min(1)] private float maxCorneringAcceleration = 15f;
+    [Tooltip("Above top speed (only reachable with a boost), scale cornering and tyre grip with speed, up to Max Boost Grip.")]
     [SerializeField] private bool holdTurnRadiusAboveTopSpeed = false;
-    [SerializeField] private Vector3 centerOfMass = new Vector3(0, 0.45f, -0.25f);
+    [SerializeField] private Vector3 centerOfMass = new Vector3(0, 0.35f, -0.35f);
     [Tooltip("Brake torque on each wheel while the engine is off (out of fuel), so the car coasts to a stop instead of rolling on forever.")]
     [SerializeField, Min(0)] private float engineOffDrag = 300f;
     [Tooltip("How quickly the car slows after the race ends, in metres per second squared.")]
     [SerializeField, Min(0.1f)] private float raceEndDeceleration = 8f;
     [SerializeField] private bool showControls = true;
+    [Header("Grip and stability")]
+    [Tooltip("Multiplier on the scene's tyre grip. Shared by player and opponents.")]
+    [SerializeField, Range(0.5f, 2f)] private float tireGrip = 1.2f;
+    [Tooltip("Extra downward acceleration at top speed. Only applied with at least two wheels on the ground.")]
+    [SerializeField, Min(0)] private float downforceAcceleration = 5f;
+    [Tooltip("Damps unwanted yaw while grounded, without forcing the car's heading or velocity.")]
+    [SerializeField, Min(0)] private float yawStability = 2.5f;
+    [Tooltip("Upper limit on additional boost grip. Prevents unlimited cornering forces at extreme speed.")]
+    [SerializeField, Range(1f, 3f)] private float maxBoostGrip = 1.6f;
+    [Tooltip("Zero-friction chassis contact lets cars slide past each other without sticking. Tyre grip is separate.")]
+    [SerializeField] private bool slidingChassisContacts = true;
     [Header("Fuel and throttle")]
     [Tooltip("Top speed and engine power multiplier by fuel level, from 0 (empty) to 1 (full). Flip the curve to make a light, nearly empty car the fastest.")]
     [SerializeField] private AnimationCurve powerByFuel = new AnimationCurve(
@@ -56,6 +67,17 @@ public class CarDriver : MonoBehaviour
     private bool resetRequested;
     private float wheelbase = 2.3f;
     private float[] baseSidewaysStiffness;
+    private float[] baseForwardStiffness;
+    private PhysicsMaterial chassisMaterial;
+    private readonly System.Collections.Generic.Dictionary<Collider, PhysicsMaterial> chassisMaterials =
+        new System.Collections.Generic.Dictionary<Collider, PhysicsMaterial>();
+    private readonly System.Collections.Generic.Dictionary<Collider, bool> modifiableContacts =
+        new System.Collections.Generic.Dictionary<Collider, bool>();
+    private int barrierBodyId;
+    private float steeringInputSmoothed;
+    public int GroundedWheelCount { get; private set; }
+    public bool HasVehicleContact => Time.fixedTime - lastVehicleContact < Time.fixedDeltaTime * 2.5f;
+    private float lastVehicleContact = float.NegativeInfinity;
     private string extraControls = "";
 
     public float SpeedKmh => body == null ? 0 : body.linearVelocity.magnitude * 3.6f;
@@ -95,7 +117,7 @@ public class CarDriver : MonoBehaviour
         if (body == null)
             body = GetComponent<Rigidbody>();
 
-        throttleInput = throttle = steering = currentSteering = 0;
+        throttleInput = throttle = steering = currentSteering = steeringInputSmoothed = 0;
         braking = resetRequested = false;
         IsBraking = hold;
         if (hold)
@@ -127,7 +149,7 @@ public class CarDriver : MonoBehaviour
     {
         IsStopped = true;
         EngineRunning = false;
-        throttleInput = throttle = steering = currentSteering = 0;
+        throttleInput = throttle = steering = currentSteering = steeringInputSmoothed = 0;
         braking = resetRequested = false;
         IsBraking = true;
 
@@ -184,6 +206,10 @@ public class CarDriver : MonoBehaviour
     {
         body = GetComponent<Rigidbody>();
         body.centerOfMass = centerOfMass;
+        // Resolve contacts more accurately on cars without increasing the cost of all world physics.
+        body.solverIterations = Mathf.Max(body.solverIterations, 12);
+        body.solverVelocityIterations = Mathf.Max(body.solverVelocityIterations, 4);
+        body.maxDepenetrationVelocity = 3f;
         spawnPosition = body.position;
         spawnRotation = body.rotation;
         if (wheels.Length != 4)
@@ -218,6 +244,27 @@ public class CarDriver : MonoBehaviour
         if (frontCount > 0 && rearCount > 0)
             wheelbase = Mathf.Max(0.1f, Mathf.Abs(frontZ / frontCount - rearZ / rearCount));
         baseSidewaysStiffness = Array.ConvertAll(wheels, wheel => wheel.collider.sidewaysFriction.stiffness);
+        baseForwardStiffness = Array.ConvertAll(wheels, wheel => wheel.collider.forwardFriction.stiffness);
+        foreach (Wheel wheel in wheels)
+        {
+            // A barrier is a chassis obstacle, never a road surface. A suspension
+            // ray hitting its top edge can suddenly compress the spring and launch us.
+            int barrierLayer = LayerMask.NameToLayer("TrackBarrier");
+            if (barrierLayer >= 0)
+                wheel.collider.excludeLayers |= 1 << barrierLayer;
+            wheel.collider.ConfigureVehicleSubsteps(5f, 8, 12);
+            // Apply suspension forces near the centre of mass to reduce jacking during turns.
+            wheel.collider.forceAppPointDistance = 0.1f;
+        }
+        ConfigureChassisContacts();
+        barrierBodyId = body.GetInstanceID();
+        foreach (Collider shape in GetComponentsInChildren<Collider>(true))
+        {
+            if (shape is WheelCollider || shape.isTrigger || shape.attachedRigidbody != body)
+                continue;
+            modifiableContacts.Add(shape, shape.hasModifiableContacts);
+            shape.hasModifiableContacts = true;
+        }
     }
 
     private void Update()
@@ -286,7 +333,8 @@ public class CarDriver : MonoBehaviour
             body.rotation = spawnRotation;
             body.linearVelocity = Vector3.zero;
             body.angularVelocity = Vector3.zero;
-            currentSteering = 0;
+            currentSteering = steeringInputSmoothed = 0;
+            lastVehicleContact = float.NegativeInfinity;
             throttle = 0;
             resetRequested = false;
             foreach (Wheel wheel in wheels)
@@ -328,17 +376,21 @@ public class CarDriver : MonoBehaviour
         // Use planar speed, including sideways motion, so a skid cannot unlock
         // sharp low-speed steering just because forward velocity has dropped.
         float planarSpeedSquared = Vector3.ProjectOnPlane(body.linearVelocity, transform.up).sqrMagnitude;
-        // Past top speed the allowed cornering grows with speed squared, which holds the
-        // turning radius (and steering angle) at their top-speed values. The tyres get the
-        // same extra grip so they can actually deliver that cornering.
+        // Keep the top-speed turning radius during moderate boosts. Cap the extra
+        // cornering and grip so extreme boost speeds still demand wider turns.
         float topSpeed = topSpeedKmh / 3.6f;
-        float overspeed = holdTurnRadiusAboveTopSpeed ? Mathf.Max(1f, planarSpeedSquared / (topSpeed * topSpeed)) : 1f;
+        float overspeed = holdTurnRadiusAboveTopSpeed ? Mathf.Clamp(planarSpeedSquared / (topSpeed * topSpeed), 1f, maxBoostGrip) : 1f;
         float safeAngle = Mathf.Atan(wheelbase * maxCorneringAcceleration * overspeed /
             Mathf.Max(planarSpeedSquared, 0.01f)) * Mathf.Rad2Deg;
         steeringLimit = Mathf.Min(steeringLimit, safeAngle);
-        currentSteering = Mathf.Clamp(currentSteering, -steeringLimit, steeringLimit);
-        float targetSteering = steering * steeringLimit;
-        currentSteering = Mathf.MoveTowards(currentSteering, targetSteering, steeringResponse * Time.fixedDeltaTime);
+        // Smooth the pedal-like steering input, not degrees: the response time must not
+        // collapse as the allowed wheel angle gets smaller at speed. Use the existing
+        // degrees/second setting so scene tuning still controls lock-to-lock response.
+        float inputRate = steeringResponse / Mathf.Max(steeringAngle, 1f);
+        steeringInputSmoothed = Mathf.MoveTowards(steeringInputSmoothed, steering,
+            inputRate * Time.fixedDeltaTime);
+        currentSteering = steeringInputSmoothed * steeringLimit;
+        GroundedWheelCount = 0;
         for (int i = 0; i < wheels.Length; i++)
         {
             Wheel wheel = wheels[i];
@@ -346,8 +398,78 @@ public class CarDriver : MonoBehaviour
             wheel.collider.motorTorque = torque;
             wheel.collider.brakeTorque = applyBrake ? brakeTorque : idleBrake;
             WheelFrictionCurve sideways = wheel.collider.sidewaysFriction;
-            sideways.stiffness = baseSidewaysStiffness[i] * overspeed;
+            sideways.stiffness = baseSidewaysStiffness[i] * tireGrip * overspeed;
             wheel.collider.sidewaysFriction = sideways;
+            WheelFrictionCurve forward = wheel.collider.forwardFriction;
+            forward.stiffness = baseForwardStiffness[i] * tireGrip;
+            wheel.collider.forwardFriction = forward;
+            if (wheel.collider.isGrounded)
+                GroundedWheelCount++;
+        }
+        VehicleBarrierContacts.UpdateCar(barrierBodyId, body.worldCenterOfMass.y,
+            GroundedWheelCount >= 2 && Vector3.Dot(transform.up, Vector3.up) > 0.7f);
+        ApplyGroundedStability(forwardSpeed, planarSpeedSquared, topSpeed);
+    }
+
+    private void ApplyGroundedStability(float forwardSpeed, float speedSquared, float topSpeed)
+    {
+        if (GroundedWheelCount < 2)
+            return;
+        float contactFraction = GroundedWheelCount / (float)wheels.Length;
+        float aero = Mathf.Clamp(speedSquared / (topSpeed * topSpeed), 0f, maxBoostGrip);
+        body.AddForce(-transform.up * (downforceAcceleration * aero * contactFraction), ForceMode.Acceleration);
+
+        // Only damp excess yaw in the requested turn direction. Never steer the body
+        // directly, erase collision velocity, or fight a turn the tyres haven't begun.
+        float desiredYaw = forwardSpeed * Mathf.Tan(currentSteering * Mathf.Deg2Rad) / wheelbase;
+        float yaw = Vector3.Dot(body.angularVelocity, transform.up);
+        float excessYaw = yaw - Mathf.Clamp(desiredYaw, Mathf.Min(0f, yaw), Mathf.Max(0f, yaw));
+        body.AddTorque(-transform.up * (excessYaw * yawStability * contactFraction), ForceMode.Acceleration);
+    }
+
+    private void ConfigureChassisContacts()
+    {
+        if (!slidingChassisContacts)
+            return;
+        chassisMaterial = new PhysicsMaterial("Sliding vehicle chassis")
+        {
+            staticFriction = 0f,
+            dynamicFriction = 0f,
+            bounciness = 0f,
+            frictionCombine = PhysicsMaterialCombine.Minimum,
+            bounceCombine = PhysicsMaterialCombine.Minimum
+        };
+        foreach (Collider shape in GetComponentsInChildren<Collider>(true))
+        {
+            if (shape is WheelCollider || shape.isTrigger || shape.attachedRigidbody != body)
+                continue;
+            chassisMaterials.Add(shape, shape.sharedMaterial);
+            shape.sharedMaterial = chassisMaterial;
+        }
+    }
+
+    private void OnCollisionEnter(Collision collision) => TrackVehicleContact(collision);
+    private void OnCollisionStay(Collision collision) => TrackVehicleContact(collision);
+
+    private void TrackVehicleContact(Collision collision)
+    {
+        if (collision.rigidbody != null && collision.rigidbody.GetComponent<CarDriver>() != null)
+            lastVehicleContact = Time.fixedTime;
+    }
+
+    private void OnDestroy()
+    {
+        VehicleBarrierContacts.RemoveCar(barrierBodyId);
+        foreach (var entry in modifiableContacts)
+            if (entry.Key != null)
+                entry.Key.hasModifiableContacts = entry.Value;
+        foreach (var entry in chassisMaterials)
+            if (entry.Key != null && entry.Key.sharedMaterial == chassisMaterial)
+                entry.Key.sharedMaterial = entry.Value;
+        if (chassisMaterial != null)
+        {
+            if (Application.isPlaying) Destroy(chassisMaterial);
+            else DestroyImmediate(chassisMaterial);
         }
     }
 
@@ -365,6 +487,7 @@ public class CarDriver : MonoBehaviour
 
     private void OnDisable()
     {
+        VehicleBarrierContacts.RemoveCar(barrierBodyId);
         IsBraking = false;
         foreach (Wheel wheel in wheels)
         {

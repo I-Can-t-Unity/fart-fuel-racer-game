@@ -1713,10 +1713,10 @@ MonoBehaviour:
   topSpeedKmh: 70
   reverseSpeedKmh: 30
   steeringAngle: 38
-  steeringResponse: 45
-  maxCorneringAcceleration: 12
+  steeringResponse: 180
+  maxCorneringAcceleration: 15
   holdTurnRadiusAboveTopSpeed: 0
-  centerOfMass: {x: 0, y: 0.45, z: -0.65}
+  centerOfMass: {x: 0, y: 0.35, z: -0.35}
   engineOffDrag: 300
   showControls: 1
   powerByFuel:
@@ -3034,10 +3034,10 @@ MonoBehaviour:
   topSpeedKmh: 70
   reverseSpeedKmh: 30
   steeringAngle: 38
-  steeringResponse: 45
+  steeringResponse: 180
   maxCorneringAcceleration: 15
   holdTurnRadiusAboveTopSpeed: 1
-  centerOfMass: {x: 0, y: 0.45, z: -0.65}
+  centerOfMass: {x: 0, y: 0.35, z: -0.35}
   engineOffDrag: 300
   showControls: 1
   powerByFuel:

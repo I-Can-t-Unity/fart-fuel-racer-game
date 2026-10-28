@@ -256,23 +256,24 @@ public class AICarWaypointDriver : MonoBehaviour
     // extra push back up to speed.
     void Recover(Vector3 forward, Vector3 aimDirection, float desiredSpeed, float speed)
     {
-        if (!IsRecovering)
+        // While touching another car, let the contact solver separate both bodies.
+        // Cancelling lateral velocity or rotating into an opponent can pin it in place.
+        if (!IsRecovering || driver.HasVehicleContact || driver.GroundedWheelCount < 2)
             return;
 
-        float dt = Time.fixedDeltaTime;
-        rb.angularVelocity *= Mathf.Exp(-spinDamping * dt);
+        float yaw = Vector3.Dot(rb.angularVelocity, Vector3.up);
+        rb.AddTorque(-Vector3.up * yaw * spinDamping, ForceMode.Acceleration);
 
         Vector3 right = Vector3.Cross(Vector3.up, forward);
-        Vector3 velocity = rb.linearVelocity;
-        float slide = Vector3.Dot(velocity, right);
-        velocity -= right * slide * (1f - Mathf.Exp(-slideDamping * dt));
-        rb.linearVelocity = velocity;
+        float slide = Vector3.Dot(rb.linearVelocity, right);
+        rb.AddForce(-right * Mathf.Clamp(slide * slideDamping, -6f, 6f), ForceMode.Acceleration);
 
         float headingError = Vector3.SignedAngle(forward, aimDirection, Vector3.up);
         if (Mathf.Abs(headingError) > realignAboveDegrees)
         {
-            float step = Mathf.Clamp(headingError, -realignDegreesPerSecond * dt, realignDegreesPerSecond * dt);
-            rb.MoveRotation(Quaternion.AngleAxis(step, Vector3.up) * rb.rotation);
+            float desiredYaw = Mathf.Clamp(headingError, -realignDegreesPerSecond, realignDegreesPerSecond)
+                * Mathf.Deg2Rad;
+            rb.AddTorque(Vector3.up * Mathf.Clamp((desiredYaw - yaw) * 2f, -3f, 3f), ForceMode.Acceleration);
         }
 
         if (speed < desiredSpeed)

@@ -1,0 +1,26 @@
+PASS Four wheels grounded before turn
+PASS 50 km/h steering changes heading: 43.5 degrees
+PASS 50 km/h turn/reversal: sideways fraction 0.030, yaw 0.975, upright 0.999
+PASS Turn exit speed 70.1 km/h
+PASS Four wheels grounded before turn
+PASS 70 km/h steering changes heading: 34.9 degrees
+PASS 70 km/h turn/reversal: sideways fraction 0.033, yaw 0.771, upright 0.999
+PASS Turn exit speed 70.0 km/h
+PASS Four wheels grounded before turn
+PASS 100 km/h steering changes heading: 44.1 degrees
+PASS 100 km/h turn/reversal: sideways fraction 0.030, yaw 1.008, upright 0.996
+PASS Turn exit speed 87.5 km/h
+PASS During sideswipe: minimum forward speed 59.0 km/h, peak yaw 0.197
+PASS Sideswipe maintains forward motion: 70.1, 70.5 km/h
+PASS Sideswipe heading: 358.7, 358.7 degrees
+PASS Sideswipe cars separate without persistent chassis overlap
+PASS Sustained door contact exercised for 2.00 seconds
+PASS Cars pushing together stay upright and moving: minimum 66.0 km/h
+PASS Rear impact remains drivable: 70.2, 70.7 km/h
+PASS Airborne vertical velocity follows gravity: 3.038 m/s
+PASS Grounded stability does not cancel airborne pitch, yaw or roll
+PASS AI recovery leaves contact velocity and spin to the collision solver
+PASS Barrier matrix: 288/288 stable, worst rise 0.09 m, upward 0.84 m/s
+PASS Suspension contacts on barrier geometry: 0
+PASS Chassis still blocked by barrier: furthest centre 0.99 m, wall inner face 2.20 m
+PASS Barrier top still supports chassis landing: height 0.68 m, vertical speed 0.00 m/s

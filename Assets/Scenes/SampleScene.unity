@@ -593,9 +593,9 @@ MonoBehaviour:
   topSpeedKmh: 60
   reverseSpeedKmh: 30
   steeringAngle: 20
-  steeringResponse: 30
-  maxCorneringAcceleration: 9
-  centerOfMass: {x: 0, y: 0.45, z: -0.65}
+  steeringResponse: 180
+  maxCorneringAcceleration: 15
+  centerOfMass: {x: 0, y: 0.35, z: -0.35}
   showControls: 1
 --- !u!114 &684248057
 MonoBehaviour:

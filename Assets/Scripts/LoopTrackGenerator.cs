@@ -28,6 +28,8 @@ public class LoopTrackGenerator : MonoBehaviour
     [Header("Generated points - read only")]
     public List<Vector3> centerline = new List<Vector3>();
 
+    private readonly List<int> barrierColliderIds = new List<int>();
+
     // Control points arranged to make a closed, multi-bend circuit.
     readonly Vector2[] anchors = {
         new Vector2(-48,-35), new Vector2(-74,-24), new Vector2(-80, 2),
@@ -267,6 +269,9 @@ public class LoopTrackGenerator : MonoBehaviour
         Vector3 along = b - a;
         GameObject wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
         wall.name = name;
+        int barrierLayer = LayerMask.NameToLayer("TrackBarrier");
+        if (barrierLayer >= 0)
+            wall.layer = barrierLayer;
         wall.transform.SetParent(transform, false);
         wall.transform.SetPositionAndRotation(
             (a + b) * .5f + Vector3.up * (wallHeight - sink) * .5f,
@@ -274,7 +279,11 @@ public class LoopTrackGenerator : MonoBehaviour
         // Pieces overlap by one wall thickness so the outside of a bend has no gaps.
         wall.transform.localScale = new Vector3(wallThickness, wallHeight + sink, along.magnitude + wallThickness);
         wall.GetComponent<Renderer>().sharedMaterial = material;
-        wall.GetComponent<Collider>().sharedMaterial = physics;
+        Collider shape = wall.GetComponent<Collider>();
+        shape.sharedMaterial = physics;
+        int colliderId = shape.GetInstanceID();
+        barrierColliderIds.Add(colliderId);
+        VehicleBarrierContacts.RegisterBarrier(colliderId);
     }
 
     Material Mat(Material existing, Color color)
@@ -285,8 +294,18 @@ public class LoopTrackGenerator : MonoBehaviour
         Material m = new Material(shader); m.color=color; return m;
     }
 
+    void OnDestroy() => UnregisterBarriers();
+
+    void UnregisterBarriers()
+    {
+        foreach (int id in barrierColliderIds)
+            VehicleBarrierContacts.RemoveBarrier(id);
+        barrierColliderIds.Clear();
+    }
+
     void ClearGenerated()
     {
+        UnregisterBarriers();
         for(int i=transform.childCount-1;i>=0;i--)
         {
             GameObject child = transform.GetChild(i).gameObject;
