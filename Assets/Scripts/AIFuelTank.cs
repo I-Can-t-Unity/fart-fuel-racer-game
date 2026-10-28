@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -49,6 +50,9 @@ public class AIFuelTank : MonoBehaviour
 
     // Set by AICarWaypointDriver every physics step: how sharp the road ahead is, 0 to 1.
     [HideInInspector] public float cornerAhead;
+
+    // The bag or held mix changed, like FuelInventory.Changed (for the rival's HUD icon).
+    public event Action Changed;
 
     public FuelMix HeldMix { get; private set; }
     public bool IsFull => HeldMix != FuelMix.None || slots.Count >= Capacity;
@@ -115,6 +119,7 @@ public class AIFuelTank : MonoBehaviour
         {
             mixAt = -1;
             MixSlots();
+            Changed?.Invoke();
         }
 
         if (HeldMix != FuelMix.None && ShouldUseMix())
@@ -145,6 +150,7 @@ public class AIFuelTank : MonoBehaviour
             else
                 mixAt = Time.time + mixDelay;
         }
+        Changed?.Invoke();
         return true;
     }
 
@@ -205,6 +211,18 @@ public class AIFuelTank : MonoBehaviour
                 break;
         }
         HeldMix = FuelMix.None;
+        Changed?.Invoke();
+    }
+
+    // Same as FuelInventory.TryConsumeMix: spends the held mix on a shortcut instead of
+    // its usual effect, and only if that exact mix is held.
+    public bool TryConsumeMix(FuelMix mix)
+    {
+        if (mix == FuelMix.None || HeldMix != mix)
+            return false;
+        HeldMix = FuelMix.None;
+        Changed?.Invoke();
+        return true;
     }
 
     void AddFuel(float amount)

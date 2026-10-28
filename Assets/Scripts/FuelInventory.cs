@@ -24,7 +24,8 @@ public enum FuelMix { None, Premium, Hybrid, SuperFart, ToxicSludge }
 
 // The car's fuel bag. Fuel of the car's own type refuels it; any other type is
 // wrong fuel and gives a fart boost instead. Each pickup takes a slot; picking up
-// a second fuel mixes the two straight away, and Q uses the mix. There is no way
+// a second fuel mixes the two straight away, and Q uses the mix. A mix can instead
+// be saved for a shortcut that needs it (see SuperFartJumpGate). There is no way
 // to throw fuel away, so grabbing the wrong cubes means having to burn off
 // whatever they mix into.
 // F dumps the whole tank for a boost that lasts longer the more fuel was dumped.
@@ -188,6 +189,21 @@ public class FuelInventory : MonoBehaviour
         HeldMix = FuelMix.None;
         Changed?.Invoke();
     }
+
+    // Spends the held mix on something other than its Q effect, such as unlocking
+    // a shortcut. False, with the bag left as it is, unless that exact mix is held.
+    // Q goes through HeldMix too, so a single mix can only ever be spent once.
+    public bool TryConsumeMix(FuelMix mix)
+    {
+        if (mix == FuelMix.None || HeldMix != mix)
+            return false;
+        HeldMix = FuelMix.None;
+        Changed?.Invoke();
+        return true;
+    }
+
+    // Lets other parts of the race (such as shortcut gates) put a message on the HUD.
+    public void Announce(string message) => Announced?.Invoke(message);
 
     void Refuel(float amount)
     {

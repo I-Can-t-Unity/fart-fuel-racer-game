@@ -12,6 +12,9 @@ public class FuelInventoryUI : MonoBehaviour
     public Vector2 bottomOffset = new Vector2(0, 20);
     public float slotSize = 80f;
     public float messageSeconds = 1.5f;
+    [Tooltip("Offset of messages such as \"BAG FULL\" from the top centre of the screen, clear of the timer in the top right.")]
+    public Vector2 messageTopOffset = new Vector2(0, -60);
+    public float messageFontSize = 44f;
 
     static readonly Color EmptySlot = new Color(0, 0, 0, .45f);
     static readonly Color Frame = new Color(1, 1, 1, .9f);
@@ -55,8 +58,15 @@ public class FuelInventoryUI : MonoBehaviour
 
         hint = NewText("Hint", bag, new Vector2(0, -62), new Vector2(500, 32), 26, TextAlignmentOptions.Center);
         hint.color = Color.white;
-        message = NewText("Message", bag, new Vector2(0, -95), new Vector2(500, 32), 26, TextAlignmentOptions.Center);
+        // Old: messages sat in the bag, under the hint, where they were easy to miss.
+        // message = NewText("Message", bag, new Vector2(0, -95), new Vector2(500, 32), 26, TextAlignmentOptions.Center);
+        // At the top centre of the screen, with an outline so they read over sky and road alike.
+        message = NewText("Message", transform, messageTopOffset, new Vector2(1000, messageFontSize * 1.6f), messageFontSize, TextAlignmentOptions.Center);
+        message.rectTransform.anchorMin = message.rectTransform.anchorMax = new Vector2(.5f, 1);
+        message.rectTransform.pivot = new Vector2(.5f, 1);
         message.fontStyle = FontStyles.Bold;
+        message.outlineWidth = .2f;
+        message.outlineColor = Color.black;
 
         inventory.Changed += Refresh;
         inventory.Announced += ShowMessage;
