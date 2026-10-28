@@ -63,6 +63,7 @@ public class SuperFartJumpTestGate : MonoBehaviour
         gateRenderer.shadowCastingMode = ShadowCastingMode.Off;
         // The cube's own box collider becomes the gate's trigger.
         gate.AddComponent<SuperFartJumpGate>();
+        gate.AddComponent<SuperFartJumpLauncher>();
     }
 
     static void LogActivated(SuperFartJumpGate gate, Rigidbody car) =>
