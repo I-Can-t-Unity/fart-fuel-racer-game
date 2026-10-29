@@ -14454,11 +14454,11 @@ MonoBehaviour:
   restartButton: {fileID: 1268359206}
   mainMenuButton: {fileID: 2200000002}
   requireCheckpoint: 1
-  raceDuration: 60
+  raceDuration: 150
   fuel: 100
   fuelDrainPerSecond: 0
-  fuelDrainPerSpeed: 0.05
-  fuelDrainPerThrottle: 2.4
+  fuelDrainPerSpeed: 0.025
+  fuelDrainPerThrottle: 1.2
   stallSeconds: 2
 --- !u!4 &206879159
 Transform:
@@ -97860,7 +97860,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FuelPickupSpawner
   track: {fileID: 347017635}
   inventory: {fileID: 1501234021}
-  rowWaypoints: 28000000550000007f000000ab000000
+  rowWaypoints: 0e0000001e00000048000000620000007f00000094000000bb000000dc000000f40000000f01000027010000
   laneSpacing: 4.5
   abTestLaneSpacings:
   - 3.5

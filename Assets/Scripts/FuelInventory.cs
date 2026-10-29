@@ -22,6 +22,34 @@ public static class FuelPalette
 
 public enum FuelMix { None, Premium, Hybrid, SuperFart, ToxicSludge }
 
+// The shortcut system (ShortcutCore) names mixes with its own FuelMixType. These convert
+// between the two so both bags can be read through IFuelMixHolder. No shortcut takes
+// Toxic Sludge, so to the shortcuts it is no mix at all.
+public static class FuelMixConversion
+{
+    public static FuelMixType ToShortcutMix(this FuelMix mix)
+    {
+        switch (mix)
+        {
+            case FuelMix.SuperFart: return FuelMixType.SuperFart;
+            case FuelMix.Hybrid: return FuelMixType.Hybrid;
+            case FuelMix.Premium: return FuelMixType.Premium;
+            default: return FuelMixType.None;
+        }
+    }
+
+    public static FuelMix ToFuelMix(this FuelMixType mix)
+    {
+        switch (mix)
+        {
+            case FuelMixType.SuperFart: return FuelMix.SuperFart;
+            case FuelMixType.Hybrid: return FuelMix.Hybrid;
+            case FuelMixType.Premium: return FuelMix.Premium;
+            default: return FuelMix.None;
+        }
+    }
+}
+
 // The car's fuel bag. Fuel of the car's own type refuels it; any other type is
 // wrong fuel and gives a fart boost instead. Each pickup takes a slot; picking up
 // a second fuel mixes the two straight away, and Q uses the mix. A mix can instead
@@ -30,7 +58,7 @@ public enum FuelMix { None, Premium, Hybrid, SuperFart, ToxicSludge }
 // whatever they mix into.
 // F dumps the whole tank for a boost that lasts longer the more fuel was dumped.
 [RequireComponent(typeof(FartBoost))]
-public class FuelInventory : MonoBehaviour
+public class FuelInventory : MonoBehaviour, IFuelMixHolder
 {
     public const int Capacity = 2;
 
@@ -201,6 +229,10 @@ public class FuelInventory : MonoBehaviour
         Changed?.Invoke();
         return true;
     }
+
+    // The shortcut system's view of the bag (see FuelMixConversion).
+    FuelMixType IFuelMixHolder.HeldMix => HeldMix.ToShortcutMix();
+    bool IFuelMixHolder.TryConsumeMix(FuelMixType mix) => TryConsumeMix(mix.ToFuelMix());
 
     // Lets other parts of the race (such as shortcut gates) put a message on the HUD.
     public void Announce(string message) => Announced?.Invoke(message);

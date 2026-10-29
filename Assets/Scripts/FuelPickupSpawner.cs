@@ -9,8 +9,10 @@ public class FuelPickupSpawner : MonoBehaviour
 {
     public LoopTrackGenerator track;
     public FuelInventory inventory;
-    [Tooltip("Centerline points (0-179) where a row is placed. These are about 100 m apart around the lap, so there is time to pick a lane before the next row.")]
-    public int[] rowWaypoints = { 40, 85, 127, 171 };
+    // Old: rows for the Classic loop (180 points, 438 m), about 100 m apart.
+    // public int[] rowWaypoints = { 40, 85, 127, 171 };
+    [Tooltip("Centerline points where a row is placed. Points are not evenly spaced (about 9 m apart on straights, 3 m in tight corners), so these were picked by distance for the Bridge Circuit (324 points, 1393 m): a row every 90-160 m, on straights or gentle bends, clear of the checkpoint. Two rows (14, 30) come before the broken-bridge split so a car can collect the same wrong fuel twice for Super Fart; 72 and 98 are on the arch the shortcut skips, so only main-route cars pass them.")]
+    public int[] rowWaypoints = { 14, 30, 72, 98, 127, 148, 187, 220, 244, 271, 295 };
     [Tooltip("Distance between cube centres in a row. From about 4 m the car fits between two cubes; keep it under about 5 m so the outer cubes stay on the road.")]
     public float laneSpacing = 4.5f;
     [Tooltip("A/B test: each race picks one of these lane spacings at random, so analytics can compare pickup rates. Leave empty to always use Lane Spacing.")]

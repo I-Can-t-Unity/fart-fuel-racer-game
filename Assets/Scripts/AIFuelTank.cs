@@ -9,7 +9,7 @@ using UnityEngine;
 // other cube is a fart boost. Like the player's bag, the second pickup mixes straight away;
 // the AI decides for itself when to use the mix.
 // AICarWaypointDriver adds this component at runtime, so nothing has to be set up in the scene.
-public class AIFuelTank : MonoBehaviour
+public class AIFuelTank : MonoBehaviour, IFuelMixHolder
 {
     public const int Capacity = FuelInventory.Capacity;
 
@@ -224,6 +224,10 @@ public class AIFuelTank : MonoBehaviour
         Changed?.Invoke();
         return true;
     }
+
+    // What AIShortcutRouter reads to decide whether the AI may take a shortcut (see FuelMixConversion).
+    FuelMixType IFuelMixHolder.HeldMix => HeldMix.ToShortcutMix();
+    bool IFuelMixHolder.TryConsumeMix(FuelMixType mix) => TryConsumeMix(mix.ToFuelMix());
 
     void AddFuel(float amount)
     {
