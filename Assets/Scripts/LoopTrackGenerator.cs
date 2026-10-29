@@ -12,6 +12,10 @@ public class LoopTrackGenerator : MonoBehaviour
     public float curbWidth = 1.3f;
     public float lineWidth = 0.20f;
     public float surfaceY = 0.12f;
+    [Tooltip("Centre-line point where the checkered start/finish line is drawn. 2 = bottom straight (both layouts).")]
+    public int startIndex = 2;
+    [Tooltip("Race the track the other way round (anticlockwise). Everything that reads the centre line follows automatically.")]
+    public bool reverseDirection = false;
 
     [Header("Walls")]
     [Tooltip("Low walls along both edges keep cars on the track. Set to 0 to remove them.")]
@@ -30,14 +34,40 @@ public class LoopTrackGenerator : MonoBehaviour
 
     private readonly List<int> barrierColliderIds = new List<int>();
 
-    // Control points arranged to make a closed, multi-bend circuit.
-    readonly Vector2[] anchors = {
+    public enum Layout { Classic, BridgeCircuit }
+
+    [Header("Layout")]
+    [Tooltip("Classic = the original short loop. BridgeCircuit = 1.4 km circuit with a straight broken-bridge shortcut.")]
+    public Layout layout = Layout.BridgeCircuit;
+    [Tooltip("Optional: the grass/ground object. It is moved and scaled to cover the whole track.")]
+    public Transform groundToFit;
+
+    // Original short loop (~0.6 km).
+    static readonly Vector2[] classicAnchors = {
         new Vector2(-48,-35), new Vector2(-74,-24), new Vector2(-80, 2),
         new Vector2(-65, 25), new Vector2(-28, 22), new Vector2(-5, 31),
         new Vector2(6, 53), new Vector2(25, 65), new Vector2(58, 62),
         new Vector2(77, 43), new Vector2(76, 14), new Vector2(55, 4),
         new Vector2(23, -2), new Vector2(16, -27), new Vector2(0, -39)
     };
+
+    // Bridge Circuit (~1.39 km, ~80-90 s a lap). Long start straight, fast right sweeper,
+    // the ARCH detour (right-left-right) that the broken-bridge shortcut cuts straight across,
+    // top-right corner, tight top hairpin loop, S-bends through the middle, big left sweeper.
+    // Checked: no corner tighter than 13.5 m radius, separate parts of the track always
+    // >= 60 m apart (centre to centre), so walls never touch.
+    static readonly Vector2[] bridgeAnchors = {
+        new Vector2(-110,-110), new Vector2(0,-118), new Vector2(90,-110), new Vector2(140,-85),
+        new Vector2(160,-40), new Vector2(160,-5),
+        new Vector2(200,20), new Vector2(225,55), new Vector2(200,90), new Vector2(160,115),
+        new Vector2(158,150), new Vector2(130,185), new Vector2(80,192), new Vector2(35,180),
+        new Vector2(20,150), new Vector2(40,125), new Vector2(85,115), new Vector2(105,85),
+        new Vector2(90,50), new Vector2(40,30), new Vector2(-10,50), new Vector2(-40,90),
+        new Vector2(-90,105), new Vector2(-140,85), new Vector2(-165,40), new Vector2(-165,-30),
+        new Vector2(-150,-85)
+    };
+
+    Vector2[] anchors => layout == Layout.Classic ? classicAnchors : bridgeAnchors;
 
     void Start() { Generate(); }
 
@@ -61,6 +91,9 @@ public class LoopTrackGenerator : MonoBehaviour
                 centerline.Add(new Vector3(p.x * scale, surfaceY, p.y * scale));
             }
         }
+
+        if (reverseDirection) centerline.Reverse();
+        FitGround();
 
         int n = centerline.Count;
         Vector3[] left = new Vector3[n], right = new Vector3[n];
@@ -96,8 +129,11 @@ public class LoopTrackGenerator : MonoBehaviour
             for (int i = 0; i < n; i++)
             {
                 int next = (i+1)%n;
-                CreateWall("Wall_L_"+i, centerline[i] - sides[i] * offset, centerline[next] - sides[next] * offset, wall, slide);
-                CreateWall("Wall_R_"+i, centerline[i] + sides[i] * offset, centerline[next] + sides[next] * offset, wall, slide);
+                Vector3 aL = centerline[i] - sides[i] * offset, bL = centerline[next] - sides[next] * offset;
+                Vector3 aR = centerline[i] + sides[i] * offset, bR = centerline[next] + sides[next] * offset;
+                // Shortcut entrances: leave out any wall piece covered by a WallOpening box.
+                if (!WallOpening.IsInsideAny((aL + bL) * 0.5f)) CreateWall("Wall_L_"+i, aL, bL, wall, slide);
+                if (!WallOpening.IsInsideAny((aR + bR) * 0.5f)) CreateWall("Wall_R_"+i, aR, bR, wall, slide);
             }
         }
 
@@ -134,9 +170,9 @@ public class LoopTrackGenerator : MonoBehaviour
         // }
 
         // Black-and-white checkered start/finish line.
-        Vector3 forward = (centerline[3] - centerline[1]).normalized;
+        Vector3 forward = (GetPoint(startIndex + 1) - GetPoint(startIndex - 1)).normalized;
         Vector3 across = new Vector3(-forward.z, 0, forward.x);
-        Vector3 start = centerline[2];
+        Vector3 start = GetPoint(startIndex);
 
         int columns = 10;
         int rows = 4;
@@ -170,7 +206,30 @@ public class LoopTrackGenerator : MonoBehaviour
             }
         }
 
-        Debug.Log("Track generated. Start cars near " + centerline[2] + " and point toward " + centerline[3]);
+        Debug.Log("Track generated. Start/finish at " + GetPoint(startIndex) + ", cars face toward " + GetPoint(startIndex + 1));
+    }
+
+    void FitGround()
+    {
+        if (!groundToFit || centerline.Count == 0) return;
+        Vector3 min = centerline[0], max = centerline[0];
+        foreach (var p in centerline) { min = Vector3.Min(min, p); max = Vector3.Max(max, p); }
+        float margin = roadWidth * 0.5f + curbWidth + wallGap + wallThickness + 25f;
+        float width = (max.x - min.x) + margin * 2f, depth = (max.z - min.z) + margin * 2f;
+
+        // Work out how big the ground mesh is at scale 1 (Plane = 10 x 10, Quad/Cube = 1 x 1).
+        Vector3 unit = Vector3.one;
+        var mf = groundToFit.GetComponent<MeshFilter>();
+        if (mf && mf.sharedMesh) unit = mf.sharedMesh.bounds.size;
+        float ux = Mathf.Max(0.001f, unit.x);
+        bool quadLike = unit.z < 0.001f;              // a Quad lies in X/Y and is rotated flat
+        float uz = Mathf.Max(0.001f, quadLike ? unit.y : unit.z);
+
+        Vector3 pos = groundToFit.position;
+        groundToFit.position = new Vector3((min.x + max.x) * 0.5f, pos.y, (min.z + max.z) * 0.5f);
+        Vector3 sc = groundToFit.localScale;
+        groundToFit.localScale = quadLike ? new Vector3(width / ux, depth / uz, sc.z)
+                                          : new Vector3(width / ux, sc.y, depth / uz);
     }
 
     public Vector3 GetPoint(int index) => centerline[(index % centerline.Count + centerline.Count) % centerline.Count];
