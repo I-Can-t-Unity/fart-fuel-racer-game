@@ -48,6 +48,9 @@ public class BrokenBridgeBuilder : MonoBehaviour
     [Range(0.15f, 0.7f)] public float exitCurveTangent = 0.35f;
     public int curveSamples = 20;
 
+    [Tooltip("Put the entry gate (where the Super Fart mix is spent) right at the start of the ramp.")]
+    public bool entryGateAtRamp = true;
+
     [Header("Jump")]
     [Tooltip("Height of the lip above the track.")]
     public float bridgeHeight = 3.5f;
@@ -306,11 +309,16 @@ public class BrokenBridgeBuilder : MonoBehaviour
         // (so cars staying on the main route never touch it). Fallback: up the ramp.
         float clearDist = WallOffset() + roadWidth * 0.5f + 0.5f;
         Vector3 gateAPos = rampBase + axis * 2f, gateADir = axis;
-        if (Gen) for (int i = 0; i < curveA.Count; i++)
+        if (entryGateAtRamp) { gateAPos = rampBase - axis * 1.5f; gateADir = axis; }
+        else if (Gen) for (int i = 0; i < curveA.Count; i++)
             if (DistToTrack(curveA[i]) >= clearDist) { gateAPos = curveA[i]; gateADir = Dir(curveA, i); break; }
         var entryGate = TriggerBox("Gate_Entry", root, gateAPos + Vector3.up * 1.5f, gateADir,
                                    new Vector3(roadWidth + 1f, 4f, 2f));
-        var g1 = entryGate.AddComponent<ShortcutGate>(); g1.branch = branch; g1.type = ShortcutGate.GateType.Entry;
+        // The team's real Super Fart gate: it checks the player's FuelInventory / the AI's
+        // AIFuelTank and spends the mix. The bridge tells the shortcut system who paid.
+        entryGate.AddComponent<SuperFartJumpGate>().requiredMix = FuelMix.SuperFart;
+        entryGate.AddComponent<SuperFartGateBridge>().branch = branch;
+        AddPinkVisual(entryGate.transform, entryGate.GetComponent<BoxCollider>().size);
 
         Vector3 gateBPos = landEnd, gateBDir = axis;
         if (Gen) for (int i = curveB.Count - 1; i >= 0; i--)
@@ -385,6 +393,33 @@ public class BrokenBridgeBuilder : MonoBehaviour
         Debug.Log($"Broken Bridge built. Gap {gapLen:0.0} m. A car WITHOUT the mix would need " +
                   $"{clear:0.0} m/s ({clear * 3.6f:0} km/h) to clear it; it gets capped to " +
                   $"{clear * lp.unboostedSpeedFactor:0.0} m/s. {openings} wall piece(s) will be left out by LoopTrackGenerator.", this);
+    }
+
+    // See-through pink panel so players can see where Super Fart is spent.
+    static void AddPinkVisual(Transform gate, Vector3 size)
+    {
+        var v = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        v.name = "PinkGateVisual";
+        DestroyImmediate(v.GetComponent<Collider>());
+        v.transform.SetParent(gate, false);
+        v.transform.localScale = size;
+        var r = v.GetComponent<Renderer>();
+        r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+        Shader sh = Shader.Find("Universal Render Pipeline/Unlit");
+        if (!sh) sh = Shader.Find("Unlit/Color");
+        var m = new Material(sh) { name = "SuperFartGate_Pink", color = new Color(1f, .35f, .7f, .35f) };
+        if (m.HasProperty("_Surface"))
+        {
+            m.SetFloat("_Surface", 1); m.SetFloat("_Blend", 0);
+            m.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            m.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            m.SetFloat("_ZWrite", 0); m.SetFloat("_Cull", (float)UnityEngine.Rendering.CullMode.Off);
+            m.SetOverrideTag("RenderType", "Transparent");
+            m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        }
+        r.sharedMaterial = m;
     }
 
     static Material MakeMaterial(string name, Color color)
