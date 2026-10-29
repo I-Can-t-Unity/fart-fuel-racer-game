@@ -22,6 +22,31 @@ public static class FuelPalette
 
 public enum FuelMix { None, Premium, Hybrid, SuperFart, ToxicSludge }
 
+// Each car has one wrong fuel that is its Super Fart fuel: two pickups of it in a row
+// make Super Fart. Brown (Gasoline) cars use purple (Ethanol), green (Diesel) cars use
+// brown (Gasoline), purple (Ethanol) cars use green (Diesel). The player's bag and the
+// AI's tank both use this, so every car plays by the same rule.
+public static class SuperFartRecipe
+{
+    public static FuelType FuelFor(FuelType carFuel)
+    {
+        int count = Enum.GetValues(typeof(FuelType)).Length;
+        return (FuelType)(((int)carFuel + 2) % count);
+    }
+
+    // The colour players know each fuel by, for HUD text.
+    public static string ColorNameOf(FuelType type)
+    {
+        switch (type)
+        {
+            case FuelType.Gasoline: return "BROWN";
+            case FuelType.Diesel: return "GREEN";
+            case FuelType.Ethanol: return "PURPLE";
+            default: return type.ToString().ToUpper();
+        }
+    }
+}
+
 // The shortcut system (ShortcutCore) names mixes with its own FuelMixType. These convert
 // between the two so both bags can be read through IFuelMixHolder. No shortcut takes
 // Toxic Sludge, so to the shortcuts it is no mix at all.
@@ -119,6 +144,9 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
 
     public bool IsSuitable(FuelType type) => type == carFuel;
 
+    // The one wrong fuel that makes Super Fart for this car (two in a row).
+    public FuelType SuperFartFuel => SuperFartRecipe.FuelFor(carFuel);
+
     void Update()
     {
         if (RaceManager.Instance != null && !RaceManager.Instance.IsRacing)
@@ -188,7 +216,10 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
 
         if (suitable == 2) HeldMix = FuelMix.Premium;
         else if (suitable == 1) HeldMix = FuelMix.Hybrid;
-        else if (slots[0] == slots[1]) HeldMix = FuelMix.SuperFart;
+        // Old: any two of the same wrong fuel made Super Fart.
+        // else if (slots[0] == slots[1]) HeldMix = FuelMix.SuperFart;
+        // Now only two of this car's Super Fart fuel do; any other pair of wrong fuels is sludge.
+        else if (slots[0] == SuperFartFuel && slots[1] == SuperFartFuel) HeldMix = FuelMix.SuperFart;
         else HeldMix = FuelMix.ToxicSludge;
 
         slots.Clear();
@@ -254,7 +285,14 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
     public Color LabelColorOf(FuelType type) => FuelPalette.ColorOf(type);
 
     // What picking up this fuel does on its own, for the label above each cube.
-    public string PickupEffectOf(FuelType type) => IsSuitable(type) ? $"+{pickupRefuel:0} fuel" : "Fart boost";
+    // Old: every wrong fuel just said "Fart boost".
+    // public string PickupEffectOf(FuelType type) => IsSuitable(type) ? $"+{pickupRefuel:0} fuel" : "Fart boost";
+    public string PickupEffectOf(FuelType type) =>
+        IsSuitable(type) ? $"+{pickupRefuel:0} fuel" : type == SuperFartFuel ? "Super Fart fuel" : "Fart boost";
+
+    // HUD line naming this car's Super Fart fuel, e.g. "SUPER FART: 2 PURPLE (ETHANOL) IN A ROW".
+    public string SuperFartRecipeText =>
+        $"SUPER FART: 2 {SuperFartRecipe.ColorNameOf(SuperFartFuel)} ({NameOf(SuperFartFuel)}) IN A ROW";
 
     public Color ColorOf(FuelMix mix)
     {

@@ -7,6 +7,9 @@ using UnityEngine;
 // of its own fuel type, and gets help straightening out after a hit, so it recovers faster
 // than the player, who gets no help. Which car it drives (Gasoline, Diesel or Ethanol) follows the
 // car picked in the main menu: by default it takes one of the two the player didn't pick.
+// The Broken Bridge: holding Super Fart at the split, it lets AIShortcutRouter steer it up the
+// ramp and over the jump instead of taking the main road; without Super Fart it stays on the
+// main road. Its stuck/off-track recovery leaves it alone on the branch and in the air.
 // The old kinematic version is kept, commented out, at the bottom of this file.
 // Old: [DefaultExecutionOrder(-10)] // set the pedals before CarDriver uses them
 // Runs before ApplySelectedCar (-200) too, so it can see the player's original (Gasoline) body
@@ -33,7 +36,11 @@ public class AICarWaypointDriver : MonoBehaviour
     [Tooltip("How far over its target speed, in km/h, the AI goes before braking instead of just lifting off.")]
     public float brakeOverKph = 6f;
 
-    [Header("Handling (the rival's own car)")]
+    [Header("Same car as the player")]
+    [Tooltip("Drive by the player's rules: the player's car handling (copied from its CarDriver at the start, so launch and top speed match), and no recovery help after hits. Off uses the handling and help below.")]
+    public bool mimicPlayer = true;
+
+    [Header("Handling (the rival's own car, only with Mimic Player off)")]
     [Tooltip("Gives the rival the handling below instead of the values on its CarDriver in the scene.")]
     public bool overrideHandling = true;
     [Tooltip("The player's car does 70.")]
@@ -67,6 +74,22 @@ public class AICarWaypointDriver : MonoBehaviour
     public int fuelMinAheadPoints = 4;
     [Tooltip("How fast the AI moves across to a fuel lane and back, in metres per second.")]
     public float laneChangeSpeed = 4f;
+    [Tooltip("Outside Super Fart collecting, the AI only leaves the racing line for its own fuel below this fuel level.")]
+    public float refuelBelowFuel = 80f;
+    // Old: homing started by track points and aimed at the can's lane a few points past it. On a
+    // bend that line cuts across the lane, so the AI reached the can one lane over.
+    // [Tooltip("Once the can it wants is this many track points ahead or closer, the AI steers straight at the can's lane just past it, so it drives through the can instead of drifting past it.")]
+    // public int homeOnCanWithinPoints = 10;
+    // [Tooltip("How far past the can, in track points, the AI aims while homing, so it goes through the can straight.")]
+    // public int aimPastCanPoints = 2;
+    [Tooltip("Once the can it wants is this close, in metres, the AI steers straight at the can itself, so it drives through it instead of drifting past or clipping the can beside it.")]
+    public float homeOnCanWithinMetres = 70f;
+    [Tooltip("While homing it aims this many metres past the can, along the road at the can, so it goes through the can straight.")]
+    public float aimPastCanMetres = 6f;
+    [Tooltip("Only aims straight at a can when the road turns less than this many degrees between the car and the can. On a bend (the hairpin) a straight line would cut through the inside barrier, so it follows the curve in the can's lane instead.")]
+    public float homeStraightBelowDegrees = 20f;
+    [Tooltip("On a bend, how many track points past the can it aims, in the can's lane.")]
+    public int aimPastCanPoints = 2;
 
     [Header("Collisions")]
     [Tooltip("Hits weaker than this, in km/h, are ignored so scraping alongside doesn't start a recovery.")]
@@ -102,6 +125,12 @@ public class AICarWaypointDriver : MonoBehaviour
     public float stuckSeconds = 2.5f;
     [Tooltip("Height above the road the AI is put back at, in metres.")]
     public float respawnHeight = 0.8f;
+    [Tooltip("After the wheels leave the ground (the jump, a bump) or the AI is put back, stuck checks wait this long, in seconds.")]
+    public float stuckGraceSeconds = 1.5f;
+
+    [Header("Shortcuts")]
+    [Tooltip("Lets the AI take the Super Fart jump when it holds Super Fart. Off: it always stays on the main road.")]
+    public bool useShortcuts = true;
 
     private Rigidbody rb;
     private CarDriver driver;
@@ -115,6 +144,11 @@ public class AICarWaypointDriver : MonoBehaviour
     private float stuckFor;
     private float nextPickupSearch;
     private FuelPickup chasing;
+    private AIShortcutRouter router;
+    private float graceUntil = -1;
+    private int branchRespawns;
+    private int lastRespawnPoint = -1, repeatRespawns;
+    private float lastRespawnTime = -100f;
     private readonly List<FuelPickup> pickups = new List<FuelPickup>();
     private readonly Dictionary<FuelPickup, int> pickupWaypoints = new Dictionary<FuelPickup, int>();
     // The body of the car the rival drives, taken from the player's car options.
@@ -142,7 +176,14 @@ public class AICarWaypointDriver : MonoBehaviour
         }
         driver.ExternalInput = true;
         driver.enabled = true;
-        if (overrideHandling)
+        // Old: the rival always had its own, faster handling (78 km/h, 1100 torque, quicker throttle).
+        // if (overrideHandling)
+        //     driver.Tune(topSpeedKmh, motorTorque, throttleRise, maxCorneringAcceleration);
+        FuelInventory player = mimicPlayer ? FindFirstObjectByType<FuelInventory>() : null;
+        CarDriver playerDriver = player != null ? player.GetComponent<CarDriver>() : null;
+        if (playerDriver != null)
+            driver.CopyHandlingFrom(playerDriver);
+        else if (overrideHandling)
             driver.Tune(topSpeedKmh, motorTorque, throttleRise, maxCorneringAcceleration);
 
         tank = GetComponent<AIFuelTank>();
@@ -153,6 +194,49 @@ public class AICarWaypointDriver : MonoBehaviour
             ChooseCar();
 
         currentLane = laneOffset;
+
+        // Added after the tank, so the router finds the tank as this car's fuel-mix holder.
+        if (useShortcuts)
+        {
+            router = GetComponent<AIShortcutRouter>();
+            if (router == null)
+                router = gameObject.AddComponent<AIShortcutRouter>();
+            router.rb = rb;
+            router.RejoinedMainLine += OnRejoinedMainLine;
+            router.RecoveredToMainLine += OnRecoveredToMainLine;
+        }
+    }
+
+    void OnDestroy()
+    {
+        if (router == null)
+            return;
+        router.RejoinedMainLine -= OnRejoinedMainLine;
+        router.RecoveredToMainLine -= OnRecoveredToMainLine;
+    }
+
+    // Through the exit gate: carry on along the main road from the merge.
+    void OnRejoinedMainLine(int index)
+    {
+        currentWaypoint = index;
+        currentLane = laneOffset;
+        stuckFor = 0f;
+        branchRespawns = 0;
+        graceUntil = Time.time + stuckGraceSeconds;
+    }
+
+    // Missed the jump (the fail zone already put the car back before the split) or gave up
+    // on the shortcut: carry on along the main road from there.
+    void OnRecoveredToMainLine(int index)
+    {
+        if (index >= 0)
+            currentWaypoint = index;
+        currentLane = laneOffset;
+        chasing = null;
+        stuckFor = 0f;
+        recoverUntil = -1;
+        branchRespawns = 0;
+        graceUntil = Time.time + stuckGraceSeconds;
     }
 
     // Uses the same saved choice as ApplySelectedCar (0 = Gasoline, 1 = Diesel, 2 = Ethanol),
@@ -196,6 +280,14 @@ public class AICarWaypointDriver : MonoBehaviour
         if (track == null)
             track = FindFirstObjectByType<LoopTrackGenerator>();
 
+        if (router != null)
+        {
+            router.track = track;
+            FuelInventory playerBag = FindFirstObjectByType<FuelInventory>();
+            if (playerBag != null)
+                router.rival = playerBag.transform;
+        }
+
         PaintBody();
     }
 
@@ -207,7 +299,23 @@ public class AICarWaypointDriver : MonoBehaviour
             return;
 
         int count = track.centerline.Count;
-        UpdateWaypoint(count);
+        // Old: always tracked the nearest centre-line point.
+        // UpdateWaypoint(count);
+        // On the branch the nearest centre-line point is in the bypassed part of the main road,
+        // so the track position is held at the split until the router hands back the merge.
+        if (router == null || !router.IsFollowingBranch)
+            UpdateWaypoint(count);
+
+        if (router != null)
+        {
+            // Committed or on the branch: the tank must keep its Super Fart for the entry gate.
+            tank.usingShortcut = router.IsUsingShortcut;
+            if (router.TryGetOverride(currentWaypoint, out AIShortcutRouter.SteerCommand command))
+            {
+                DriveShortcut(command);
+                return;
+            }
+        }
 
         // How sharp the road ahead is: 0 on a straight, 1 for a 60 degree bend or more.
         int targetIndex = currentWaypoint + lookAheadPoints;
@@ -220,9 +328,56 @@ public class AICarWaypointDriver : MonoBehaviour
         currentLane = Mathf.MoveTowards(currentLane, targetLane, laneChangeSpeed * Time.fixedDeltaTime);
 
         // Steer toward a point ahead on that lane, the way a player would.
+        // Old: always aimed Look Ahead Points ahead, so the car only drifted slowly toward a can's
+        // lane and was still a metre or two off when it got there, missing the can or clipping
+        // the one beside it.
+        // Vector3 direction = track.GetForward(targetIndex);
+        // Vector3 side = new Vector3(-direction.z, 0f, direction.x);
+        // Vector3 target = track.GetPoint(targetIndex) + side * currentLane;
+        // Old (first homing version): aimed at the can's lane a few track points past it.
+        // int aimIndex = targetIndex;
+        // float aimLane = currentLane;
+        // if (chasing != null && AheadOf(chasing, count) <= homeOnCanWithinPoints)
+        // {
+        //     aimIndex = pickupWaypoints[chasing] + aimPastCanPoints;
+        //     aimLane = fuelLane;
+        //     currentLane = fuelLane;
+        // }
+        // Vector3 direction = track.GetForward(aimIndex);
+        // Vector3 side = new Vector3(-direction.z, 0f, direction.x);
+        // Vector3 target = track.GetPoint(aimIndex) + side * aimLane;
         Vector3 direction = track.GetForward(targetIndex);
         Vector3 side = new Vector3(-direction.z, 0f, direction.x);
         Vector3 target = track.GetPoint(targetIndex) + side * currentLane;
+        if (chasing != null)
+        {
+            Vector3 can = chasing.transform.position;
+            Vector3 toCan = can - rb.position;
+            toCan.y = 0f;
+            // Old: aimed straight at the can within Home On Can Within Metres everywhere. In the
+            // hairpin that line went through the inside barrier, so the AI hit it again and again.
+            // if (toCan.magnitude <= homeOnCanWithinMetres)
+            // {
+            //     target = can + track.GetForward(pickupWaypoints[chasing]) * aimPastCanMetres;
+            //     currentLane = fuelLane;
+            // }
+            int canIndex = pickupWaypoints[chasing];
+            float roadTurn = Vector3.Angle(track.GetForward(currentWaypoint), track.GetForward(canIndex));
+            if (toCan.magnitude <= homeOnCanWithinMetres && roadTurn < homeStraightBelowDegrees)
+            {
+                // Close to the can on a straight: aim at the can itself, a little further along the road there.
+                target = can + track.GetForward(canIndex) * aimPastCanMetres;
+                currentLane = fuelLane;
+            }
+            else if (AheadOf(chasing, count) <= lookAheadPoints)
+            {
+                // Close to the can on a bend: follow the road, in the can's lane, to just past the can.
+                int aimIndex = canIndex + aimPastCanPoints;
+                Vector3 aimForward = track.GetForward(aimIndex);
+                target = track.GetPoint(aimIndex) + new Vector3(-aimForward.z, 0f, aimForward.x) * fuelLane;
+                currentLane = fuelLane;
+            }
+        }
         Vector3 toTarget = target - rb.position;
         toTarget.y = 0f;
         if (toTarget.sqrMagnitude < 0.001f)
@@ -251,11 +406,51 @@ public class AICarWaypointDriver : MonoBehaviour
         CheckStuck(speed, throttle);
     }
 
+    // On the shortcut: steer at the router's target at its speed, flat out up the ramp and
+    // wheels straight in the air. The racing line and fuel hunting wait until the merge.
+    void DriveShortcut(AIShortcutRouter.SteerCommand command)
+    {
+        chasing = null;
+        Vector3 forward = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
+        Vector3 toTarget = command.target - rb.position;
+        toTarget.y = 0f;
+        if (toTarget.sqrMagnitude < 0.001f)
+            toTarget = forward;
+
+        float angle = Vector3.SignedAngle(forward, toTarget, Vector3.up);
+        float steer = command.lockSteering ? 0f : Mathf.Clamp(angle / fullSteerAtDegrees, -1f, 1f);
+        tank.cornerAhead = Mathf.Clamp01(Mathf.Abs(angle) / 60f);
+
+        float desiredSpeed = command.targetSpeed > 0f ? command.targetSpeed * 3.6f : speedKph;
+        float speed = Vector3.Dot(rb.linearVelocity, forward) * 3.6f;
+        float gap = desiredSpeed - speed;
+        float throttle = gap > 0f ? Mathf.Clamp01(gap / 10f + 0.3f) : 0f;
+        bool brake = gap < -brakeOverKph;
+        if (command.fullThrottle)
+        {
+            throttle = 1f;
+            brake = false;
+        }
+        if (command.lockSteering)
+        {
+            // In the air: no pedals, so it lands the way it took off.
+            throttle = 0f;
+            brake = false;
+        }
+
+        driver.SetInput(throttle, steer, brake);
+        Recover(forward, toTarget.normalized, desiredSpeed, speed);
+        CheckStuck(speed, throttle);
+    }
+
     // A real hit now moves the AI car. For a moment afterwards it gets help the player doesn't:
     // spin and sideways skid die away faster, it is turned back toward the track, and it gets an
     // extra push back up to speed.
     void Recover(Vector3 forward, Vector3 aimDirection, float desiredSpeed, float speed)
     {
+        // The player gets no help after a hit, so with Mimic Player the AI doesn't either.
+        if (mimicPlayer)
+            return;
         // While touching another car, let the contact solver separate both bodies.
         // Cancelling lateral velocity or rotating into an opponent can pin it in place.
         if (!IsRecovering || driver.HasVehicleContact || driver.GroundedWheelCount < 2)
@@ -282,16 +477,109 @@ public class AICarWaypointDriver : MonoBehaviour
 
     // With real physics the AI can end up on its roof or wedged against a wall. The player has R
     // for that; the AI puts itself back on the road at the point it had reached.
+    // Old: the same checks everywhere, so the branch (off the main road) and the jump (wheels
+    // off the ground) looked like being stuck and the AI was pulled back mid-shortcut.
+    // void CheckStuck(float speed, float throttle)
+    // {
+    //     bool upsideDown = Vector3.Dot(transform.up, Vector3.up) < 0.3f;
+    //     bool pinned = tank.fuel > 0f && throttle > 0.5f && Mathf.Abs(speed) < 3f;
+    //     float maxSideways = track.roadWidth * 0.5f + track.curbWidth + 3f;
+    //     bool offTrack = Mathf.Abs(LateralOffset(rb.position, currentWaypoint)) > maxSideways;
+    //
+    //     stuckFor = upsideDown || pinned || offTrack ? stuckFor + Time.fixedDeltaTime : 0f;
+    //     if (stuckFor >= stuckSeconds)
+    //         PutBackOnTrack();
+    // }
     void CheckStuck(float speed, float throttle)
     {
+        // No wheel on the ground: in the air (or a bump). Wait until it has landed a moment.
+        if (driver.GroundedWheelCount == 0)
+            graceUntil = Mathf.Max(graceUntil, Time.time + stuckGraceSeconds);
+        if (Time.time < graceUntil && Vector3.Dot(transform.up, Vector3.up) >= 0.3f)
+        {
+            stuckFor = 0f;
+            return;
+        }
+
         bool upsideDown = Vector3.Dot(transform.up, Vector3.up) < 0.3f;
         bool pinned = tank.fuel > 0f && throttle > 0.5f && Mathf.Abs(speed) < 3f;
+        // The branch leaves the main road on purpose, so "off the track" only applies on the main road.
+        bool onShortcut = (router != null && router.IsFollowingBranch) || ShortcutTracker.IsOnBranch(rb);
         float maxSideways = track.roadWidth * 0.5f + track.curbWidth + 3f;
-        bool offTrack = Mathf.Abs(LateralOffset(rb.position, currentWaypoint)) > maxSideways;
+        bool offTrack = !onShortcut && Mathf.Abs(LateralOffset(rb.position, currentWaypoint)) > maxSideways;
 
         stuckFor = upsideDown || pinned || offTrack ? stuckFor + Time.fixedDeltaTime : 0f;
         if (stuckFor >= stuckSeconds)
-            PutBackOnTrack();
+        {
+            if (tank.logFuelDecisions)
+                Debug.Log($"[AI] Stuck ({(upsideDown ? "upside down" : pinned ? "pinned, not moving" : "off the track")}) " +
+                          $"at track point {currentWaypoint}, fuel {tank.fuel:0}: putting it back" +
+                          (onShortcut ? " on the shortcut." : " on the road."), this);
+            if (onShortcut)
+                PutBackOnShortcut();
+            else
+                PutBackOnTrack();
+        }
+    }
+
+    // Counts a respawn at this track point; true if it's at the same spot as the last one within 10 s.
+    bool RepeatRespawn(int waypoint)
+    {
+        int count = track.centerline.Count;
+        int apart = Mathf.Min(((waypoint - lastRespawnPoint) % count + count) % count,
+                              ((lastRespawnPoint - waypoint) % count + count) % count);
+        bool repeat = lastRespawnPoint >= 0 && Time.time - lastRespawnTime < 10f && apart <= 6;
+        repeatRespawns = repeat ? repeatRespawns + 1 : 0;
+        lastRespawnPoint = waypoint;
+        lastRespawnTime = Time.time;
+        return repeat;
+    }
+
+    // Stuck on the branch: put back on the branch road behind it the first time; the second
+    // time give up and go back before the split, like a missed jump, so it can't loop.
+    void PutBackOnShortcut()
+    {
+        ShortcutBranch branch = router != null ? router.ActiveBranch : null;
+        if (branch == null)
+            ShortcutTracker.TryGetBranch(rb, out branch);
+        branchRespawns++;
+
+        if (branch != null && branchRespawns < 2
+            && branch.GetSafeRespawnPose(rb.position, out Vector3 safePosition, out Quaternion safeRotation))
+        {
+            Place(safePosition, safeRotation);
+            return;
+        }
+
+        if (branch != null && branch.failRespawnPoint != null)
+        {
+            Place(branch.failRespawnPoint.position, branch.failRespawnPoint.rotation);
+            if (ShortcutTracker.IsOnBranch(rb))
+                ShortcutTracker.RaiseFailed(rb, branch);   // the mix is already spent: a missed jump
+            else if (router != null)
+                OnRecoveredToMainLine(router.AbortShortcut());
+            return;
+        }
+
+        if (router != null)
+            router.AbortShortcut();
+        ShortcutTracker.Exit(rb);
+        PutBackOnTrack();
+    }
+
+    void Place(Vector3 position, Quaternion rotation)
+    {
+        stuckFor = 0f;
+        recoverUntil = -1;
+        currentLane = laneOffset;
+        chasing = null;
+        graceUntil = Time.time + stuckGraceSeconds;
+
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        rb.position = position;
+        rb.rotation = rotation;
+        transform.SetPositionAndRotation(position, rotation);
     }
 
     void PutBackOnTrack()
@@ -300,6 +588,10 @@ public class AICarWaypointDriver : MonoBehaviour
         recoverUntil = -1;
         currentLane = laneOffset;
         chasing = null;
+        // Put back at the same spot again: move it a few points further on each time, past
+        // whatever keeps trapping it there.
+        if (RepeatRespawn(currentWaypoint))
+            currentWaypoint = (currentWaypoint + 5 * repeatRespawns) % track.centerline.Count;
 
         Vector3 forward = track.GetForward(currentWaypoint);
         Vector3 side = new Vector3(-forward.z, 0f, forward.x);
@@ -310,6 +602,8 @@ public class AICarWaypointDriver : MonoBehaviour
         rb.angularVelocity = Vector3.zero;
         rb.position = position;
         rb.rotation = Quaternion.LookRotation(forward, Vector3.up);
+        // Give it a moment to get going before it can count as stuck again.
+        graceUntil = Time.time + stuckGraceSeconds;
     }
 
     void OnCollisionEnter(Collision collision)
@@ -363,10 +657,18 @@ public class AICarWaypointDriver : MonoBehaviour
 
     // Picks the nearest cube of the AI's fuel ahead that is still on the track, and sticks with it until
     // it is taken or passed. Nothing to chase while the bag is full, since the cube would stay put.
+    // With the jump split coming up it goes for its Super Fart fuel instead (two in a row make
+    // Super Fart); if the player takes that can it picks the next one, or just keeps racing.
     bool FindFuelLane(int count, out float lane)
     {
         lane = laneOffset;
         if (tank.IsFull)
+        {
+            chasing = null;
+            return false;
+        }
+        // Racing normally with plenty of fuel: stay on the racing line.
+        if (!tank.WantsSuperFart && tank.fuel >= refuelBelowFuel)
         {
             chasing = null;
             return false;
@@ -377,7 +679,8 @@ public class AICarWaypointDriver : MonoBehaviour
         if (chasing != null)
         {
             int ahead = AheadOf(chasing, count);
-            if (chasing.IsAvailable && ahead <= fuelSearchAheadPoints)
+            // Old: if (chasing.IsAvailable && ahead <= fuelSearchAheadPoints)
+            if (chasing.IsAvailable && ahead <= fuelSearchAheadPoints && chasing.type == WantedFuel())
             {
                 lane = LateralOffset(chasing.transform.position, pickupWaypoints[chasing]);
                 return true;
@@ -388,7 +691,9 @@ public class AICarWaypointDriver : MonoBehaviour
         int nearest = int.MaxValue;
         foreach (FuelPickup pickup in pickups)
         {
-            if (pickup == null || !pickup.IsAvailable || pickup.type != tank.ownFuel)
+            // Old: only its own fuel.
+            // if (pickup == null || !pickup.IsAvailable || pickup.type != tank.ownFuel)
+            if (pickup == null || !pickup.IsAvailable || pickup.type != WantedFuel())
                 continue;
             int ahead = AheadOf(pickup, count);
             if (ahead < fuelMinAheadPoints || ahead > fuelSearchAheadPoints || ahead >= nearest)
@@ -399,9 +704,15 @@ public class AICarWaypointDriver : MonoBehaviour
 
         if (chasing == null)
             return false;
+        if (tank.logFuelDecisions)
+            Debug.Log($"[AI] Going for the {chasing.type} can at track point {pickupWaypoints[chasing]} (row {chasing.row}, lane {chasing.lane}).", this);
         lane = LateralOffset(chasing.transform.position, pickupWaypoints[chasing]);
         return true;
     }
+
+    // Old: FuelType WantedFuel() => tank.WantsSuperFart ? tank.SuperFartFuel : tank.ownFuel;
+    // The tank decides, so what it hunts and what it accepts can't disagree.
+    FuelType WantedFuel() => tank.WantedFuel;
 
     int AheadOf(FuelPickup pickup, int count)
     {

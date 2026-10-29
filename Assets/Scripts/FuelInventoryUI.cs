@@ -23,6 +23,8 @@ public class FuelInventoryUI : MonoBehaviour
     readonly TMP_Text[] slotLabels = new TMP_Text[FuelInventory.Capacity];
     GameObject slotsGroup, mixGroup;
     Image mixFill;
+    // Removed: the Super Fart recipe line above the bag.
+    // TMP_Text mixName, mixEffect, hint, message, recipe;
     TMP_Text mixName, mixEffect, hint, message;
     float messageUntil;
 
@@ -41,6 +43,12 @@ public class FuelInventoryUI : MonoBehaviour
         bag.GetComponent<Image>().raycastTarget = false;
 
         NewText("Title", bag, new Vector2(0, 95), new Vector2(500, 30), 22, TextAlignmentOptions.Center).text = "FUEL BAG";
+
+        // Removed: always on screen just above the bag, which fuel makes this car's Super Fart.
+        // recipe = NewText("SuperFartRecipe", bag, new Vector2(0, 140), new Vector2(700, 36), 26, TextAlignmentOptions.Center);
+        // recipe.fontStyle = FontStyles.Bold;
+        // recipe.outlineWidth = .2f;
+        // recipe.outlineColor = Color.black;
 
         slotsGroup = NewRect("Slots", bag, Vector2.zero, bag.sizeDelta).gameObject;
         for (int i = 0; i < FuelInventory.Capacity; i++)
@@ -91,6 +99,10 @@ public class FuelInventoryUI : MonoBehaviour
 
     void Refresh()
     {
+        // Removed: the recipe line above the bag.
+        // recipe.text = inventory.SuperFartRecipeText;
+        // recipe.color = inventory.LabelColorOf(inventory.SuperFartFuel);
+
         bool holdingMix = inventory.HeldMix != FuelMix.None;
         slotsGroup.SetActive(!holdingMix);
         mixGroup.SetActive(holdingMix);
@@ -111,7 +123,12 @@ public class FuelInventoryUI : MonoBehaviour
             slotLabels[i].text = filled ? inventory.NameOf(inventory.Slots[i]) : "EMPTY";
             slotLabels[i].color = filled ? inventory.LabelColorOf(inventory.Slots[i]) : Color.white;
         }
-        hint.text = "";
+        // Old: hint.text = "";
+        // Halfway to Super Fart: say which pickup completes it.
+        bool halfway = inventory.Slots.Count == 1 && inventory.Slots[0] == inventory.SuperFartFuel;
+        hint.text = halfway
+            ? $"1 MORE {SuperFartRecipe.ColorNameOf(inventory.SuperFartFuel)} = SUPER FART"
+            : "";
     }
 
     void ShowMessage(string text)

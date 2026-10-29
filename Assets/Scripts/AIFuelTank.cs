@@ -20,6 +20,9 @@ public class AIFuelTank : MonoBehaviour, IFuelMixHolder
     public FuelType ownFuel = FuelType.Diesel;
     public float fuel = 100f;
 
+    // Like the player's car: two of this one wrong fuel in a row make Super Fart.
+    public FuelType SuperFartFuel => SuperFartRecipe.FuelFor(ownFuel);
+
     [Header("Amounts (copied from the player's bag at the start, so both cars play by the same rules)")]
     public float pickupRefuel = 25f;
     public float pickupFartSeconds = .7f;
@@ -48,6 +51,33 @@ public class AIFuelTank : MonoBehaviour, IFuelMixHolder
     [Tooltip("The longest the AI holds a boost or sludge mix before using it anyway, in seconds.")]
     public float maxHoldSeconds = 4f;
 
+    [Header("Saving Super Fart for the bridge")]
+    [Tooltip("Keep a held Super Fart for the Super Fart jump while its split is coming up: neither the straight-road rule nor the hold timeout may spend it.")]
+    public bool reserveSuperFart = true;
+    [Tooltip("Reserve it when the split is this many track centre-line points ahead or closer (about 4.3 m each on Bridge Circuit).")]
+    public int reservePointsAhead = 110;
+    [Tooltip("Below this fuel level the reservation is dropped, so the bag can be freed to refuel.")]
+    public float keepReserveAboveFuel = 15f;
+
+    [Tooltip("With the jump split coming up (within Reserve Points Ahead), the AI goes for two cans of its Super Fart fuel instead of its own fuel, so it can take the jump.")]
+    public bool craftSuperFartForBridge = true;
+    [Tooltip("The AI only goes for Super Fart with at least this much fuel, since those cans don't refuel it.")]
+    public float craftAboveFuel = 40f;
+    [Tooltip("Logs every can the AI picks up, and when it switches between hunting Super Fart fuel and its own fuel (for play-testing).")]
+    public bool logFuelDecisions = true;
+    bool wantedSuperFart;
+
+    [Tooltip("The AI only collects the fuel it wants right now (its Super Fart fuel while collecting for the jump, else its own fuel). Any other can it brushes past stays on the track, so it never grabs two cans at once by mistake.")]
+    public bool onlyCollectWantedFuel = true;
+    float lastSkipLog = -1f;
+
+    // The fuel the AI is after right now.
+    public FuelType WantedFuel => WantsSuperFart ? SuperFartFuel : ownFuel;
+
+    // Set by AICarWaypointDriver every physics step: the AI has committed to the jump or is on
+    // its branch, so the Super Fart is kept for the entry gate whatever the track position says.
+    [HideInInspector] public bool usingShortcut;
+
     // Set by AICarWaypointDriver every physics step: how sharp the road ahead is, 0 to 1.
     [HideInInspector] public float cornerAhead;
 
@@ -61,6 +91,11 @@ public class AIFuelTank : MonoBehaviour, IFuelMixHolder
     public FartBoost Fart => fart;
 
     readonly List<FuelType> slots = new List<FuelType>();
+    // For the Super Fart reservation: the track, where the jump splits off it, and where the AI is.
+    LoopTrackGenerator track;
+    int splitIndex = -1, trackIndex = -1;
+    bool splitSearched, splitLogged;
+    float raceStartTime = -1f;
     Rigidbody body;
     CarDriver driver;
     FartBoost fart;
@@ -89,9 +124,20 @@ public class AIFuelTank : MonoBehaviour, IFuelMixHolder
             chokeSeconds = playerBag.chokeSeconds;
         }
 
+        // Same fart boost strength as the player's car.
+        FartBoost playerFart = playerBag != null ? playerBag.GetComponent<FartBoost>() : null;
+        if (playerFart != null)
+        {
+            fart.acceleration = playerFart.acceleration;
+            fart.maxBoostKph = playerFart.maxBoostKph;
+            fart.chokeMaxKph = playerFart.chokeMaxKph;
+        }
+
         RaceManager race = RaceManager.Instance;
         if (race != null)
         {
+            // Starts with the same tank as the player.
+            fuel = race.fuel;
             drainPerSecond = race.fuelDrainPerSecond;
             drainPerSpeed = race.fuelDrainPerSpeed;
             drainPerThrottle = race.fuelDrainPerThrottle;
@@ -122,8 +168,143 @@ public class AIFuelTank : MonoBehaviour, IFuelMixHolder
             Changed?.Invoke();
         }
 
+        if (raceStartTime < 0)
+            raceStartTime = Time.time;
+        UpdateTrackIndex();
+
+        if (logFuelDecisions && WantsSuperFart != wantedSuperFart)
+        {
+            wantedSuperFart = !wantedSuperFart;
+            Debug.Log(wantedSuperFart
+                ? $"[AI] Bridge split {((splitIndex - trackIndex) % track.centerline.Count + track.centerline.Count) % track.centerline.Count} points ahead: hunting {SuperFartFuel} for Super Fart (track point {trackIndex}, fuel {fuel:0})."
+                : $"[AI] Back to hunting its own fuel {ownFuel} (track point {trackIndex}, fuel {fuel:0}, bag {(HeldMix != FuelMix.None ? HeldMix.ToString() : slots.Count == 0 ? "empty" : slots[0].ToString())}).", this);
+        }
+        if (logFuelDecisions && !splitLogged && splitSearched)
+        {
+            splitLogged = true;
+            Debug.Log(splitIndex >= 0
+                ? $"[AI] Super Fart jump split found at track point {splitIndex}."
+                : "[AI] No Super Fart jump split found, so the AI won't hunt Super Fart.", this);
+        }
+
         if (HeldMix != FuelMix.None && ShouldUseMix())
             UseMix();
+    }
+
+    // True while a held Super Fart is being saved for the jump: the split is close ahead and
+    // there is enough fuel to keep the bag full until then. Only the jump gate can spend it.
+    public bool IsReservingSuperFart
+    {
+        get
+        {
+            if (!reserveSuperFart || HeldMix != FuelMix.SuperFart)
+                return false;
+            if (usingShortcut)
+                return true;
+            if (fuel < keepReserveAboveFuel)
+                return false;
+            // Old: the same check written out here.
+            // if (splitIndex < 0 || trackIndex < 0)
+            //     return false;
+            // int count = track.centerline.Count;
+            // int ahead = ((splitIndex - trackIndex) % count + count) % count;
+            // return ahead <= reservePointsAhead;
+            return SplitAhead();
+        }
+    }
+
+    // True while the AI should collect Super Fart fuel rather than its own: the jump split is
+    // coming up, it has fuel to spare, and the bag is empty or holds one Super Fart can already.
+    public bool WantsSuperFart =>
+        craftSuperFartForBridge && reserveSuperFart && HeldMix == FuelMix.None && fuel >= craftAboveFuel
+        && (slots.Count == 0 || slots[0] == SuperFartFuel) && SplitAhead();
+
+    // The jump split is within Reserve Points Ahead, and the race doesn't end at the
+    // start/finish line before it.
+    bool SplitAhead()
+    {
+        if (splitIndex < 0 || trackIndex < 0)
+            return false;
+        int count = track.centerline.Count;
+        int ahead = ((splitIndex - trackIndex) % count + count) % count;
+        if (ahead > reservePointsAhead)
+            return false;
+        // Old: also counted the start line just ahead of the grid, so at the start of the race
+        // the AI hunted its own fuel for its first metres.
+        // if (RaceManager.Instance != null)
+        // {
+        //     int toFinish = ((track.startIndex - trackIndex) % count + count) % count;
+        //     if (toFinish > 0 && toFinish < ahead)
+        //         return false;
+        // }
+        // The race only ends at the line once the lap is nearly done, not right after the start.
+        if (RaceManager.Instance != null && Time.time - raceStartTime > 10f)
+        {
+            int toFinish = ((track.startIndex - trackIndex) % count + count) % count;
+            if (toFinish > 0 && toFinish < ahead)
+                return false;
+        }
+        return true;
+    }
+
+    // Finds the Super Fart jump's split once, then follows the AI's nearest centre-line point,
+    // looking only near the last one (the loop passes close to itself in places).
+    void UpdateTrackIndex()
+    {
+        if (!reserveSuperFart)
+            return;
+        if (!splitSearched)
+        {
+            splitSearched = true;
+            track = FindFirstObjectByType<LoopTrackGenerator>();
+            if (track == null || track.centerline.Count == 0)
+                return;
+            Vector3? split = FindSplit();
+            if (split.HasValue)
+                splitIndex = NearestTrackPoint(split.Value, 0, track.centerline.Count);
+        }
+        if (splitIndex < 0)
+            return;
+        trackIndex = trackIndex < 0
+            ? NearestTrackPoint(transform.position, 0, track.centerline.Count)
+            : NearestTrackPoint(transform.position, trackIndex - 5, 26);
+    }
+
+    // Where the Super Fart shortcut leaves the main road: the bridge builder's entry anchor,
+    // else the start of the branch, else the jump gate itself.
+    static Vector3? FindSplit()
+    {
+        foreach (ShortcutBranch branch in FindObjectsByType<ShortcutBranch>(FindObjectsSortMode.None))
+        {
+            if (branch.requiredMix != FuelMixType.SuperFart)
+                continue;
+            BrokenBridgeBuilder builder = branch.GetComponent<BrokenBridgeBuilder>();
+            if (builder != null && builder.entryAnchor != null)
+                return builder.entryAnchor.position;
+            if (branch.waypoints.Count > 0 && branch.waypoints[0].point != null)
+                return branch.waypoints[0].point.position;
+        }
+        SuperFartJumpGate gate = FindFirstObjectByType<SuperFartJumpGate>();
+        return gate != null ? gate.transform.position : (Vector3?)null;
+    }
+
+    int NearestTrackPoint(Vector3 position, int from, int span)
+    {
+        int count = track.centerline.Count;
+        int best = 0;
+        float bestDistance = float.MaxValue;
+        for (int i = 0; i < span; i++)
+        {
+            int index = ((from + i) % count + count) % count;
+            Vector3 difference = track.GetPoint(index) - position;
+            difference.y = 0f;
+            if (difference.sqrMagnitude < bestDistance)
+            {
+                bestDistance = difference.sqrMagnitude;
+                best = index;
+            }
+        }
+        return best;
     }
 
     // Returns false when the bag is full, in which case the cube stays on the track.
@@ -133,7 +314,20 @@ public class AIFuelTank : MonoBehaviour, IFuelMixHolder
             return false;
         if (IsFull)
             return false;
+        // Brushed past a can it doesn't want (e.g. the one next to its target): leave it there.
+        if (onlyCollectWantedFuel && type != WantedFuel)
+        {
+            if (logFuelDecisions && Time.time - lastSkipLog > .5f)
+            {
+                lastSkipLog = Time.time;
+                Debug.Log($"[AI] Left the {type} can it touched at track point {trackIndex} (wants {WantedFuel}).", this);
+            }
+            return false;
+        }
 
+        if (logFuelDecisions)
+            Debug.Log($"[AI] Picked up {type} at track point {trackIndex} (own {ownFuel}, Super Fart fuel {SuperFartFuel}, " +
+                      $"bag before: {(slots.Count == 0 ? "empty" : slots[0].ToString())}, fuel {fuel:0}).", this);
         slots.Add(type);
         if (type == ownFuel)
             AddFuel(pickupRefuel);
@@ -164,9 +358,14 @@ public class AIFuelTank : MonoBehaviour, IFuelMixHolder
 
         if (own == 2) HeldMix = FuelMix.Premium;
         else if (own == 1) HeldMix = FuelMix.Hybrid;
-        else if (slots[0] == slots[1]) HeldMix = FuelMix.SuperFart;
+        // Old: any two of the same wrong fuel made Super Fart.
+        // else if (slots[0] == slots[1]) HeldMix = FuelMix.SuperFart;
+        else if (slots[0] == SuperFartFuel && slots[1] == SuperFartFuel) HeldMix = FuelMix.SuperFart;
         else HeldMix = FuelMix.ToxicSludge;
 
+        if (HeldMix == FuelMix.SuperFart)
+            Debug.Log($"[AI] Made Super Fart from two {SuperFartFuel} cans" +
+                      (IsReservingSuperFart ? ", saving it for the jump." : "."), this);
         slots.Clear();
         heldSince = Time.time;
     }
@@ -183,6 +382,13 @@ public class AIFuelTank : MonoBehaviour, IFuelMixHolder
                 return fuel <= 100f - hybridRefuel || fuel < lowFuel;
             // Save the big boost for a straight, where it gains the most.
             case FuelMix.SuperFart:
+                // Old: a straight or the 4 s hold timeout always burnt it, even with the jump just ahead.
+                // return cornerAhead < superFartOnStraightBelow || heldTooLong;
+                if (IsReservingSuperFart)
+                {
+                    heldSince = Time.time;   // the hold timeout counts from when the reservation ends
+                    return false;
+                }
                 return cornerAhead < superFartOnStraightBelow || heldTooLong;
             // Sludge has to be burnt to free the bag; a corner is where it costs the least.
             case FuelMix.ToxicSludge:

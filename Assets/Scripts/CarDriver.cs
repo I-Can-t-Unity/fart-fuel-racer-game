@@ -190,6 +190,32 @@ public class CarDriver : MonoBehaviour
         }
     }
 
+    // Gives this car exactly the handling of another (an AI copying the player's car): engine,
+    // brakes, steering, grip, stability and throttle. Wheels and their set-up stay this car's own.
+    public void CopyHandlingFrom(CarDriver other)
+    {
+        if (other == null || other == this)
+            return;
+        motorTorque = other.motorTorque;
+        brakeTorque = other.brakeTorque;
+        topSpeedKmh = other.topSpeedKmh;
+        reverseSpeedKmh = other.reverseSpeedKmh;
+        steeringAngle = other.steeringAngle;
+        steeringResponse = other.steeringResponse;
+        maxCorneringAcceleration = other.maxCorneringAcceleration;
+        holdTurnRadiusAboveTopSpeed = other.holdTurnRadiusAboveTopSpeed;
+        engineOffDrag = other.engineOffDrag;
+        raceEndDeceleration = other.raceEndDeceleration;
+        tireGrip = other.tireGrip;
+        downforceAcceleration = other.downforceAcceleration;
+        yawStability = other.yawStability;
+        maxBoostGrip = other.maxBoostGrip;
+        powerByFuel = other.powerByFuel;
+        sputterBelowFuel = other.sputterBelowFuel;
+        throttleRise = other.throttleRise;
+        throttleFall = other.throttleFall;
+    }
+
     // Lets an AI driver give its car its own handling without editing the scene.
     public void Tune(float topSpeed, float torque, float rise, float cornering)
     {

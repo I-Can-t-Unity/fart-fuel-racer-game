@@ -11,6 +11,12 @@ using UnityEngine;
 ///   else { normal waypoint following ... }
 ///   router.RejoinedMainLine  += i => currentWaypoint = i;
 ///   router.RecoveredToMainLine += i => currentWaypoint = i;
+///
+/// AICarWaypointDriver adds this at runtime. Its AI follows LoopTrackGenerator's
+/// centre-line points, not a waypoint root, so when a branch has no Main Waypoint
+/// Root the router works in centre-line points instead ("track mode"): the split
+/// and merge are found from the branch itself, and every index it takes in or
+/// hands out is a centre-line index.
 /// </summary>
 public class AIShortcutRouter : MonoBehaviour
 {
@@ -35,9 +41,19 @@ public class AIShortcutRouter : MonoBehaviour
     [Tooltip("Decide this many main waypoints before the split.")]
     public int decideWaypointsBefore = 3;
     [Range(0f, 1f)] public float takeChanceWhenBehind = 1f;
-    [Range(0f, 1f)] public float takeChanceWhenAhead = 0.5f;
+    // Old: when ahead the AI took the shortcut only half the time, so a Super Fart saved
+    // for the bridge was often carried past it.
+    // [Range(0f, 1f)] public float takeChanceWhenAhead = 0.5f;
+    [Tooltip("Chance of taking the shortcut when holding its mix and ahead of the player. Without the mix it is never taken.")]
+    [Range(0f, 1f)] public float takeChanceWhenAhead = 1f;
     [Tooltip("Don't burn the matching mix as a boost if a shortcut is this close.")]
     public int holdMixLookahead = 10;
+
+    [Header("Track mode (branch without a Main Waypoint Root)")]
+    [Tooltip("The track the AI follows. Leave empty to find it.")]
+    public LoopTrackGenerator track;
+    [Tooltip("Decide this many centre-line points before the split (about 4.3 m each on Bridge Circuit).")]
+    public int decidePointsBefore = 6;
 
     [Header("Following")]
     public float reachRadius = 5f;
@@ -61,6 +77,15 @@ public class AIShortcutRouter : MonoBehaviour
     int branchIndex;
     ShortcutBranch decidedFor;   // branch we already rolled the dice on this lap
     IFuelMixHolder fuel;
+
+    // Track mode: each branch's split, merge and missed-jump respawn as centre-line indices.
+    struct TrackSpan { public int entry, exit, respawn; }
+    readonly Dictionary<ShortcutBranch, TrackSpan> trackSpans = new Dictionary<ShortcutBranch, TrackSpan>();
+
+    /// <summary>True from committing to the shortcut until rejoining or failing.</summary>
+    public bool IsUsingShortcut => CurrentState != State.MainLine;
+    /// <summary>True once the car has left the main line for the branch (not just committed).</summary>
+    public bool IsFollowingBranch => CurrentState != State.MainLine && CurrentState != State.Committed;
 
     void Awake()
     {
@@ -94,10 +119,26 @@ public class AIShortcutRouter : MonoBehaviour
         if (fuel == null || fuel.HeldMix == FuelMixType.None) return false;
         if (CurrentState == State.Committed) return true;
         foreach (var b in branches)
-            if (b && b.requiredMix == fuel.HeldMix && b.WaypointsUntilEntry(headingToMainIndex) <= holdMixLookahead)
+            // Old: main waypoints only.
+            // if (b && b.requiredMix == fuel.HeldMix && b.WaypointsUntilEntry(headingToMainIndex) <= holdMixLookahead)
+            if (b && b.requiredMix == fuel.HeldMix && UntilEntry(b, headingToMainIndex) <= holdMixLookahead)
                 return true;
         return false;
     }
+
+    /// <summary>Gives up on the shortcut before the entry gate (lost mix, stuck).
+    /// Returns the main index to resume at, or -1 if not on a shortcut.</summary>
+    public int AbortShortcut()
+    {
+        var b = ActiveBranch;
+        if (b == null) return -1;
+        ResetToMain();
+        decidedFor = b;
+        return RespawnIndex(b);
+    }
+
+    /// <summary>Main index nearest the branch's fail respawn point.</summary>
+    public int RespawnIndex(ShortcutBranch b) => b == null ? -1 : TrackMode(b) ? Span(b).respawn : b.entryMainIndex;
 
     /// <param name="headingToMainIndex">Index of the main waypoint your AI is currently driving towards.</param>
     public bool TryGetOverride(int headingToMainIndex, out SteerCommand cmd)
@@ -123,20 +164,27 @@ public class AIShortcutRouter : MonoBehaviour
         foreach (var b in branches)
         {
             if (!b || b.waypoints.Count < 2) continue;
-            int until = b.WaypointsUntilEntry(heading);
-
-            if (until > decideWaypointsBefore + 1) { if (decidedFor == b) decidedFor = null; continue; }
+            // Old: main waypoints only.
+            // int until = b.WaypointsUntilEntry(heading);
+            // if (until > decideWaypointsBefore + 1) { if (decidedFor == b) decidedFor = null; continue; }
+            int until = UntilEntry(b, heading);
+            int window = TrackMode(b) ? decidePointsBefore : decideWaypointsBefore;
+            if (until > window + 1) { if (decidedFor == b) decidedFor = null; continue; }
             if (decidedFor == b) continue;   // already decided for this pass
-            decidedFor = b;
+            // Old: marked decided before checking the mix, so a mix made inside the window was never used.
+            // decidedFor = b;
 
+            // Only ever choose the branch while holding the mix it needs; otherwise stay on the main route.
             bool hasMix = fuel != null && fuel.HeldMix == b.requiredMix;
             if (!hasMix) continue;
+            decidedFor = b;
 
             float chance = IsBehindRival() ? takeChanceWhenBehind : takeChanceWhenAhead;
             if (Random.value <= chance)
             {
                 ActiveBranch = b;
                 CurrentState = State.Committed;
+                Debug.Log($"[AI] Holding {b.requiredMix}: taking the {b.displayName}.", this);
                 return;
             }
         }
@@ -155,10 +203,26 @@ public class AIShortcutRouter : MonoBehaviour
         // Lost the mix before the split (dropped / used / stolen) → stay on main line.
         if (fuel == null || fuel.HeldMix != b.requiredMix) { ResetToMain(); return false; }
 
-        int until = b.WaypointsUntilEntry(heading);
-        Transform entry = b.GetMain(b.entryMainIndex);
-        bool atSplit = until == 0 && entry && Vector3.Distance(rb.position, entry.position) < reachRadius * 2f;
-        bool passedSplit = until == b.MainCount - 1; // already heading to entry+1
+        // Old: main waypoints only.
+        // int until = b.WaypointsUntilEntry(heading);
+        // Transform entry = b.GetMain(b.entryMainIndex);
+        // bool atSplit = until == 0 && entry && Vector3.Distance(rb.position, entry.position) < reachRadius * 2f;
+        // bool passedSplit = until == b.MainCount - 1; // already heading to entry+1
+        int until = UntilEntry(b, heading);
+        bool atSplit, passedSplit;
+        if (TrackMode(b))
+        {
+            // Centre-line points are only a few metres apart, so allow one either side.
+            Vector3 split = track.GetPoint(Span(b).entry);
+            atSplit = until <= 1 && FlatDistance(rb.position, split) < reachRadius * 2f;
+            passedSplit = until >= track.centerline.Count - 2;
+        }
+        else
+        {
+            Transform entry = b.GetMain(b.entryMainIndex);
+            atSplit = until == 0 && entry && Vector3.Distance(rb.position, entry.position) < reachRadius * 2f;
+            passedSplit = until == b.MainCount - 1; // already heading to entry+1
+        }
 
         if (!atSplit && !passedSplit) return false;   // keep following the main line for now
 
@@ -173,6 +237,16 @@ public class AIShortcutRouter : MonoBehaviour
         var wps = b.waypoints;
         bool grounded = IsGrounded();
 
+        // Recheck before the entry gate, which is where the mix is spent: without it the gate
+        // would turn the car away and it would fall short, so give up now instead.
+        if (CurrentState == State.OnBranch && !ShortcutTracker.IsOnBranch(rb) && BeforeGate()
+            && (fuel == null || fuel.HeldMix != b.requiredMix))
+        {
+            int resume = AbortShortcut();
+            if (resume >= 0) RecoveredToMainLine?.Invoke(resume);
+            return false;
+        }
+
         // Air / landing transitions
         if (CurrentState == State.OnBranch && !grounded && PastLaunch()) CurrentState = State.Airborne;
         if (CurrentState == State.Airborne && grounded) { CurrentState = State.Landing; SkipToFirst(BranchWaypointRole.Landing); }
@@ -183,7 +257,8 @@ public class AIShortcutRouter : MonoBehaviour
         if (branchIndex >= wps.Count)
         {
             // Exit gate normally fires first; this is the fallback.
-            int resume = b.exitMainIndex;
+            // Old: int resume = b.exitMainIndex;
+            int resume = ExitIndex(b);
             ResetToMain();
             RejoinedMainLine?.Invoke(resume);
             return false;
@@ -233,6 +308,14 @@ public class AIShortcutRouter : MonoBehaviour
             return Vector3.Dot(rb.position - p, seg) > 0f && to.magnitude < reachRadius * 3f;
         }
         return false;
+    }
+
+    // Still on the approach or ramp run-up, so the entry gate is ahead.
+    bool BeforeGate()
+    {
+        var wps = ActiveBranch.waypoints;
+        return branchIndex < wps.Count && (wps[branchIndex].role == BranchWaypointRole.Approach
+                                           || wps[branchIndex].role == BranchWaypointRole.RampBase);
     }
 
     bool PastLaunch()
@@ -303,7 +386,8 @@ public class AIShortcutRouter : MonoBehaviour
     {
         if (car != rb || b != ActiveBranch) return;
         ResetToMain();
-        RejoinedMainLine?.Invoke(b.exitMainIndex);
+        // Old: RejoinedMainLine?.Invoke(b.exitMainIndex);
+        RejoinedMainLine?.Invoke(ExitIndex(b));
     }
 
     void OnFailed(Rigidbody car, ShortcutBranch b)
@@ -311,8 +395,56 @@ public class AIShortcutRouter : MonoBehaviour
         if (car != rb) return;
         ResetToMain();
         decidedFor = b;               // don't immediately retry (the mix is spent anyway)
-        RecoveredToMainLine?.Invoke(b.entryMainIndex);
+        // Old: RecoveredToMainLine?.Invoke(b.entryMainIndex);
+        RecoveredToMainLine?.Invoke(RespawnIndex(b));
     }
+
+    // ── Track mode ───────────────────────────────────────────────────────────
+    bool TrackMode(ShortcutBranch b)
+    {
+        if (b.MainCount > 0) return false;
+        if (!track) track = Object.FindFirstObjectByType<LoopTrackGenerator>();
+        return track && track.centerline.Count > 0 && b.waypoints.Count >= 2;
+    }
+
+    TrackSpan Span(ShortcutBranch b)
+    {
+        if (trackSpans.TryGetValue(b, out var span)) return span;
+        // Split = the builder's entry anchor (else the branch's first point), merge = its exit
+        // anchor (else the branch's last point), missed jump = the fail respawn point.
+        var builder = b.GetComponent<BrokenBridgeBuilder>();
+        Vector3 entry = builder && builder.entryAnchor ? builder.entryAnchor.position : b.waypoints[0].point.position;
+        Vector3 exit = builder && builder.exitAnchor ? builder.exitAnchor.position : b.waypoints[b.waypoints.Count - 1].point.position;
+        span.entry = NearestTrackIndex(entry);
+        span.exit = NearestTrackIndex(exit);
+        span.respawn = b.failRespawnPoint ? NearestTrackIndex(b.failRespawnPoint.position) : span.entry;
+        trackSpans[b] = span;
+        return span;
+    }
+
+    int NearestTrackIndex(Vector3 p)
+    {
+        int best = 0; float bestD = float.MaxValue;
+        for (int i = 0; i < track.centerline.Count; i++)
+        {
+            float d = FlatDistance(track.GetPoint(i), p);
+            if (d < bestD) { bestD = d; best = i; }
+        }
+        return best;
+    }
+
+    /// <summary>Main points still to pass before the split (centre-line points in track mode).</summary>
+    public int UntilEntry(ShortcutBranch b, int heading)
+    {
+        if (!b) return int.MaxValue;
+        if (!TrackMode(b)) return b.WaypointsUntilEntry(heading);
+        int n = track.centerline.Count;
+        return ((Span(b).entry - heading) % n + n) % n;
+    }
+
+    int ExitIndex(ShortcutBranch b) => TrackMode(b) ? Span(b).exit : b.exitMainIndex;
+
+    static float FlatDistance(Vector3 a, Vector3 b) { a.y = 0f; b.y = 0f; return Vector3.Distance(a, b); }
 
     void OnDrawGizmosSelected()
     {
