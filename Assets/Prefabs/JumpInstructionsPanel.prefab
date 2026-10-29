@@ -36,7 +36,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
   m_AnchoredPosition: {x: 30, y: -220}
-  m_SizeDelta: {x: 540, y: 230}
+  m_SizeDelta: {x: 540, y: 260}
   m_Pivot: {x: 0, y: 1}
 --- !u!222 &4578107266879434049
 CanvasRenderer:
@@ -141,19 +141,9 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: '<b>SUPER FART JUMP</b>
-
-    Collect 2 identical wrong fuels
-
-    to craft
-    Super Fart.
-
-    Q: use it now for a boost.
-
-    Save it and enter the jump lane
-
-    to
-    activate the shortcut.'
+  m_text: "<b>SUPER FART JUMP</b>\nCollect two cans labeled\n\u201CSuper Fart fuel\u201D\nto
+    craft Super Fart.\nQ: use it now for a boost.\nSave it and enter the jump lane\nto
+    activate the shortcut."
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}

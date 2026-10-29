@@ -28904,6 +28904,7 @@ MonoBehaviour:
   lookAheadPoints: 8
   fullSteerAtDegrees: 20
   brakeOverKph: 6
+  mimicPlayer: 1
   overrideHandling: 1
   topSpeedKmh: 78
   motorTorque: 1100
@@ -28918,6 +28919,11 @@ MonoBehaviour:
   fuelSearchAheadPoints: 30
   fuelMinAheadPoints: 4
   laneChangeSpeed: 4
+  refuelBelowFuel: 80
+  homeOnCanWithinMetres: 70
+  aimPastCanMetres: 6
+  homeStraightBelowDegrees: 20
+  aimPastCanPoints: 2
   minImpactKph: 5
   recoverySeconds: 1.2
   spinDamping: 5
@@ -28927,6 +28933,8 @@ MonoBehaviour:
   catchUpAcceleration: 4
   stuckSeconds: 2.5
   respawnHeight: 0.8
+  stuckGraceSeconds: 1.5
+  useShortcuts: 1
 --- !u!1 &409029792
 GameObject:
   m_ObjectHideFlags: 0
@@ -139867,7 +139875,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4966322019609753431, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
       propertyPath: m_SizeDelta.y
-      value: 230
+      value: 260
       objectReference: {fileID: 0}
     - target: {fileID: 4966322019609753431, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
       propertyPath: m_LocalPosition.x

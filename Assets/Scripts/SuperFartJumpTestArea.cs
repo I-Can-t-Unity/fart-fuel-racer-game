@@ -42,7 +42,7 @@ public class SuperFartJumpTestArea : MonoBehaviour
             // Supply the recipe without the pickup boosts moving a parked test car.
             CarDriver driver = inventory.GetComponent<CarDriver>();
             driver.SetCountdownHold(true);
-            FuelType wrong = (FuelType)(((int)inventory.carFuel + 1) % 3);
+            FuelType wrong = inventory.SuperFartFuel;
             inventory.TryCollect(wrong);
             inventory.TryCollect(wrong);
             driver.SetCountdownHold(false);
