@@ -6,6 +6,9 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/Scenes/MainMenuCanvas.unity
+    guid: b38ee4142bbe04d1c8b7c7c3effc3ff5
+  - enabled: 1
     path: Assets/Scenes/LoopRaceScene.unity
     guid: f1a037c8f700440268ceb104c3be819d
   - enabled: 1

@@ -59,3 +59,12 @@ Jump attempts and outcomes:
 Confusing moments or exact comments:
 Bugs and reproduction steps:
 Suggested improvement:
+
+## Integrated scene and browser follow-up
+- Prefabs integrated into LoopRaceScene.
+- Moved jump instructions down to avoid overlapping pickup messages.
+- Verified successful gate activation and mix clearing in the Editor.
+- Verified the gate requires a fresh Super Fart after Race Again in the Editor.
+- Local Web build starts at MainMenuCanvas.
+- Super Fart jump test passed in the browser.
+- Exact-resolution and fullscreen checks remain pending unless separately verified.
