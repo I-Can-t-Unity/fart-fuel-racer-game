@@ -37261,6 +37261,7 @@ GameObject:
   - component: {fileID: 539898724}
   - component: {fileID: 539898723}
   - component: {fileID: 1501234023}
+  - component: {fileID: 1501234040}
   m_Layer: 5
   m_Name: RaceHUD
   m_TagString: Untagged
@@ -97800,6 +97801,25 @@ MonoBehaviour:
   messageSeconds: 1.5
   messageTopOffset: {x: 0, y: -60}
   messageFontSize: 44
+--- !u!114 &1501234040
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 539898722}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a595764da3c74400a8ce9efff07c13d1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RacePositionHUD
+  track: {fileID: 347017635}
+  topRightOffset: {x: -170, y: -130}
+  positionFontSize: 72
+  gapFontSize: 30
+  aheadColor: {r: 0.35, g: 1, b: 0.45, a: 1}
+  behindColor: {r: 1, g: 0.4, b: 0.3, a: 1}
+  swapMargin: 1
 --- !u!114 &1501234024
 MonoBehaviour:
   m_ObjectHideFlags: 0
