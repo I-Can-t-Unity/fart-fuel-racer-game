@@ -354,6 +354,8 @@ public class CarDriver : MonoBehaviour
             return;
         if (resetRequested)
         {
+            // A reset abandons this attempt, including any paid but unused jump.
+            ShortcutTracker.Exit(body);
             IsBraking = false;
             body.position = spawnPosition + Vector3.up * 0.5f;
             body.rotation = spawnRotation;
