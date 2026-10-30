@@ -11,6 +11,8 @@ public class GaugeAnimator : MonoBehaviour
     public Image fuelRing;
 
     public float maxSpeedKph = 120f;
+    [Tooltip("Colour of the fuel number in the middle of the fuel ring. White matches the speedometer and reads on every fuel colour.")]
+    public Color fuelTextColor = Color.white;
 
     [Header("Low fuel warning")]
     [Tooltip("Below this much fuel (percent) the fuel ring and number flash the low fuel colour.")]
@@ -36,14 +38,17 @@ public class GaugeAnimator : MonoBehaviour
         {
             Color fuelColor = FuelPalette.ColorOf(inventory.carFuel);
             if (fuelRing != null) fuelRing.color = fuelColor;
-            if (raceManager != null && raceManager.fuelText != null)
-                raceManager.fuelText.color = fuelColor;
+            // Old: the number was the fuel colour too, which is hard to read for Gasoline (dark brown).
+            // if (raceManager != null && raceManager.fuelText != null)
+            //     raceManager.fuelText.color = fuelColor;
         }
+        // The ring shows the fuel type; the number is white like the speedometer's.
+        if (raceManager != null && raceManager.fuelText != null)
+            raceManager.fuelText.color = fuelTextColor;
 
         // The colours to go back to between flashes.
         if (fuelRing != null) ringColor = fuelRing.color;
-        if (raceManager != null && raceManager.fuelText != null)
-            textColor = raceManager.fuelText.color;
+        textColor = fuelTextColor;
     }
 
     void Update()
