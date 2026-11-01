@@ -4149,7 +4149,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: FUEL FRENZY
+  m_text: SWITCHEROO
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -5809,7 +5809,38 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "<b>FUEL & MIXING</b>\nMatch your car: <b>+25 fuel</b>. Other fuels: boost.\nCollect <b>2 pickups</b> to mix automatically.\nPress <b>Q</b> to use your mix and free the bag.\n\n<b>2 matching</b>: +50 fuel\n<b>1 matching + 1 other</b>: +20 fuel + boost\n\n<b>SUPER FART: collect two of these cans</b>\nGasoline car: <b>2 PURPLE (Ethanol)</b>\nDiesel car: <b>2 BROWN (Gasoline)</b>\nEthanol car: <b>2 GREEN (Diesel)</b>\nOther pairs of wrong fuels: <b>3 sec choke</b>.\nSave Super Fart for the jump; <b>Q spends it</b>."
+  m_text: '<b>FUEL & MIXING</b>
+
+    Match your car: <b>+25 fuel</b>. Other fuels:
+    boost.
+
+    Collect <b>2 pickups</b> to mix automatically.
+
+    Press <b>Q</b>
+    to use your mix and free the bag.
+
+
+    <b>2 matching</b>: +50 fuel
+
+    <b>1
+    matching + 1 other</b>: +20 fuel + boost
+
+
+    <b>SUPER FART: collect two of
+    these cans</b>
+
+    Gasoline car: <b>2 PURPLE (Ethanol)</b>
+
+    Diesel car:
+    <b>2 BROWN (Gasoline)</b>
+
+    Ethanol car: <b>2 GREEN (Diesel)</b>
+
+    Other
+    pairs of wrong fuels: <b>3 sec choke</b>.
+
+    Save Super Fart for the jump;
+    <b>Q spends it</b>.'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
