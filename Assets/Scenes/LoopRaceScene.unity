@@ -124084,7 +124084,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e9f849125e574bea84b3e8410099a63f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FuelPickupAnalytics
-  endpointUrl: https://script.google.com/macros/s/AKfycbwX0ofSvhpkOaYmR1kqW71L0SZAoMqasyj_bD5aVa2FxneYdROPrjuL104ex8xmuswp/exec
+  endpointUrl: https://script.google.com/macros/s/AKfycby9yHyFC5vegXMFPC6PVsnmZgfK65aT5L57MR7TcUVfx3v08uC6cRbdETq19jv3mT_VPA/exec
 --- !u!114 &1876500052
 MonoBehaviour:
   m_ObjectHideFlags: 0

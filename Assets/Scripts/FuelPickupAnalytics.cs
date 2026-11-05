@@ -6,28 +6,17 @@ using System.Text;
 using System.Text.RegularExpressions;
 using UnityEngine;
 
-// Collects data for the "Fuel Pickup Collection Rate" metric: which fuel colours the
-// player picks up, and how many rows of cubes they drive past with room in the bag.
-//
-//   Collection rate = rows where a cube was picked up / rows passed with room in the bag
-//
-// Events go to a Google Apps Script web app (see Analytics/README.md), so plays of
-// the WebGL build on GitHub Pages are recorded too. The dashboard in docs/analytics
-// reads them back. With no endpoint set, events go to a local CSV instead
-// (<project>/Analytics/fuel_pickup_events.csv in the editor).
 [RequireComponent(typeof(FuelInventory))]
 public class FuelPickupAnalytics : MonoBehaviour
 {
     [Tooltip("Web app URL of the Google Apps Script that stores events (see Analytics/README.md). Leave empty to write a local CSV instead.")]
     public string endpointUrl = "";
 
-    public const string LocalFileName = "fuel_pickup_events.csv";
+    public const string LocalFileName = "switcheroo_events.csv";
 
     static readonly string[] Columns =
     {
-        "session_id", "timestamp_utc", "platform", "event", "race_time_s", "lane_spacing", "row",
-        "fuel_type", "color", "lane", "suitable", "collected_in_row", "cubes_available", "bag_full",
-        "race_result", "won",
+        "session_id", "timestamp_utc", "platform", "event", "race_time_s", "row", "lane", "block_color", "own_color", "result", "from_color", "to_color", "hit_in_row", "race_result", "won", "final_color", "switches",
     };
 
     FuelInventory inventory;
@@ -36,6 +25,7 @@ public class FuelPickupAnalytics : MonoBehaviour
     string sessionId;
     bool raceOver;
     readonly HashSet<int> rowsCollected = new HashSet<int>();
+    int switches;
 
     public static string LocalFolder =>
 #if UNITY_EDITOR
@@ -58,6 +48,7 @@ public class FuelPickupAnalytics : MonoBehaviour
         race = RaceManager.Instance;
         FuelPickup.PlayerTouched += OnPickupTouched;
         FuelRowGate.PlayerPassed += OnRowPassed;
+        inventory.Switched += OnSwitched;
         if (race != null)
             race.RaceEnded += OnRaceEnded;
         Record("race_start", new Dictionary<string, string>());
@@ -70,6 +61,7 @@ public class FuelPickupAnalytics : MonoBehaviour
             OnRaceEnded(false, "ABANDONED");
         FuelPickup.PlayerTouched -= OnPickupTouched;
         FuelRowGate.PlayerPassed -= OnRowPassed;
+        inventory.Switched -= OnSwitched;
         if (race != null)
             race.RaceEnded -= OnRaceEnded;
     }
@@ -80,13 +72,13 @@ public class FuelPickupAnalytics : MonoBehaviour
             return;
         if (collected)
             rowsCollected.Add(pickup.row);
-        Record(collected ? "pickup_collected" : "pickup_blocked", new Dictionary<string, string>
+        Record("block_hit", new Dictionary<string, string>
         {
             ["row"] = pickup.row.ToString(CultureInfo.InvariantCulture),
             ["lane"] = pickup.lane.ToString(CultureInfo.InvariantCulture),
-            ["fuel_type"] = pickup.type.ToString(),
-            ["color"] = ColorName(pickup.type),
-            ["suitable"] = inventory.IsSuitable(pickup.type) ? "1" : "0",
+            ["block_color"] = ColorName(pickup.type),
+            ["own_color"] = ColorName(inventory.carFuel),
+            ["result"] = inventory.LastResult
         });
     }
 
@@ -94,15 +86,25 @@ public class FuelPickupAnalytics : MonoBehaviour
     {
         if (raceOver)
             return;
-        bool collected = rowsCollected.Remove(gate.row);
+        bool hit = rowsCollected.Remove(gate.row);
         Record("row_passed", new Dictionary<string, string>
         {
             ["row"] = gate.row.ToString(CultureInfo.InvariantCulture),
-            ["collected_in_row"] = collected ? "1" : "0",
-            // Count the cube the player just took as available when they arrived.
-            ["cubes_available"] = (gate.AvailableCount + (collected ? 1 : 0)).ToString(CultureInfo.InvariantCulture),
-            // A full bag means no pickup was possible, so the row isn't a real opportunity.
-            ["bag_full"] = !collected && inventory.IsFull ? "1" : "0",
+            ["hit_in_row"] = hit ? "1" : "0",
+        });
+    }
+
+    void OnSwitched(FuelType from, FuelType to)
+    {
+        if(raceOver)
+        {
+            return;
+        }
+        switches += 1;
+        Record("switch", new Dictionary<string, string>
+        {
+            ["from_color"] = ColorName(from),
+            ["to_color"] = ColorName(to),
         });
     }
 
@@ -115,17 +117,19 @@ public class FuelPickupAnalytics : MonoBehaviour
         {
             ["race_result"] = Regex.Replace(message.ToLowerInvariant(), "[^a-z0-9]+", "_").Trim('_'),
             ["won"] = won ? "1" : "0",
+            ["final_color"] = ColorName(inventory.carFuel),
+            ["switches"] = switches.ToString(CultureInfo.InvariantCulture),
         });
     }
 
-    // The colour players see: the car's own fuel is brown, Diesel green and Ethanol purple.
+    // The color players see: the car's own fuel is red, Diesel blue and Ethanol yellow.
     static string ColorName(FuelType type)
     {
         switch (type)
         {
-            case FuelType.Gasoline: return "brown";
-            case FuelType.Diesel: return "green";
-            case FuelType.Ethanol: return "purple";
+            case FuelType.Gasoline: return "red";
+            case FuelType.Diesel: return "blue";
+            case FuelType.Ethanol: return "yellow";
             default: return type.ToString().ToLowerInvariant();
         }
     }
@@ -137,8 +141,6 @@ public class FuelPickupAnalytics : MonoBehaviour
         fields["platform"] = Application.platform.ToString();
         fields["event"] = eventName;
         fields["race_time_s"] = Time.timeSinceLevelLoad.ToString("0.00", CultureInfo.InvariantCulture);
-        float spacing = spawner != null ? spawner.LaneSpacingUsed : 0;
-        fields["lane_spacing"] = spacing.ToString("0.##", CultureInfo.InvariantCulture);
 
         if (!string.IsNullOrWhiteSpace(endpointUrl))
             AnalyticsUploader.Send(endpointUrl.Trim(), ToJson(fields));
