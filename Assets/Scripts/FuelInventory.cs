@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -11,14 +12,10 @@ public static class FuelPalette
     {
         switch (type)
         {
-            case FuelType.Gasoline:
-                return new Color32(95, 58, 41, 255);
-            case FuelType.Diesel:
-                return new Color32(75, 230, 65, 255);
-            case FuelType.Ethanol:
-                return new Color32(153, 64, 242, 255);
-            default:
-                return Color.white;
+            case FuelType.Gasoline: return new Color32(255, 0, 0, 255); // red
+            case FuelType.Diesel: return new Color32(0, 0, 255, 255); // blue
+            case FuelType.Ethanol: return new Color32(255, 255, 0, 255); // yellow
+            default: return Color.white;
         }
     }
 }
@@ -37,14 +34,10 @@ public static class SuperFartRecipe
     {
         switch (type)
         {
-            case FuelType.Gasoline:
-                return "BROWN";
-            case FuelType.Diesel:
-                return "GREEN";
-            case FuelType.Ethanol:
-                return "PURPLE";
-            default:
-                return type.ToString().ToUpper();
+            case FuelType.Gasoline: return "RED";
+            case FuelType.Diesel: return "BLUE";
+            case FuelType.Ethanol: return "YELLOW";
+            default: return type.ToString().ToUpper();
         }
     }
 }
@@ -109,13 +102,29 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
     public float superFartSeconds = 2.5f;
     public float chokeSeconds = 3f;
 
-    [Header("Dump fuel (F)")]
-    [Tooltip("Boost length for dumping an almost empty tank and a full one; it scales with the fuel dumped.")]
-    public float dumpMinSeconds = .5f;
-    public float dumpFullTankSeconds = 3f;
+    [Header("Switching")]
+    public CarDriver[] cars;
+    public float switchImmunityTime = 4f;
+
+    private CarDriver currentCar;
+    private FuelType streakColor;
+    private int streakNum = 0;
+    private float immunityEndingTime = 0;
+    private string lastResult = "";
+    private CarFollowCamera followCamera;
+    private GaugeAnimator gauge;
+    private RaceManager race;
+
+    public CarDriver CurrentCar =>currentCar;
+    public FuelType StreakColor =>streakColor;
+    public int StreakNum =>streakNum;
+    public bool IsImmune => Time.time < immunityEndingTime;
+    public string LastResult => lastResult;
 
     public event Action Changed;
     public event Action<string> Announced;
+
+    public event Action<FuelType, FuelType> Switched;
 
     public IReadOnlyList<FuelType> Slots => slots;
     public FuelMix HeldMix { get; private set; }
@@ -126,155 +135,156 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
         new Dictionary<FuelType, Material>();
 
     FartBoost fart;
-    bool tankWasEmpty;
 
     void Awake()
     {
         fart = GetComponent<FartBoost>();
-
-        materials[FuelType.Gasoline] =
-            MakeMaterial(FuelPalette.ColorOf(FuelType.Gasoline));
-
-        materials[FuelType.Diesel] =
-            MakeMaterial(FuelPalette.ColorOf(FuelType.Diesel));
-
-        materials[FuelType.Ethanol] =
-            MakeMaterial(FuelPalette.ColorOf(FuelType.Ethanol));
-
-        Material body = bodyRenderer != null
-            ? bodyRenderer.sharedMaterials[bodyMaterialSlot]
-            : null;
-
-        if (body != null)
-            materials[carFuel] = body;
+        materials[FuelType.Gasoline] = MakeMaterial(FuelPalette.ColorOf(FuelType.Gasoline));
+        materials[FuelType.Diesel] = MakeMaterial(FuelPalette.ColorOf(FuelType.Diesel));
+        materials[FuelType.Ethanol] = MakeMaterial(FuelPalette.ColorOf(FuelType.Ethanol));
     }
 
     public bool IsSuitable(FuelType type) => type == carFuel;
 
     public FuelType SuperFartFuel => SuperFartRecipe.FuelFor(carFuel);
 
-    void Update()
+    IEnumerator Start()
     {
-        if (RaceManager.Instance != null && !RaceManager.Instance.IsRacing)
-            return;
+        if (cars == null || cars.Length == 0)
+        {
+            currentCar = GetComponent<CarDriver>();
+            yield break;
+        }
 
-        bool tankEmpty = RaceManager.Instance != null
-            && RaceManager.Instance.fuel <= 0;
-
-        if (tankEmpty && !tankWasEmpty)
-            Announced?.Invoke("OUT OF FUEL - COASTING");
-
-        tankWasEmpty = tankEmpty;
-
-        Keyboard keyboard = Keyboard.current;
-        if (keyboard == null)
-            return;
-
-        if (keyboard.fKey.wasPressedThisFrame)
-            DumpFuel();
-
-        if (keyboard.qKey.wasPressedThisFrame && HeldMix != FuelMix.None)
-            UseMix();
+        race = RaceManager.Instance;
+        if (race == null)
+        {
+            Debug.LogError("The switching controller needs a RaceManager.", this);
+            yield break;
+        }
+        while (!race.RacersInitialized) yield return null;
+        if (cars.Length != race.Racers.Count)
+        {
+            Debug.LogError("FuelInventory.Cars and RaceManager.Racers must match in RED/BLUE/YELLOW order.", this);
+            yield break;
+        }
+        for (int i = 0; i < cars.Length; i++)
+        {
+            if (cars[i] == null || cars[i] != race.Racers[i])
+            {
+                Debug.LogError("Switching and race roster order differs at color " + i, this);
+                yield break;
+            }
+        }
+        followCamera = FindFirstObjectByType<CarFollowCamera>();
+        gauge = FindFirstObjectByType<GaugeAnimator>();
+        race.ControlledCarChanged += OnControlledCarChanged;
+        OnControlledCarChanged(null, race.CurrentPlayerCar);
     }
 
-    void DumpFuel()
+    void OnControlledCarChanged(Transform previous, Transform next)
     {
-        float dumped = RaceManager.Instance != null
-            ? RaceManager.Instance.DumpFuel()
-            : 0;
+        if (currentCar != null) currentCar.Respawned -= ResetStreak;
+        currentCar = next != null ? next.GetComponent<CarDriver>() : null;
+        if (currentCar == null) return;
+        int index = Array.IndexOf(cars, currentCar);
+        if (index >= 0) carFuel = (FuelType)index;
+        fart = currentCar.GetComponent<FartBoost>();
+        currentCar.Respawned += ResetStreak;
+        Changed?.Invoke();
+    }
 
-        if (dumped <= 0)
-            return;
+    void ResetStreak()
+    {
+        streakNum = 0;
+        lastResult = "reset";
+        Changed?.Invoke();
+    }
 
-        fart.Fart(Mathf.Lerp(
-            dumpMinSeconds,
-            dumpFullTankSeconds,
-            dumped / 100f));
+    // Change input ownership; positions, velocities and checkpoints stay on each car.
+    bool Control(CarDriver next)
+    {
+        if (race == null || !race.IsRacing || next == null || currentCar == null
+            || race.ResolveRacer(next.transform) != next) return false;
+        if (next == currentCar) return false;
+        AICarWaypointDriver nextAI = next.GetComponent<AICarWaypointDriver>();
+        AICarWaypointDriver previousAI = currentCar.GetComponent<AICarWaypointDriver>();
+        if (nextAI == null || previousAI == null)
+        {
+            Debug.LogError("Every switchable car needs an AI driver for handoff.", this);
+            return false;
+        }
+        CarDriver previous = currentCar;
+        next.SetInput(0, 0, false);
+        previous.SetInput(0, 0, false);
+        nextAI.PrepareControlHandoff();
+        nextAI.enabled = false;
+        next.ExternalInput = false;
+        previous.ExternalInput = true;
+        previousAI.PrepareControlHandoff();
+        previousAI.enabled = true;
+        // Single notification updates speed, placement, cameras and inventory identity.
+        if (!race.SetControlledCar(next.transform)) return false;
+        if (followCamera != null) followCamera.SetTarget(next.transform);
+        if (gauge != null) gauge.carBody = next.GetComponent<Rigidbody>();
+        return true;
+    }
 
-        tankWasEmpty = true;
-        Announced?.Invoke($"DUMPED {dumped:0} FUEL!");
+    bool SwitchCar(FuelType type)
+    {
+        int index = (int)type;
+        if (cars == null || index < 0 || index >= cars.Length) return false;
+        FuelType oldColor = carFuel;
+        if (!Control(cars[index])) return false;
+        streakNum = 0;
+        immunityEndingTime = Time.time + switchImmunityTime;
+        Announce($"YOU ARE NOW {NameOf(type)}");
+        Switched?.Invoke(oldColor, type);
+        return true;
+    }
+
+    void OnDestroy()
+    {
+        if (race != null) race.ControlledCarChanged -= OnControlledCarChanged;
+        if (currentCar != null) currentCar.Respawned -= ResetStreak;
     }
 
     public bool TryCollect(FuelType type)
     {
         if (RaceManager.Instance != null && !RaceManager.Instance.IsRacing)
             return false;
-
-        if (IsFull)
+        if (currentCar == null || (int)type < 0 || (int)type > 2) return false;
+        if(type == carFuel)
         {
-            Announced?.Invoke("BAG FULL - Q TO USE");
+            if (fart != null) fart.Fart(pickupFartSeconds);
+            streakNum = 0;
+            lastResult = "boost";
+            Announce("BOOST!");
+        }
+        else if(IsImmune)
+        {
+            lastResult = "protected";
             return false;
         }
-
-        slots.Add(type);
-
-        if (IsSuitable(type))
+        else if(streakNum == 1 && type == streakColor)
         {
-            Refuel(pickupRefuel);
+            if (!SwitchCar(streakColor)) return false;
+            lastResult = "switch";
         }
         else
         {
-            fart.Fart(pickupFartSeconds);
-            Announced?.Invoke("FART BOOST!");
+            streakColor = type;
+            streakNum = 1;
+            lastResult = "streak";
+            Announce($"{NameOf(type)} 1/2");
         }
-
-        if (slots.Count == Capacity)
-            MixSlots();
-
         Changed?.Invoke();
         return true;
     }
 
-    void MixSlots()
-    {
-        int suitable = 0;
-
-        foreach (FuelType type in slots)
-        {
-            if (IsSuitable(type))
-                suitable++;
-        }
-
-        if (suitable == 2)
-            HeldMix = FuelMix.Premium;
-        else if (suitable == 1)
-            HeldMix = FuelMix.Hybrid;
-        else if (slots[0] == SuperFartFuel && slots[1] == SuperFartFuel)
-            HeldMix = FuelMix.SuperFart;
-        else
-            HeldMix = FuelMix.ToxicSludge;
-
-        slots.Clear();
-    }
-
-    void UseMix()
-    {
-        switch (HeldMix)
-        {
-            case FuelMix.Premium:
-                Refuel(premiumRefuel);
-                break;
-
-            case FuelMix.Hybrid:
-                Refuel(hybridRefuel);
-                fart.Fart(pickupFartSeconds);
-                break;
-
-            case FuelMix.SuperFart:
-                fart.Fart(superFartSeconds);
-                Announced?.Invoke("SUPER FART!");
-                break;
-
-            case FuelMix.ToxicSludge:
-                fart.Choke(chokeSeconds);
-                Announced?.Invoke("ENGINE CHOKED!");
-                break;
-        }
-
-        HeldMix = FuelMix.None;
-        Changed?.Invoke();
-    }
-
+    // Spends the held mix on something other than its Q effect, such as unlocking
+    // a shortcut. False, with the bag left as it is, unless that exact mix is held.
+    // Q goes through HeldMix too, so a single mix can only ever be spent once.
     public bool TryConsumeMix(FuelMix mix)
     {
         if (mix == FuelMix.None || HeldMix != mix)
@@ -293,19 +303,11 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
     public void Announce(string message)
         => Announced?.Invoke(message);
 
-    void Refuel(float amount)
-    {
-        if (RaceManager.Instance != null)
-            RaceManager.Instance.AddFuel(amount);
-
-        Announced?.Invoke($"+{amount:0} FUEL");
-    }
-
     public Material MaterialOf(FuelType type) => materials[type];
 
     public Color ColorOf(FuelType type) => FuelPalette.ColorOf(type);
 
-    public string NameOf(FuelType type) => type.ToString().ToUpper();
+    public string NameOf(FuelType type) => SuperFartRecipe.ColorNameOf(type);
 
     public Color LabelColorOf(FuelType type) => FuelPalette.ColorOf(type);
 

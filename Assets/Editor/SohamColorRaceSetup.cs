@@ -17,6 +17,10 @@ public static class SohamColorRaceSetup
             Undo.RecordObject(race, "Configure color race");
             race.colorSwitchingMode = true;
             race.requireCheckpoint = true;
+            FuelInventory switching = null;
+            foreach (FuelInventory candidate in Object.FindObjectsByType<FuelInventory>(FindObjectsSortMode.None))
+                if (candidate.cars != null && candidate.cars.Length == 3) { switching = candidate; break; }
+            if (switching != null) race.racers = (CarDriver[])switching.cars.Clone();
             if (race.racers == null || race.racers.Length == 0)
             {
                 var roster = new List<CarDriver>();
@@ -37,27 +41,20 @@ public static class SohamColorRaceSetup
                     Undo.RecordObject(ai, "Use fixed car colors");
                     ai.pickCarFromMenu = false;
                     ai.paintWithFuelColour = false;
+                    ai.useShortcuts = false;
                     EditorUtility.SetDirty(ai);
                 }
-                // Reuse the body's exact renderer/slot instead of painting wheels/windows.
-                FuelInventory bag = car.GetComponent<FuelInventory>();
-                if (bag == null) bag = Undo.AddComponent<FuelInventory>(car.gameObject);
-                if (bag.bodyRenderer == null && ai != null)
-                {
-                    Undo.RecordObject(bag, "Assign car body renderer");
-                    bag.bodyRenderer = ai.bodyRenderer;
-                    bag.bodyMaterialSlot = ai.bodyMaterialSlot;
-                }
                 ApplySelectedCar appearance = car.GetComponent<ApplySelectedCar>();
-                if (appearance == null) appearance = Undo.AddComponent<ApplySelectedCar>(car.gameObject);
-                Undo.RecordObject(appearance, "Assign physical color");
-                appearance.physicalColorIndex = i % 3;
-                EditorUtility.SetDirty(appearance);
-                EditorUtility.SetDirty(bag);
+                if (appearance != null)
+                {
+                    Undo.RecordObject(appearance, "Assign physical color");
+                    appearance.physicalColorIndex = i % 3;
+                    EditorUtility.SetDirty(appearance);
+                }
             }
             EditorUtility.SetDirty(race);
             if (race.racers.Length != 3)
-                Debug.LogWarning("Grid still needs exactly THREE cars. No cars were cloned. Set Racers to Brown/Green/Purple order, then run this command again.", race);
+                Debug.LogWarning("Grid still needs exactly THREE cars. No cars were cloned. Set Racers to Red/Blue/Yellow order, then run this command again.", race);
         }
         foreach (CarSelectionMenu selection in Object.FindObjectsByType<CarSelectionMenu>(FindObjectsInactive.Include, FindObjectsSortMode.None))
         {
@@ -83,7 +80,7 @@ public static class SohamColorRaceSetup
                     if (label != null)
                     {
                         Undo.RecordObject(label, "Rename starting color");
-                        label.text = new[] { "BROWN", "GREEN", "PURPLE" }[color];
+                        label.text = new[] { "RED", "BLUE", "YELLOW" }[color];
                         EditorUtility.SetDirty(label);
                     }
                 }
@@ -91,6 +88,37 @@ public static class SohamColorRaceSetup
         }
         EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
         Debug.Log("Color race configured. Check roster order/body renderers, assign supplied tutorial/challenge scenes on LevelSelectionMenu, then save this scene.");
+    }
+
+    [MenuItem("Tools/Color Race/Check Running Race")]
+    public static void CheckRunningRace()
+    {
+        RaceManager race = RaceManager.Instance;
+        if (!Application.isPlaying || race == null || !race.RacersInitialized)
+        {
+            Debug.LogWarning("Start the race and wait for initialization before checking.");
+            return;
+        }
+        int players = 0, aiCars = 0;
+        bool valid = race.Racers.Count == 3;
+        foreach (CarDriver car in race.Racers)
+        {
+            if (car == null) { valid = false; continue; }
+            AICarWaypointDriver ai = car.GetComponent<AICarWaypointDriver>();
+            bool controlled = car.transform == race.CurrentPlayerCar;
+            if (!car.ExternalInput) players++;
+            if (ai != null && ai.enabled) aiCars++;
+            valid &= car.enabled && car.ExternalInput != controlled;
+            valid &= ai != null && ai.enabled != controlled;
+        }
+        FuelInventory switching = null;
+        foreach (FuelInventory candidate in Object.FindObjectsByType<FuelInventory>(FindObjectsSortMode.None))
+            if (candidate.cars != null && candidate.cars.Length == 3) { switching = candidate; break; }
+        valid &= switching != null && switching.CurrentCar != null
+            && switching.CurrentCar.transform == race.CurrentPlayerCar;
+        valid &= players == 1 && aiCars == 2;
+        if (valid) Debug.Log("PASS: three cars, exactly one player, two AI competitors, and synchronized switching/race references.", race);
+        else Debug.LogError("Integration check failed: player count " + players + ", AI count " + aiCars + ". Check roster and switching references.", race);
     }
 
     static void Add(List<CarDriver> cars, Transform root)

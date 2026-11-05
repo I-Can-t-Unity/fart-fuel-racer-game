@@ -385,7 +385,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: PURPLE
+  m_text: YELLOW
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -594,15 +594,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: '<b>YOUR FUEL: GASOLINE</b>
-
-    Gasoline cans add <b>25 fuel</b>.
-
-
-    <b>BOOST
-    FUELS</b>
-
-    Diesel / Ethanol'
+  m_text: "Choose RED as your starting car.\nCollect two matching blocks of another color to switch."
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -1677,7 +1669,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: DIESEL
+  m_text: "BLUE CAR"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -1814,7 +1806,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: GREEN
+  m_text: BLUE
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -2225,7 +2217,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: ETHANOL
+  m_text: "YELLOW CAR"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -3344,15 +3336,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: '<b>YOUR FUEL: DIESEL</b>
-
-    Diesel cans add <b>25 fuel</b>.
-
-
-    <b>BOOST
-    FUELS</b>
-
-    Gasoline / Ethanol'
+  m_text: "Choose BLUE as your starting car.\nCollect two matching blocks of another color to switch."
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -5211,7 +5195,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: FUEL FRENZY
+  m_text: SWITCHEROO
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -5409,7 +5393,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: BROWN
+  m_text: RED
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -5811,7 +5795,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: GASOLINE
+  m_text: "RED CAR"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -6801,15 +6785,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: '<b>YOUR FUEL: ETHANOL</b>
-
-    Ethanol cans add <b>25 fuel</b>.
-
-
-    <b>BOOST
-    FUELS</b>
-
-    Gasoline / Diesel'
+  m_text: "Choose YELLOW as your starting car.\nCollect two matching blocks of another color to switch."
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -7350,31 +7326,36 @@ MonoBehaviour:
       m_Calls: []
   m_text: '<b>FUEL & MIXING</b>
 
+    Match your car: <b>+25 fuel</b>. Other fuels:
+    boost.
 
-    Match your car''s fuel color: <b>+25 fuel</b>.
+    Collect <b>2 pickups</b> to mix automatically.
+
+    Press <b>Q</b>
+    to use your mix and free the bag.
+
+
+    <b>2 matching</b>: +50 fuel
+
+    <b>1
+    matching + 1 other</b>: +20 fuel + boost
+
+
+    <b>SUPER FART: collect two of
+    these cans</b>
+
+    Gasoline car: <b>2 PURPLE (Ethanol)</b>
+
+    Diesel car:
+    <b>2 BROWN (Gasoline)</b>
+
+    Ethanol car: <b>2 GREEN (Diesel)</b>
 
     Other
-    fuel types give a short fart boost.
+    pairs of wrong fuels: <b>3 sec choke</b>.
 
-
-    Your bag holds <b>2 pickups</b>. The
-    second
-
-    pickup mixes them automatically.
-
-    Press <b>Q</b> to use the mix
-    and free your bag.
-
-
-    <b>2 matching fuels</b>  +50 fuel
-
-    <b>1 matching
-    + 1 other</b>  +20 fuel + boost
-
-    <b>2 of the same other fuel</b>  Super Fart
-
-    <b>2
-    different other fuels</b>  Slowdown for 3 sec'
+    Save Super Fart for the jump;
+    <b>Q spends it</b>.'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}

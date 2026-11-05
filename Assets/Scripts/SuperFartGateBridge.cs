@@ -36,6 +36,6 @@ public class SuperFartGateBridge : MonoBehaviour
     void OnDenied(SuperFartJumpGate source, Rigidbody car)
     {
         if (source != gate || car == null || branch == null) return;
-        if (!ShortcutTracker.IsOnBranch(car)) ShortcutTracker.Enter(car, branch, false);
+        ShortcutTracker.Enter(car, branch, false);
     }
 }

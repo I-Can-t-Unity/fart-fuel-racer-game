@@ -11,7 +11,7 @@ public class RaceManager : MonoBehaviour
 
     [Header("Color switching")]
     public bool colorSwitchingMode = true;
-    [Tooltip("Physical cars in color order: Brown, Green, Purple. Assign all three.")]
+    [Tooltip("Physical cars in color order: Red, Blue, Yellow. Assign all three.")]
     public CarDriver[] racers = new CarDriver[0];
     [Tooltip("Optional obsolete fuel panel containers to hide, without hiding the speed HUD.")]
     public GameObject[] obsoleteFuelPanels = new GameObject[0];
@@ -22,6 +22,7 @@ public class RaceManager : MonoBehaviour
     readonly HashSet<CarDriver> eligibleCars = new HashSet<CarDriver>();
     readonly Dictionary<CarDriver, System.Action> resetHandlers = new Dictionary<CarDriver, System.Action>();
     bool initialized;
+    public bool RacersInitialized => initialized;
 
     // Kept for existing scene references and teammate integrations.
     public Transform car;
@@ -267,7 +268,7 @@ public class RaceManager : MonoBehaviour
         }
         racers = roster.ToArray();
         if (racers.Length != 3)
-            Debug.LogWarning("Color race requires exactly three cars. Assign RaceManager > Racers in Brown/Green/Purple order. Current count: " + racers.Length, this);
+            Debug.LogWarning("Color race requires exactly three cars. Assign RaceManager > Racers in Red/Blue/Yellow order. Current count: " + racers.Length, this);
         fuel = 100f;
         fuelDrainPerSecond = fuelDrainPerSpeed = fuelDrainPerThrottle = 0f;
         for (int i = 0; i < racers.Length; i++)
@@ -276,6 +277,14 @@ public class RaceManager : MonoBehaviour
             physicalCar.SetCountdownHold(true);
             physicalCar.EngineRunning = true;
             physicalCar.FuelFraction = 1f;
+            // Old AI fuel components must not weaken a car after player takeover.
+            AIFuelTank oldTank = physicalCar.GetComponent<AIFuelTank>();
+            if (oldTank != null)
+            {
+                oldTank.fuel = 100f;
+                oldTank.drainPerSecond = oldTank.drainPerSpeed = oldTank.drainPerThrottle = 0f;
+                oldTank.enabled = false;
+            }
             System.Action onReset = () => eligibleCars.Remove(physicalCar);
             resetHandlers.Add(physicalCar, onReset);
             physicalCar.Respawned += onReset;
@@ -356,6 +365,9 @@ public class RaceManager : MonoBehaviour
         if (fuelText != null) fuelText.gameObject.SetActive(false);
         foreach (FuelInventoryUI bag in FindObjectsByType<FuelInventoryUI>(FindObjectsSortMode.None))
         {
+            // Jason repurposed this component into the color/streak HUD.
+            if (bag.inventory != null && bag.inventory.cars != null && bag.inventory.cars.Length > 0)
+                continue;
             bag.enabled = false;
             foreach (string childName in new[] { "FuelBag", "Message" })
             {

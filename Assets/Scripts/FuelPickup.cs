@@ -1,9 +1,6 @@
 using TMPro;
 using UnityEngine;
 
-// A floating jerry can. Driving through it puts the fuel in the car's bag;
-// if the bag is full the can stays where it is. A label above the can names
-// the fuel and what it does, using the same color as its fuel type.
 public class FuelPickup : MonoBehaviour
 {
     public FuelType type;
@@ -41,9 +38,6 @@ public class FuelPickup : MonoBehaviour
     {
         pickupRenderer = GetComponent<Renderer>();
         trigger = GetComponent<Collider>();
-        MeshFilter filter = GetComponent<MeshFilter>();
-        if (filter != null)
-            filter.sharedMesh = LoadJerryCanMesh();
     }
 
     // One Blender mesh shared by race and tutorial pickups. Keep the existing
@@ -97,7 +91,7 @@ public class FuelPickup : MonoBehaviour
         text.textWrappingMode = TextWrappingModes.NoWrap;
         text.fontSize = labelFontSize;
         text.fontStyle = FontStyles.Bold;
-        text.text = $"{inventory.NameOf(type)}\n<size=80%>{inventory.PickupEffectOf(type)}</size>";
+        text.text = inventory.NameOf(type);
         text.color = inventory.LabelColorOf(type);
         text.outlineWidth = .25f;
         text.outlineColor = Color.black;
@@ -155,26 +149,21 @@ public class FuelPickup : MonoBehaviour
 
     void OnTriggerEnter(Collider other)
     {
-        // Old: only the player's bag could pick up fuel.
-        // if (inventory == null || !other.transform.IsChildOf(inventory.transform))
-        //     return;
-        // if (!inventory.TryCollect(type))
-        //     return;
+        if(!IsAvailable)
+        {
+            return;
+        }
+        if (inventory == null || inventory.CurrentCar == null)
+            return;
+        //if not player's car, return
+        Transform controlled = inventory.CurrentCar.transform;
+        if (other.transform != controlled && !other.transform.IsChildOf(controlled))
+        {
+            return;
+        }
+        bool collected = inventory.TryCollect(type);
+        PlayerTouched?.Invoke(this, collected);
 
-        // The player and the AI rival share the cubes, so whoever gets there first takes it.
-        bool collected;
-        if (inventory != null && other.transform.IsChildOf(inventory.transform))
-        {
-            collected = inventory.TryCollect(type);
-            PlayerTouched?.Invoke(this, collected);
-        }
-        else
-        {
-            AIFuelTank rival = other.GetComponentInParent<AIFuelTank>();
-            if (rival == null)
-                return;
-            collected = rival.TryCollect(type);
-        }
         if (!collected)
             return;
 

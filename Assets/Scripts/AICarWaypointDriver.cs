@@ -156,6 +156,17 @@ public class AICarWaypointDriver : MonoBehaviour
 
     public bool IsRecovering => Time.time < recoverUntil;
 
+    public void PrepareControlHandoff()
+    {
+        currentWaypoint = -1;
+        stuckFor = 0f;
+        recoverUntil = -1f;
+        chasing = null;
+        currentLane = laneOffset;
+        graceUntil = Time.time + stuckGraceSeconds;
+    }
+
+
     void Awake()
     {
         rb = GetComponent<Rigidbody>();

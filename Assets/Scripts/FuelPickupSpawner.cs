@@ -70,10 +70,7 @@ public class FuelPickupSpawner : MonoBehaviour
     // Every other lane gets a raised label, so neighbouring labels never overlap.
     FuelPickup Spawn(FuelType type, Vector3 position, Vector3 forward, int row, int lane)
     {
-        GameObject can = new GameObject();
-        can.AddComponent<MeshFilter>();
-        can.AddComponent<MeshRenderer>();
-        can.AddComponent<BoxCollider>();
+        GameObject can = GameObject.CreatePrimitive(PrimitiveType.Cube);
         can.name = "Fuel_" + type;
         can.transform.SetParent(transform, false);
         can.transform.SetPositionAndRotation(position, Quaternion.LookRotation(forward));
