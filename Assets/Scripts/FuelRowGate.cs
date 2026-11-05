@@ -27,7 +27,7 @@ public class FuelRowGate : MonoBehaviour
 
     void OnTriggerEnter(Collider other)
     {
-        if (inventory != null && other.transform.IsChildOf(inventory.transform))
+        if (inventory != null && other.transform.IsChildOf(inventory.CurrentCar.transform))
             PlayerPassed?.Invoke(this);
     }
 }

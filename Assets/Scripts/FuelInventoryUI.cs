@@ -2,9 +2,6 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// Fuel bag HUD at the bottom centre of the screen, between the speed and fuel
-// gauges: a coloured square for each carried fuel, or the mixed fuel and what it
-// does. Built at runtime under this canvas.
 public class FuelInventoryUI : MonoBehaviour
 {
     public FuelInventory inventory;
@@ -25,7 +22,7 @@ public class FuelInventoryUI : MonoBehaviour
     Image mixFill;
     // Removed: the Super Fart recipe line above the bag.
     // TMP_Text mixName, mixEffect, hint, message, recipe;
-    TMP_Text mixName, mixEffect, hint, message;
+    TMP_Text mixName, mixEffect, hint, message, title;
     float messageUntil;
 
     void Start()
@@ -42,7 +39,7 @@ public class FuelInventoryUI : MonoBehaviour
         bag.gameObject.AddComponent<Image>().color = new Color(0, 0, 0, .35f);
         bag.GetComponent<Image>().raycastTarget = false;
 
-        NewText("Title", bag, new Vector2(0, 95), new Vector2(500, 30), 22, TextAlignmentOptions.Center).text = "FUEL BAG";
+        title = NewText("Title", bag, new Vector2(0, 95), new Vector2(500, 30), 22, TextAlignmentOptions.Center);
 
         // Removed: always on screen just above the bag, which fuel makes this car's Super Fart.
         // recipe = NewText("SuperFartRecipe", bag, new Vector2(0, 140), new Vector2(700, 36), 26, TextAlignmentOptions.Center);
@@ -99,36 +96,17 @@ public class FuelInventoryUI : MonoBehaviour
 
     void Refresh()
     {
-        // Removed: the recipe line above the bag.
-        // recipe.text = inventory.SuperFartRecipeText;
-        // recipe.color = inventory.LabelColorOf(inventory.SuperFartFuel);
-
-        bool holdingMix = inventory.HeldMix != FuelMix.None;
-        slotsGroup.SetActive(!holdingMix);
-        mixGroup.SetActive(holdingMix);
-
-        if (holdingMix)
-        {
-            mixFill.color = inventory.ColorOf(inventory.HeldMix);
-            mixName.text = inventory.NameOf(inventory.HeldMix);
-            mixEffect.text = inventory.EffectOf(inventory.HeldMix);
-            hint.text = "Q: USE";
-            return;
-        }
-
+        title.text = "YOU: " + inventory.NameOf(inventory.carFuel);
+        title.color = inventory.ColorOf(inventory.carFuel);
+        slotsGroup.SetActive(true);
+        mixGroup.SetActive(false);
         for (int i = 0; i < FuelInventory.Capacity; i++)
         {
-            bool filled = i < inventory.Slots.Count;
-            slotFills[i].color = filled ? inventory.ColorOf(inventory.Slots[i]) : EmptySlot;
-            slotLabels[i].text = filled ? inventory.NameOf(inventory.Slots[i]) : "EMPTY";
-            slotLabels[i].color = filled ? inventory.LabelColorOf(inventory.Slots[i]) : Color.white;
+            bool filled = i < inventory.StreakNum;
+            slotFills[i].color = filled ? inventory.ColorOf(inventory.StreakColor) : EmptySlot;
+            slotLabels[i].text = filled ? inventory.NameOf(inventory.StreakColor) : "";
         }
-        // Old: hint.text = "";
-        // Halfway to Super Fart: say which pickup completes it.
-        bool halfway = inventory.Slots.Count == 1 && inventory.Slots[0] == inventory.SuperFartFuel;
-        hint.text = halfway
-            ? $"1 MORE {SuperFartRecipe.ColorNameOf(inventory.SuperFartFuel)} = SUPER FART"
-            : "";
+        hint.text = inventory.StreakNum == 1 ? $"1 MORE {inventory.NameOf(inventory.StreakColor)} = TAKE THE {inventory.NameOf(inventory.StreakColor)} CAR" : "";
     }
 
     void ShowMessage(string text)

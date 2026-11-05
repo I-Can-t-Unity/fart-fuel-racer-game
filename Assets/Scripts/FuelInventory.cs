@@ -12,9 +12,9 @@ public static class FuelPalette
     {
         switch (type)
         {
-            case FuelType.Gasoline: return new Color32(95, 58, 41, 255); // #5F3A29
-            case FuelType.Diesel: return new Color32(75, 230, 65, 255); // #4BE641
-            case FuelType.Ethanol: return new Color32(153, 64, 242, 255); // #9940F2
+            case FuelType.Gasoline: return new Color32(255, 0, 0, 255); // red
+            case FuelType.Diesel: return new Color32(0, 0, 255, 255); // blue
+            case FuelType.Ethanol: return new Color32(255, 255, 0, 255); // yellow
             default: return Color.white;
         }
     }
@@ -39,9 +39,9 @@ public static class SuperFartRecipe
     {
         switch (type)
         {
-            case FuelType.Gasoline: return "BROWN";
-            case FuelType.Diesel: return "GREEN";
-            case FuelType.Ethanol: return "PURPLE";
+            case FuelType.Gasoline: return "RED";
+            case FuelType.Diesel: return "BLUE";
+            case FuelType.Ethanol: return "YELLOW";
             default: return type.ToString().ToUpper();
         }
     }
@@ -75,13 +75,6 @@ public static class FuelMixConversion
     }
 }
 
-// The car's fuel bag. Fuel of the car's own type refuels it; any other type is
-// wrong fuel and gives a fart boost instead. Each pickup takes a slot; picking up
-// a second fuel mixes the two straight away, and Q uses the mix. A mix can instead
-// be saved for a shortcut that needs it (see SuperFartJumpGate). There is no way
-// to throw fuel away, so grabbing the wrong cubes means having to burn off
-// whatever they mix into.
-// F dumps the whole tank for a boost that lasts longer the more fuel was dumped.
 [RequireComponent(typeof(FartBoost))]
 public class FuelInventory : MonoBehaviour, IFuelMixHolder
 {
@@ -108,14 +101,29 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
     public float superFartSeconds = 2.5f;
     public float chokeSeconds = 3f;
 
-    [Header("Dump fuel (F)")]
-    [Tooltip("Boost length for dumping an almost empty tank and a full one; it scales with the fuel dumped.")]
-    public float dumpMinSeconds = .5f;
-    public float dumpFullTankSeconds = 3f;
+    [Header("Switching")]
+    public CarDriver[] cars;
+    public float switchImmunityTime = 4f;
+
+    private CarDriver currentCar;
+    private FuelType streakColor;
+    private int streakNum = 0;
+    private float immunityEndingTime = 0;
+    private string lastResult = "";
+    private CarFollowCamera followCamera;
+    private GaugeAnimator gauge;
+
+    public CarDriver CurrentCar =>currentCar;
+    public FuelType StreakColor =>streakColor;
+    public int StreakNum =>streakNum;
+    public bool IsImmune => Time.time < immunityEndingTime;
+    public string LastResult => lastResult;
 
     public event Action Changed;
     // Short messages for the HUD, such as "+25 FUEL" or "BAG FULL".
     public event Action<string> Announced;
+
+    public event Action<FuelType, FuelType> Switched;
 
     public IReadOnlyList<FuelType> Slots => slots;
     public FuelMix HeldMix { get; private set; }
@@ -124,22 +132,13 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
     readonly List<FuelType> slots = new List<FuelType>();
     readonly Dictionary<FuelType, Material> materials = new Dictionary<FuelType, Material>();
     FartBoost fart;
-    bool tankWasEmpty;
 
     void Awake()
     {
         fart = GetComponent<FartBoost>();
-
-        CarDriver driver = GetComponent<CarDriver>();
-        if (driver != null)
-            driver.AddControlsHint("Q: use fuel mix    F: dump fuel");
-
         materials[FuelType.Gasoline] = MakeMaterial(FuelPalette.ColorOf(FuelType.Gasoline));
         materials[FuelType.Diesel] = MakeMaterial(FuelPalette.ColorOf(FuelType.Diesel));
         materials[FuelType.Ethanol] = MakeMaterial(FuelPalette.ColorOf(FuelType.Ethanol));
-        Material body = bodyRenderer != null ? bodyRenderer.sharedMaterials[bodyMaterialSlot] : null;
-        if (body != null)
-            materials[carFuel] = body;
     }
 
     public bool IsSuitable(FuelType type) => type == carFuel;
@@ -147,106 +146,83 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
     // The one wrong fuel that makes Super Fart for this car (two in a row).
     public FuelType SuperFartFuel => SuperFartRecipe.FuelFor(carFuel);
 
-    void Update()
+    void Start()
     {
-        if (RaceManager.Instance != null && !RaceManager.Instance.IsRacing)
+        if(cars.Length == 0)
+        {
+            currentCar = GetComponent<CarDriver>();
             return;
-        bool tankEmpty = RaceManager.Instance != null && RaceManager.Instance.fuel <= 0;
-        if (tankEmpty && !tankWasEmpty)
-            Announced?.Invoke("OUT OF FUEL - COASTING");
-        tankWasEmpty = tankEmpty;
-
-        Keyboard keyboard = Keyboard.current;
-        if (keyboard == null)
-            return;
-
-        if (keyboard.fKey.wasPressedThisFrame)
-            DumpFuel();
-
-        if (keyboard.qKey.wasPressedThisFrame && HeldMix != FuelMix.None)
-            UseMix();
+        }
+        followCamera = FindFirstObjectByType<CarFollowCamera>();
+        gauge = FindFirstObjectByType<GaugeAnimator>();
+        for(int i = 0; i < cars.Length; i++)
+        {
+            if(i != (int)carFuel)
+            {
+                cars[i].ExternalInput = true;
+                cars[i].GetComponent<AICarWaypointDriver>().enabled = true;
+            }
+        }
+        Control(cars[(int)carFuel]);
+        Changed?.Invoke();
     }
 
-    void DumpFuel()
+    void Control(CarDriver car)
     {
-        float dumped = RaceManager.Instance != null ? RaceManager.Instance.DumpFuel() : 0;
-        if (dumped <= 0)
-            return;
-
-        fart.Fart(Mathf.Lerp(dumpMinSeconds, dumpFullTankSeconds, dumped / 100f));
-        tankWasEmpty = true;
-        Announced?.Invoke($"DUMPED {dumped:0} FUEL!");
+        car.ExternalInput = false;
+        car.GetComponent<AICarWaypointDriver>().enabled = false;
+        currentCar = car;
+        carFuel = (FuelType)Array.IndexOf(cars, car);
+        fart = car.GetComponent<FartBoost>();
+        followCamera.SetTarget(car.transform);
+        RaceManager.Instance.car = car.transform;
+        RaceManager.Instance.carBody = car.GetComponent<Rigidbody>();
+        gauge.carBody = car.GetComponent<Rigidbody>();
     }
 
-    // Returns false when the bag is full, in which case the pickup stays on the track.
+    void SwitchCar(FuelType type)
+    {
+        FuelType oldColor = carFuel;
+        CarDriver oldCar = currentCar;
+        Control(cars[(int)type]);
+        oldCar.ExternalInput = true;
+        oldCar.GetComponent<AICarWaypointDriver>().enabled = true;
+        streakNum = 0;
+        immunityEndingTime = Time.time + switchImmunityTime;
+        Announce($"YOU ARE NOW {NameOf(type)}");
+        Switched?.Invoke(oldColor, type);
+    }
+
     public bool TryCollect(FuelType type)
     {
         if (RaceManager.Instance != null && !RaceManager.Instance.IsRacing)
             return false;
-        if (IsFull)
+        if(type == carFuel)
         {
-            Announced?.Invoke("BAG FULL - Q TO USE");
+            fart.Fart(pickupFartSeconds);
+            streakNum = 0;
+            lastResult = "boost";
+            Announce("BOOST!");
+        }
+        else if(IsImmune)
+        {
+            lastResult = "protected";
             return false;
         }
-
-        slots.Add(type);
-        if (IsSuitable(type))
+        else if(streakNum == 1 && type == streakColor)
         {
-            Refuel(pickupRefuel);
+            lastResult = "switch";
+            SwitchCar(streakColor);
         }
         else
         {
-            fart.Fart(pickupFartSeconds);
-            Announced?.Invoke("FART BOOST!");
+            streakColor = type;
+            streakNum = 1;
+            lastResult = "streak";
+            Announce($"{NameOf(type)} 1/2");
         }
-
-        // The second fuel mixes straight away; the player still chooses when to use it.
-        if (slots.Count == Capacity)
-            MixSlots();
         Changed?.Invoke();
         return true;
-    }
-
-    void MixSlots()
-    {
-        int suitable = 0;
-        foreach (FuelType type in slots)
-            if (IsSuitable(type))
-                suitable++;
-
-        if (suitable == 2) HeldMix = FuelMix.Premium;
-        else if (suitable == 1) HeldMix = FuelMix.Hybrid;
-        // Old: any two of the same wrong fuel made Super Fart.
-        // else if (slots[0] == slots[1]) HeldMix = FuelMix.SuperFart;
-        // Now only two of this car's Super Fart fuel do; any other pair of wrong fuels is sludge.
-        else if (slots[0] == SuperFartFuel && slots[1] == SuperFartFuel) HeldMix = FuelMix.SuperFart;
-        else HeldMix = FuelMix.ToxicSludge;
-
-        slots.Clear();
-    }
-
-    void UseMix()
-    {
-        switch (HeldMix)
-        {
-            case FuelMix.Premium:
-                Refuel(premiumRefuel);
-                break;
-            case FuelMix.Hybrid:
-                Refuel(hybridRefuel);
-                fart.Fart(pickupFartSeconds);
-                break;
-            case FuelMix.SuperFart:
-                fart.Fart(superFartSeconds);
-                Announced?.Invoke("SUPER FART!");
-                break;
-            case FuelMix.ToxicSludge:
-                fart.Choke(chokeSeconds);
-                Announced?.Invoke("ENGINE CHOKED!");
-                break;
-        }
-        HeldMix = FuelMix.None;
-        Changed?.Invoke();
     }
 
     // Spends the held mix on something other than its Q effect, such as unlocking
@@ -268,18 +244,11 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
     // Lets other parts of the race (such as shortcut gates) put a message on the HUD.
     public void Announce(string message) => Announced?.Invoke(message);
 
-    void Refuel(float amount)
-    {
-        if (RaceManager.Instance != null)
-            RaceManager.Instance.AddFuel(amount);
-        Announced?.Invoke($"+{amount:0} FUEL");
-    }
-
     public Material MaterialOf(FuelType type) => materials[type];
 
     public Color ColorOf(FuelType type) => FuelPalette.ColorOf(type);
 
-    public string NameOf(FuelType type) => type.ToString().ToUpper();
+    public string NameOf(FuelType type) => SuperFartRecipe.ColorNameOf(type);
 
     // Fuel identity stays consistent; the effect text explains suitability.
     public Color LabelColorOf(FuelType type) => FuelPalette.ColorOf(type);
