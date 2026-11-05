@@ -6,9 +6,7 @@
 
 const SHEET_NAME = 'events';
 const COLUMNS = [
-  'session_id', 'timestamp_utc', 'platform', 'event', 'race_time_s', 'lane_spacing', 'row',
-  'fuel_type', 'color', 'lane', 'suitable', 'collected_in_row', 'cubes_available', 'bag_full',
-  'race_result', 'won',
+  "session_id", "timestamp_utc", "platform", "event", "race_time_s", "row", "lane", "block_color", "own_color", "result", "from_color", "to_color", "hit_in_row", "race_result", "won", "final_color", "switches",
 ];
 
 // The game sends a JSON array of events as text/plain (no CORS preflight needed).
