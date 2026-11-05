@@ -53,6 +53,12 @@ public class GaugeAnimator : MonoBehaviour
 
     void Update()
     {
+        if (raceManager == null) raceManager = RaceManager.Instance;
+        if (raceManager != null && raceManager.colorSwitchingMode)
+        {
+            carBody = raceManager.carBody;
+            if (fuelRing != null) fuelRing.gameObject.SetActive(false);
+        }
         if (carBody != null && speedRing != null)
         {
             float speedKph =
@@ -68,7 +74,7 @@ public class GaugeAnimator : MonoBehaviour
                 Mathf.Clamp01(raceManager.fuel / 100f);
         }
 
-        if (raceManager != null)
+        if (raceManager != null && !raceManager.colorSwitchingMode)
             WarnLowFuel(raceManager.fuel);
     }
 

@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -8,6 +9,21 @@ public class RaceManager : MonoBehaviour
 {
     public static RaceManager Instance { get; private set; }
 
+    [Header("Color switching")]
+    public bool colorSwitchingMode = true;
+    [Tooltip("Physical cars in color order: Brown, Green, Purple. Assign all three.")]
+    public CarDriver[] racers = new CarDriver[0];
+    [Tooltip("Optional obsolete fuel panel containers to hide, without hiding the speed HUD.")]
+    public GameObject[] obsoleteFuelPanels = new GameObject[0];
+    public Transform CurrentPlayerCar => car;
+    public IReadOnlyList<CarDriver> Racers => racers;
+    public float ElapsedTime { get; private set; }
+    public event System.Action<Transform, Transform> ControlledCarChanged;
+    readonly HashSet<CarDriver> eligibleCars = new HashSet<CarDriver>();
+    readonly Dictionary<CarDriver, System.Action> resetHandlers = new Dictionary<CarDriver, System.Action>();
+    bool initialized;
+
+    // Kept for existing scene references and teammate integrations.
     public Transform car;
     public Rigidbody carBody;
     // Optional AI car; the player loses if it finishes first.
@@ -48,11 +64,18 @@ public class RaceManager : MonoBehaviour
         Instance = this;
     }
 
-    void Start()
+    IEnumerator Start()
     {
         timeLeft = raceDuration;
+        // Let scene/grid and AI Start methods finish before assigning control/paint.
+        foreach (CarDriver vehicle in FindObjectsByType<CarDriver>(FindObjectsSortMode.None))
+            vehicle.SetCountdownHold(true);
+        yield return null;
+        InitializeRacers();
+        if (colorSwitchingMode)
+            HideLegacyHUD();
 
-        if (car != null)
+        if (!colorSwitchingMode && car != null)
         {
             previousPosition = car.position;
 
@@ -133,7 +156,10 @@ public class RaceManager : MonoBehaviour
 
         previousPosition = car.position;
 
-        if (IsRacing)
+        if (IsRacing && colorSwitchingMode)
+            ElapsedTime += Time.deltaTime;
+
+        if (IsRacing && !colorSwitchingMode)
         {
             timeLeft = Mathf.Max(0, timeLeft - Time.deltaTime);
             // Old fuel/speed system: drain from time and speed only.
@@ -163,7 +189,7 @@ public class RaceManager : MonoBehaviour
                 EndRace(false, "OUT OF FUEL!");
         }
 
-        int totalSeconds = Mathf.CeilToInt(timeLeft);
+        int totalSeconds = colorSwitchingMode ? Mathf.FloorToInt(ElapsedTime) : Mathf.CeilToInt(timeLeft);
 
         if (timerText != null)
             timerText.text =
@@ -180,6 +206,7 @@ public class RaceManager : MonoBehaviour
 
     public void AddFuel(float amount)
     {
+        if (colorSwitchingMode) return;
         if (IsRacing)
             fuel = Mathf.Min(100f, fuel + amount);
     }
@@ -187,7 +214,7 @@ public class RaceManager : MonoBehaviour
     // Empties the tank and returns how much fuel was in it.
     public float DumpFuel()
     {
-        if (!IsRacing) return 0;
+        if (colorSwitchingMode || !IsRacing) return 0;
         float dumped = fuel;
         fuel = 0;
         return dumped;
@@ -195,6 +222,11 @@ public class RaceManager : MonoBehaviour
 
     public void ReachCheckpoint(bool byOpponent)
     {
+        if (colorSwitchingMode)
+        {
+            ReachCheckpoint(byOpponent ? opponent : car);
+            return;
+        }
         if (!IsRacing) return;
         if (byOpponent) opponentCheckpointReached = true;
         else checkpointReached = true;
@@ -202,6 +234,11 @@ public class RaceManager : MonoBehaviour
 
     public void CrossFinish(bool byOpponent)
     {
+        if (colorSwitchingMode)
+        {
+            CrossFinish(byOpponent ? opponent : car);
+            return;
+        }
         if (!IsRacing) return;
         bool reached = byOpponent ? opponentCheckpointReached : checkpointReached;
         if (requireCheckpoint && !reached) return;
@@ -211,6 +248,135 @@ public class RaceManager : MonoBehaviour
             if (byOpponent) EndRace(false, "AI WINS!");
             else EndRace(true, "FINISH! YOU WIN!");
         }
+    }
+
+    void InitializeRacers()
+    {
+        if (!colorSwitchingMode) return;
+        var roster = new List<CarDriver>();
+        foreach (CarDriver candidate in racers)
+            if (candidate != null && !roster.Contains(candidate)) roster.Add(candidate);
+        // Compatibility with the old two-car scene; the final grid must be explicit.
+        if (roster.Count == 0)
+        {
+            if (car != null && car.GetComponentInParent<CarDriver>() != null)
+                roster.Add(car.GetComponentInParent<CarDriver>());
+            if (opponent != null && opponent.GetComponentInParent<CarDriver>() != null
+                && !roster.Contains(opponent.GetComponentInParent<CarDriver>()))
+                roster.Add(opponent.GetComponentInParent<CarDriver>());
+        }
+        racers = roster.ToArray();
+        if (racers.Length != 3)
+            Debug.LogWarning("Color race requires exactly three cars. Assign RaceManager > Racers in Brown/Green/Purple order. Current count: " + racers.Length, this);
+        fuel = 100f;
+        fuelDrainPerSecond = fuelDrainPerSpeed = fuelDrainPerThrottle = 0f;
+        for (int i = 0; i < racers.Length; i++)
+        {
+            CarDriver physicalCar = racers[i];
+            physicalCar.SetCountdownHold(true);
+            physicalCar.EngineRunning = true;
+            physicalCar.FuelFraction = 1f;
+            System.Action onReset = () => eligibleCars.Remove(physicalCar);
+            resetHandlers.Add(physicalCar, onReset);
+            physicalCar.Respawned += onReset;
+            var appearance = physicalCar.GetComponent<ApplySelectedCar>();
+            if (appearance != null) appearance.ApplyColor(i % 3);
+        }
+        initialized = true;
+        int selection = Mathf.Clamp(PlayerPrefs.GetInt("SelectedCarColor", PlayerPrefs.GetInt("SelectedCarFuel", 0)), 0, 2);
+        CarDriver startingCar = racers.Length > selection ? racers[selection] : racers.Length > 0 ? racers[0] : null;
+        if (startingCar != null) InitializeStartingControl(startingCar);
+    }
+
+    // Only initial ownership is established here. Jason owns live AI handoffs.
+    void InitializeStartingControl(CarDriver selected)
+    {
+        foreach (CarDriver physicalCar in racers)
+        {
+            AICarWaypointDriver ai = physicalCar.GetComponent<AICarWaypointDriver>();
+            if (ai != null) ai.enabled = physicalCar != selected;
+            else if (physicalCar != selected)
+                Debug.LogWarning("Missing AI driver on " + physicalCar.name + "; teammate grid/handoff setup is required.", physicalCar);
+            physicalCar.ExternalInput = physicalCar != selected;
+        }
+        SetControlledCar(selected.transform);
+    }
+
+    // Call AFTER a successful player/AI handoff. Does not teleport, respawn, alter
+    // velocity, reset checkpoints, or toggle AI. False means the reference was rejected.
+    public bool SetControlledCar(Transform nextCar)
+    {
+        if (!initialized || finished || nextCar == null) return false;
+        CarDriver next = nextCar.GetComponentInParent<CarDriver>();
+        if (next == null || System.Array.IndexOf(racers, next) < 0) return false;
+        Transform previous = car;
+        car = next.transform;
+        carBody = next.GetComponent<Rigidbody>();
+        driver = next;
+        previousPosition = car.position;
+        foreach (CarFollowCamera camera in FindObjectsByType<CarFollowCamera>(FindObjectsSortMode.None))
+            camera.SetTarget(car);
+        foreach (FollowCamera camera in FindObjectsByType<FollowCamera>(FindObjectsSortMode.None))
+            camera.target = car;
+        ControlledCarChanged?.Invoke(previous, car);
+        return true;
+    }
+
+    public CarDriver ResolveRacer(Transform candidate)
+    {
+        if (candidate == null) return null;
+        CarDriver physicalCar = candidate.GetComponentInParent<CarDriver>();
+        return physicalCar != null && System.Array.IndexOf(racers, physicalCar) >= 0 ? physicalCar : null;
+    }
+
+    public bool HasCheckpoint(Transform physicalCar)
+    {
+        CarDriver racer = ResolveRacer(physicalCar);
+        return racer != null && eligibleCars.Contains(racer);
+    }
+
+    public void ReachCheckpoint(Transform physicalCar)
+    {
+        CarDriver racer = ResolveRacer(physicalCar);
+        if (IsRacing && racer != null) eligibleCars.Add(racer);
+    }
+
+    public void CrossFinish(Transform physicalCar)
+    {
+        CarDriver racer = ResolveRacer(physicalCar);
+        if (!IsRacing || racer == null || (requireCheckpoint && !eligibleCars.Contains(racer))) return;
+        bool won = racer.transform == car;
+        EndRace(won, won ? "FINISH! YOU WIN!" : "AI WINS!");
+    }
+
+    void HideLegacyHUD()
+    {
+        foreach (GameObject oldPanel in obsoleteFuelPanels)
+            if (oldPanel != null) oldPanel.SetActive(false);
+        if (fuelText != null) fuelText.gameObject.SetActive(false);
+        foreach (FuelInventoryUI bag in FindObjectsByType<FuelInventoryUI>(FindObjectsSortMode.None))
+        {
+            bag.enabled = false;
+            foreach (string childName in new[] { "FuelBag", "Message" })
+            {
+                Transform oldPanel = bag.transform.Find(childName);
+                if (oldPanel != null) oldPanel.gameObject.SetActive(false);
+            }
+        }
+        foreach (RivalMixHUD rivalHUD in FindObjectsByType<RivalMixHUD>(FindObjectsSortMode.None))
+        {
+            rivalHUD.enabled = false;
+            if (rivalHUD.mixText != null) rivalHUD.mixText.gameObject.SetActive(false);
+        }
+        foreach (GaugeAnimator gauge in FindObjectsByType<GaugeAnimator>(FindObjectsSortMode.None))
+            if (gauge.fuelRing != null) gauge.fuelRing.gameObject.SetActive(false);
+    }
+
+    void OnDestroy()
+    {
+        foreach (var entry in resetHandlers)
+            if (entry.Key != null) entry.Key.Respawned -= entry.Value;
+        if (Instance == this) Instance = null;
     }
 
     void EndRace(bool won, string message)
@@ -240,11 +406,13 @@ public class RaceManager : MonoBehaviour
 
     public void RestartRace()
     {
-        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        Time.timeScale = 1f;
+        SceneManager.LoadScene(SceneManager.GetActiveScene().path);
     }
 
     public void ReturnToMainMenu()
     {
+        Time.timeScale = 1f;
         SceneManager.LoadScene("MainMenuCanvas");
     }
 }

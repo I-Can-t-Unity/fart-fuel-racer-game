@@ -14444,6 +14444,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a4e6114e6050b4e61ac5f06b7f51b851, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::RaceManager
+  colorSwitchingMode: 1
+  racers:
+  - {fileID: 684248056}
+  - {fileID: 408367763}
+  obsoleteFuelPanels:
+  - {fileID: 1337078234}
+  - {fileID: 811256618}
   car: {fileID: 684248055}
   carBody: {fileID: 684248054}
   opponent: {fileID: 408367766}
@@ -28722,6 +28729,9 @@ GameObject:
   - component: {fileID: 408367763}
   - component: {fileID: 408367762}
   - component: {fileID: 408367767}
+  - component: {fileID: 408367770}
+  - component: {fileID: 408367769}
+  - component: {fileID: 408367768}
   m_Layer: 0
   m_Name: AICar
   m_TagString: Player
@@ -28920,8 +28930,8 @@ MonoBehaviour:
   maxCorneringAcceleration: 15
   bodyRenderer: {fileID: 0}
   bodyMaterialSlot: 0
-  paintWithFuelColour: 1
-  pickCarFromMenu: 1
+  paintWithFuelColour: 0
+  pickCarFromMenu: 0
   sameCarAsPlayer: 0
   alwaysNextCar: 0
   fuelSearchAheadPoints: 30
@@ -28943,6 +28953,62 @@ MonoBehaviour:
   respawnHeight: 0.8
   stuckGraceSeconds: 1.5
   useShortcuts: 1
+--- !u!114 &408367768
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 408367761}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6cf12128015d224449a9613728bacb0f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ApplySelectedCar
+  dieselBody: {fileID: 0}
+  ethanolBody: {fileID: 0}
+  physicalColorIndex: 1
+--- !u!114 &408367769
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 408367761}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 954a9fee774a42b69d3e54a39cf8b6ea, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FuelInventory
+  carFuel: 0
+  bodyRenderer: {fileID: 0}
+  bodyMaterialSlot: 0
+  labelBackground: {r: 0, g: 0, b: 0, a: 0.55}
+  pickupRefuel: 25
+  pickupFartSeconds: 0.7
+  premiumRefuel: 50
+  hybridRefuel: 20
+  superFartSeconds: 2.5
+  chokeSeconds: 3
+  dumpMinSeconds: 0.5
+  dumpFullTankSeconds: 3
+--- !u!114 &408367770
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 408367761}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 954773f46e8440029841500e47b9c4b2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FartBoost
+  acceleration: 12
+  maxBoostKph: 100
+  chokeMaxKph: 25
+  exhaustOffset: {x: 0, y: 0.5, z: -2.4}
+  puffLifetime: 0.8
 --- !u!1 &409029792
 GameObject:
   m_ObjectHideFlags: 0
@@ -55227,6 +55293,11 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 6d013e940bb1b464582d3698ef2104b6, type: 3}
+--- !u!1 &811256618 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 897701863691478860, guid: 6d013e940bb1b464582d3698ef2104b6, type: 3}
+  m_PrefabInstance: {fileID: 811256617}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &811553840
 GameObject:
   m_ObjectHideFlags: 0
@@ -98084,6 +98155,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ApplySelectedCar
   dieselBody: {fileID: 2100000, guid: b026de966d9db0d429fddf26adc989ad, type: 2}
   ethanolBody: {fileID: 2100000, guid: 670bd745810e9484182578fc2bb40eeb, type: 2}
+  physicalColorIndex: 0
 --- !u!1 &1501234031
 GameObject:
   m_ObjectHideFlags: 0
