@@ -46,6 +46,22 @@ public class RacePositionHUD : MonoBehaviour
     float lapLength;
     TMP_Text positionText, gapText;
 
+    public static RacePositionHUD Instance { get; private set; }
+
+    void Awake() => Instance = this;
+
+    // Lets the AI see how far each car has got (same numbers as the panel).
+    public bool TryGetMetres(Rigidbody body, out float metres)
+    {
+        metres = 0f;
+        if (along == null || body == null) return false;
+        foreach (Racer racer in racers)
+            if (racer.body == body && racer.point >= 0) { metres = racer.metres; return true; }
+        return false;
+    }
+
+    public Rigidbody PlayerBody => race != null ? race.carBody : null;
+
     IEnumerator Start()
     {
         while (RaceManager.Instance == null) yield return null;
@@ -82,6 +98,7 @@ public class RacePositionHUD : MonoBehaviour
 
     void OnDestroy()
     {
+        if (Instance == this) Instance = null;
         foreach (Racer racer in racers)
             if (racer.driver != null) racer.driver.Respawned -= racer.onRespawn;
         ShortcutTracker.Failed -= ShortcutFailed;

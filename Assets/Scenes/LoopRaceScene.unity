@@ -28988,10 +28988,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::AICarWaypointDriver
   track: {fileID: 347017635}
-  laneOffset: -1.5
+  laneOffset: -3.5
   speedKph: 75
   cornerSpeedKph: 45
-  lookAheadPoints: 8
   fullSteerAtDegrees: 20
   brakeOverKph: 6
   mimicPlayer: 1
@@ -29006,14 +29005,6 @@ MonoBehaviour:
   pickCarFromMenu: 0
   sameCarAsPlayer: 0
   alwaysNextCar: 0
-  fuelSearchAheadPoints: 30
-  fuelMinAheadPoints: 4
-  laneChangeSpeed: 4
-  refuelBelowFuel: 80
-  homeOnCanWithinMetres: 70
-  aimPastCanMetres: 6
-  homeStraightBelowDegrees: 20
-  aimPastCanPoints: 2
   minImpactKph: 5
   recoverySeconds: 1.2
   spinDamping: 5
@@ -37651,7 +37642,6 @@ RectTransform:
   - {fileID: 1268359205}
   - {fileID: 2200000001}
   - {fileID: 1865417704}
-  - {fileID: 641048587}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -44046,11 +44036,6 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 640834488}
   m_Mesh: {fileID: 1035483007}
---- !u!224 &641048587 stripped
-RectTransform:
-  m_CorrespondingSourceObject: {fileID: 4966322019609753431, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
-  m_PrefabInstance: {fileID: 704294840}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1 &642223788
 GameObject:
   m_ObjectHideFlags: 0
@@ -47867,155 +47852,6 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 703586748}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
---- !u!1001 &704294840
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 539898726}
-    m_Modifications:
-    - target: {fileID: 3051731381902099196, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
-      propertyPath: m_text
-      value: 'SUPER FART JUMP AHEAD
-
-
-        Holding Super Fart? Don''t use it!
-        Drive through the pink gate to jump.'
-      objectReference: {fileID: 0}
-    - target: {fileID: 4966322019609753431, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
-      propertyPath: m_Pivot.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4966322019609753431, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
-      propertyPath: m_Pivot.y
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 4966322019609753431, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
-      propertyPath: m_AnchorMax.x
-      value: 0.5
-      objectReference: {fileID: 0}
-    - target: {fileID: 4966322019609753431, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
-      propertyPath: m_AnchorMax.y
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 4966322019609753431, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
-      propertyPath: m_AnchorMin.x
-      value: 0.5
-      objectReference: {fileID: 0}
-    - target: {fileID: 4966322019609753431, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
-      propertyPath: m_AnchorMin.y
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 4966322019609753431, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
-      propertyPath: m_SizeDelta.x
-      value: 700
-      objectReference: {fileID: 0}
-    - target: {fileID: 4966322019609753431, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
-      propertyPath: m_SizeDelta.y
-      value: 180
-      objectReference: {fileID: 0}
-    - target: {fileID: 4966322019609753431, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4966322019609753431, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4966322019609753431, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4966322019609753431, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 4966322019609753431, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4966322019609753431, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4966322019609753431, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4966322019609753431, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
-      propertyPath: m_AnchoredPosition.x
-      value: -350
-      objectReference: {fileID: 0}
-    - target: {fileID: 4966322019609753431, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
-      propertyPath: m_AnchoredPosition.y
-      value: -200
-      objectReference: {fileID: 0}
-    - target: {fileID: 4966322019609753431, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4966322019609753431, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4966322019609753431, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 5355836191821912982, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
-      propertyPath: m_Name
-      value: JumpInstructionsPanel
-      objectReference: {fileID: 0}
-    - target: {fileID: 5355836191821912982, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
-      propertyPath: m_IsActive
-      value: 1
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 5355836191821912982, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 704294843}
-    - targetCorrespondingSourceObject: {fileID: 5355836191821912982, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 704294842}
-  m_SourcePrefab: {fileID: 100100000, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
---- !u!1 &704294841 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 5355836191821912982, guid: decb876af6c114440ab4384dbac1c7be, type: 3}
-  m_PrefabInstance: {fileID: 704294840}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &704294842
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 704294841}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a5b2ae7e50f634ac5b85585fb5c54c68, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::ShowNearShortcut
-  player: {fileID: 684248055}
-  shortcutEntry: {fileID: 614897986}
-  showDistance: 80
-  facingThreshold: 0.3
-  fadeSpeed: 4
---- !u!225 &704294843
-CanvasGroup:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 704294841}
-  m_Enabled: 1
-  m_Alpha: 1
-  m_Interactable: 1
-  m_BlocksRaycasts: 1
-  m_IgnoreParentGroups: 0
 --- !u!1 &704968778
 GameObject:
   m_ObjectHideFlags: 0
@@ -95876,10 +95712,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::AICarWaypointDriver
   track: {fileID: 347017635}
-  laneOffset: 1.5
+  laneOffset: 3.5
   speedKph: 75
   cornerSpeedKph: 45
-  lookAheadPoints: 8
   fullSteerAtDegrees: 20
   brakeOverKph: 6
   mimicPlayer: 1
@@ -95894,14 +95729,6 @@ MonoBehaviour:
   pickCarFromMenu: 0
   sameCarAsPlayer: 0
   alwaysNextCar: 0
-  fuelSearchAheadPoints: 30
-  fuelMinAheadPoints: 4
-  laneChangeSpeed: 4
-  refuelBelowFuel: 80
-  homeOnCanWithinMetres: 70
-  aimPastCanMetres: 6
-  homeStraightBelowDegrees: 20
-  aimPastCanPoints: 2
   minImpactKph: 5
   recoverySeconds: 1.2
   spinDamping: 5
@@ -124098,10 +123925,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::AICarWaypointDriver
   track: {fileID: 347017635}
-  laneOffset: 1.5
+  laneOffset: 0
   speedKph: 75
   cornerSpeedKph: 45
-  lookAheadPoints: 8
   fullSteerAtDegrees: 20
   brakeOverKph: 6
   mimicPlayer: 1
@@ -124116,14 +123942,6 @@ MonoBehaviour:
   pickCarFromMenu: 0
   sameCarAsPlayer: 0
   alwaysNextCar: 0
-  fuelSearchAheadPoints: 30
-  fuelMinAheadPoints: 4
-  laneChangeSpeed: 4
-  refuelBelowFuel: 80
-  homeOnCanWithinMetres: 70
-  aimPastCanMetres: 6
-  homeStraightBelowDegrees: 20
-  aimPastCanPoints: 2
   minImpactKph: 5
   recoverySeconds: 1.2
   spinDamping: 5

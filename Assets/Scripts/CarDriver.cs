@@ -217,6 +217,12 @@ public class CarDriver : MonoBehaviour
     }
 
     // Lets an AI driver give its car its own handling without editing the scene.
+    // So the AI can give a car its normal handling back when the player takes it over.
+    public float TopSpeedKmh => topSpeedKmh;
+    public float MotorTorque => motorTorque;
+    public float ThrottleRise => throttleRise;
+    public float MaxCorneringAcceleration => maxCorneringAcceleration;
+
     public void Tune(float topSpeed, float torque, float rise, float cornering)
     {
         topSpeedKmh = Mathf.Max(1, topSpeed);

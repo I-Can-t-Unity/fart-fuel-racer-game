@@ -230,6 +230,20 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
         return true;
     }
 
+    // An AI grabbed two of the player's cubes in a row, so it takes the player's car and the
+    // player ends up in the AI's. Goes through the normal switch, so the protection time works too.
+    public bool ForceSwitchTo(CarDriver aiCar)
+    {
+        int index = cars != null ? Array.IndexOf(cars, aiCar) : -1;
+        if (index < 0 || IsImmune || aiCar == currentCar)
+            return false;
+        FuelType lost = carFuel;
+        if (!SwitchCar((FuelType)index))
+            return false;
+        Announce($"{NameOf(lost)} CAR TAKEN! YOU ARE NOW {NameOf((FuelType)index)}");
+        return true;
+    }
+
     bool SwitchCar(FuelType type)
     {
         int index = (int)type;
