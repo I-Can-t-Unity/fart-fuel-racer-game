@@ -6,7 +6,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-// Runs the standalone Drive and Stop lesson using the same car controller as the races.
+// Runs the practice lessons using the same driving and pickup logic as the races.
 public class AlphaTutorialManager : MonoBehaviour
 {
     [SerializeField] CarDriver playerCar;
@@ -18,30 +18,48 @@ public class AlphaTutorialManager : MonoBehaviour
     [SerializeField] RaceManager practiceRace;
     [SerializeField] Transform drivingGuide;
     [SerializeField] GameObject practiceFinish;
+    [SerializeField] Transform practiceRoad;
+    [SerializeField] Transform practiceGround;
 
     const float BrakePromptDistance = 14f;
     const float StoppedSpeedKmh = 1f;
     const float StopHoldSeconds = 0.35f;
     const float IntroTransitionSeconds = 0.4f;
+    const float ChargeRoadLength = 270f;
+    const float ChargeBlockSpacing = 24f;
+    const float ShieldTargetDistance = 86f;
+    const float ChargedCheckpoint = 70f;
+    const float ChargeFinishDistance = 147f;
 
     bool passedGate;
     bool complete;
     float stoppedFor;
-    // Both lessons share the practice road. Consume the next lesson choice once on scene load.
-    static bool openSwapLesson;
-    bool swapLesson;
+    enum Lesson { Drive, Swap, Shield, Turbo }
+
+    // Lessons share the practice road. Consume the next lesson choice once on scene load.
+    static Lesson nextLesson;
+    Lesson lesson;
+    bool UsesPracticeRace => lesson != Lesson.Drive;
+    bool IsChargeLesson => lesson == Lesson.Turbo || lesson == Lesson.Shield;
     bool swapped;
     CarDriver blueCar;
     FuelInventory swapInventory;
     TextMeshPro playerMarker;
     Camera practiceCamera;
+    GameObject chargeBlocks;
+    GameObject shieldTarget;
+    Image[] chargePips;
+    LineRenderer shieldRing;
+    bool chargeActionDone;
+    Vector3 chargeStart;
+    Quaternion chargeHeading;
 
     void Start()
     {
-        swapLesson = openSwapLesson;
-        openSwapLesson = false;
-        if (swapLesson)
-            SetUpSwapLesson();
+        lesson = nextLesson;
+        nextLesson = Lesson.Drive;
+        if (UsesPracticeRace)
+            SetUpPracticeRace();
         else
             playerCar.Respawned += ResetLesson;
         retryButton.onClick.AddListener(Retry);
@@ -62,7 +80,7 @@ public class AlphaTutorialManager : MonoBehaviour
         Vector2 cornerSize = panel.sizeDelta;
         Vector2 messagePosition = tutorialMessage.rectTransform.anchoredPosition;
         Vector2 messageSize = tutorialMessage.rectTransform.sizeDelta;
-        bool showKeyboard = !swapLesson && Gamepad.current == null;
+        bool showKeyboard = lesson == Lesson.Drive && Gamepad.current == null;
         Vector2 introSize = new Vector2(640f, showKeyboard ? 410f : 290f);
         Vector2 introMessagePosition = new Vector2(0f, showKeyboard ? 116f : 38f);
         Vector2 introMessageSize = new Vector2(580f, showKeyboard ? 116f : 140f);
@@ -75,13 +93,17 @@ public class AlphaTutorialManager : MonoBehaviour
         panel.sizeDelta = introSize;
         tutorialMessage.rectTransform.anchoredPosition = introMessagePosition;
         tutorialMessage.rectTransform.sizeDelta = introMessageSize;
-        tutorialMessage.text = swapLesson
-            ? "<size=155%><b>Tutorial 2</b></size>\nCollect a block matching another car's color to take control of that car."
-            : "<size=155%><b>Tutorial 1</b></size>\nFollow the guide marks. Stop in the bay.";
+        tutorialMessage.text = lesson switch
+        {
+            Lesson.Swap => "<size=155%><b>Tutorial 2 · Swap</b></size>\nCollect a block matching another car's color to take control of that car.",
+            Lesson.Shield => "<size=155%><b>Tutorial 3 · Shield</b></size>\nEach block of your color gives you one charge.\nThree charges automatically shield you from one swap.",
+            Lesson.Turbo => $"<size=155%><b>Tutorial 4 · Turbo</b></size>\nThree charges give you a shield.\n{swapInventory.turboKey} spends that shield on turbo.",
+            _ => "<size=155%><b>Tutorial 1 · Drive</b></size>\nFollow the guide marks and stop in the bay."
+        };
         RectTransform keyboard = null;
         if (showKeyboard)
             keyboard = DrawKeyboard(panel);
-        else if (!swapLesson)
+        else if (lesson == Lesson.Drive)
             tutorialMessage.text += $"\n<size=80%>{Controls}</size>";
 
         // Clone the button for its styling and keep the original available for completion.
@@ -93,15 +115,20 @@ public class AlphaTutorialManager : MonoBehaviour
         buttonRect.sizeDelta = new Vector2(180f, 58f);
         okButton.targetGraphic.color = new Color(0.16f, 0.29f, 0.51f);
         TMP_Text label = okButton.GetComponentInChildren<TMP_Text>(true);
-        label.text = swapLesson ? "Next" : "OK";
+        label.text = UsesPracticeRace ? "Next" : "OK";
         label.color = Color.white;
-        bool showSwapObjective = swapLesson;
+        bool showObjective = UsesPracticeRace;
         okButton.onClick.AddListener(() =>
         {
-            if (showSwapObjective)
+            if (showObjective)
             {
-                showSwapObjective = false;
-                tutorialMessage.text = "<size=155%><b>Try a Swap</b></size>\nGrab the blue block. Then drive the blue car across the finish.";
+                showObjective = false;
+                tutorialMessage.text = lesson switch
+                {
+                    Lesson.Swap => "<size=155%><b>Try a Swap</b></size>\nGrab the blue block. Then drive the blue car across the finish.",
+                    Lesson.Turbo => $"<size=155%><b>Try Turbo</b></size>\nCollect 3 red blocks to fill the charge meter.\nTurbo can be activated by pressing {swapInventory.turboKey}.",
+                    _ => "<size=155%><b>Try Your Shield</b></size>\nA blue block normally swaps you into the blue car.\nWith a shield, you stay in the red car."
+                };
                 label.text = "OK";
                 return;
             }
@@ -110,7 +137,7 @@ public class AlphaTutorialManager : MonoBehaviour
             Destroy(okButton.gameObject);
             if (keyboard != null)
                 Destroy(keyboard.gameObject);
-            ShowPrompt(swapLesson ? "Grab the blue block" : "Follow the guide marks");
+            ShowStartingPrompt();
             StartCoroutine(MoveToCorner());
         });
         okButton.gameObject.SetActive(true);
@@ -138,46 +165,57 @@ public class AlphaTutorialManager : MonoBehaviour
             panel.sizeDelta = cornerSize;
             tutorialMessage.rectTransform.anchoredPosition = messagePosition;
             tutorialMessage.rectTransform.sizeDelta = messageSize;
-            if (swapLesson)
+            if (UsesPracticeRace)
             {
                 // The race initializes the roster one frame after it is enabled.
                 while (!practiceRace.RacersInitialized)
                     yield return null;
-                blueCar.SetCountdownHold(false);
+                if (blueCar != null)
+                    blueCar.SetCountdownHold(false);
+                if (chargePips != null)
+                    chargePips[0].transform.parent.gameObject.SetActive(true);
             }
             playerCar.SetCountdownHold(false);
         }
     }
 
-    void SetUpSwapLesson()
+    void SetUpPracticeRace()
     {
         drivingGuide.gameObject.SetActive(false);
-        blueCar = Instantiate(playerCar, new Vector3(0f, playerCar.transform.position.y, 40f), playerCar.transform.rotation);
-        blueCar.name = "Blue Practice Car";
+        if (lesson != Lesson.Turbo)
+        {
+            float blueLane = lesson == Lesson.Shield ? 4f : 0f;
+            // The shield lesson keeps the parked rival in view and out of the player's lane.
+            float blueDistance = lesson == Lesson.Shield ? ShieldTargetDistance + 8f : 40f;
+            blueCar = Instantiate(playerCar, new Vector3(blueLane, playerCar.transform.position.y, blueDistance),
+                playerCar.transform.rotation);
+            blueCar.name = "Blue Practice Car";
+        }
+
         swapInventory = playerCar.GetComponent<FuelInventory>();
-        swapInventory.cars = new[] { playerCar, blueCar };
+        swapInventory.cars = blueCar != null ? new[] { playerCar, blueCar } : new[] { playerCar };
         swapInventory.enabled = true;
 
         playerCar.gameObject.AddComponent<ApplySelectedCar>();
-        blueCar.gameObject.AddComponent<ApplySelectedCar>();
-        practiceRace.ConfigureSwapPractice(playerCar, blueCar);
+        practiceRace.ConfigureSwapPractice(swapInventory.cars);
         practiceRace.gameObject.SetActive(true);
-        // With no AI route on the practice road, the other car stays parked.
-        playerCar.gameObject.AddComponent<AICarWaypointDriver>();
-        blueCar.gameObject.AddComponent<AICarWaypointDriver>();
+        if (blueCar != null)
+        {
+            blueCar.gameObject.AddComponent<ApplySelectedCar>();
+            // The handoff needs AI drivers. With no route, the uncontrolled car stays parked.
+            playerCar.gameObject.AddComponent<AICarWaypointDriver>();
+            blueCar.gameObject.AddComponent<AICarWaypointDriver>();
+        }
         practiceRace.RaceEnded += OnPracticeFinished;
-        swapInventory.Switched += OnPracticeSwap;
-
-        GameObject block = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        block.name = "Blue Practice Block";
-        block.transform.position = new Vector3(0f, 1.1f, 18f);
-        block.transform.localScale = Vector3.one * 1.4f;
-        block.GetComponent<Collider>().isTrigger = true;
-        block.GetComponent<Renderer>().sharedMaterial = swapInventory.MaterialOf(FuelType.Diesel);
-        FuelPickup pickup = block.AddComponent<FuelPickup>();
-        pickup.type = FuelType.Diesel;
-        pickup.inventory = swapInventory;
-        pickup.respawnSeconds = 0f;
+        if (lesson == Lesson.Swap)
+        {
+            swapInventory.Switched += OnPracticeSwap;
+            CreatePracticeBlock(FuelType.Diesel, 18f, null);
+        }
+        else
+        {
+            SetUpChargeLesson();
+        }
 
         playerMarker = new GameObject("Controlled Car Marker").AddComponent<TextMeshPro>();
         playerMarker.font = tutorialMessage.font;
@@ -187,6 +225,165 @@ public class AlphaTutorialManager : MonoBehaviour
         playerMarker.alignment = TextAlignmentOptions.Center;
         playerMarker.outlineWidth = 0.25f;
         practiceCamera = Camera.main;
+    }
+
+    void CreatePracticeBlock(FuelType color, float distance, Transform group, float respawnSeconds = 0f)
+    {
+        GameObject block = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        block.name = $"{swapInventory.NameOf(color)} Practice Block";
+        if (color == FuelType.Diesel)
+            block.name = "Blue Practice Block";
+        block.transform.SetParent(group, false);
+        block.transform.position = new Vector3(0f, 1.1f, distance);
+        block.transform.localScale = Vector3.one * 1.4f;
+        block.GetComponent<Collider>().isTrigger = true;
+        block.GetComponent<Renderer>().sharedMaterial = swapInventory.MaterialOf(color);
+        FuelPickup pickup = block.AddComponent<FuelPickup>();
+        pickup.type = color;
+        pickup.inventory = swapInventory;
+        pickup.respawnSeconds = respawnSeconds;
+    }
+
+    void SetUpChargeLesson()
+    {
+        chargeStart = playerCar.transform.position;
+        chargeHeading = playerCar.transform.rotation;
+        // The race boost can chain across the whole practice strip. Give each pickup
+        // a short nudge here so the player has time to read the next instruction.
+        swapInventory.pickupFartSeconds = 0.18f;
+        var boost = playerCar.GetComponent<FartBoost>();
+        boost.acceleration = 5f;
+        boost.maxBoostKph = 55f;
+
+        // Keep the start fixed while extending the road and ground for this lesson.
+        float extension = ChargeRoadLength - practiceRoad.localScale.z;
+        foreach (Transform surface in new[] { practiceRoad, practiceGround })
+        {
+            surface.position += Vector3.forward * (extension * 0.5f);
+            surface.localScale += Vector3.forward * extension;
+        }
+        var finishTrigger = practiceFinish.GetComponent<BoxCollider>();
+        float finishCenter = practiceFinish.transform.TransformPoint(finishTrigger.center).z;
+        practiceFinish.transform.position += Vector3.forward * (ChargeFinishDistance - finishCenter);
+
+        chargeBlocks = new GameObject("Practice Charge Blocks");
+        for (int i = 0; i < swapInventory.maxCharges; i++)
+            CreatePracticeBlock(FuelType.Gasoline, 14f + i * ChargeBlockSpacing, chargeBlocks.transform, 3f);
+
+        if (lesson == Lesson.Shield)
+        {
+            shieldTarget = new GameObject("Shield Practice Target");
+            CreatePracticeBlock(FuelType.Diesel, ShieldTargetDistance, shieldTarget.transform);
+            shieldTarget.SetActive(false);
+        }
+        CreateShieldRing();
+
+        var row = new GameObject("Charge Pips", typeof(RectTransform)).GetComponent<RectTransform>();
+        row.SetParent(tutorialMessage.transform.parent, false);
+        row.anchorMin = row.anchorMax = new Vector2(0.5f, 0f);
+        row.anchoredPosition = new Vector2(0f, 13f);
+        row.sizeDelta = new Vector2(100f, 14f);
+        chargePips = new Image[swapInventory.maxCharges];
+        for (int i = 0; i < chargePips.Length; i++)
+        {
+            Image pip = new GameObject($"Charge {i + 1}", typeof(RectTransform)).AddComponent<Image>();
+            pip.transform.SetParent(row, false);
+            pip.rectTransform.anchoredPosition = new Vector2((i - (chargePips.Length - 1) * 0.5f) * 30f, 0f);
+            pip.rectTransform.sizeDelta = new Vector2(24f, 10f);
+            pip.raycastTarget = false;
+            chargePips[i] = pip;
+        }
+        row.gameObject.SetActive(false);
+
+        swapInventory.Changed += OnChargesChanged;
+        playerCar.Respawned += ReturnToChargeExercise;
+        UpdateChargeDisplay();
+    }
+
+    void CreateShieldRing()
+    {
+        // A ground-level ring gives the shield a visible cue outside the HUD.
+        shieldRing = new GameObject("Practice Shield Ring").AddComponent<LineRenderer>();
+        shieldRing.transform.SetParent(playerCar.transform, false);
+        shieldRing.sharedMaterial = swapInventory.MaterialOf(FuelType.Diesel);
+        shieldRing.useWorldSpace = false;
+        shieldRing.loop = true;
+        shieldRing.widthMultiplier = 0.12f;
+        shieldRing.positionCount = 48;
+        for (int i = 0; i < shieldRing.positionCount; i++)
+        {
+            float angle = 2f * Mathf.PI * i / shieldRing.positionCount;
+            shieldRing.SetPosition(i, new Vector3(Mathf.Cos(angle) * 1.65f, 0.3f, Mathf.Sin(angle) * 2.15f));
+        }
+        shieldRing.enabled = false;
+    }
+
+    void ReturnToChargeExercise()
+    {
+        var body = playerCar.GetComponent<Rigidbody>();
+        Vector3 position = chargeStart;
+        if (chargeActionDone || swapInventory.IsShielded)
+            position.z = ChargedCheckpoint;
+        body.position = position;
+        body.rotation = chargeHeading;
+        body.linearVelocity = Vector3.zero;
+        body.angularVelocity = Vector3.zero;
+        playerCar.GetComponent<FartBoost>().ClearBoost();
+        if (chargeActionDone)
+            ShowPrompt("Cross the finish");
+    }
+
+    void UpdateChargeDisplay()
+    {
+        for (int i = 0; i < chargePips.Length; i++)
+            chargePips[i].color = i < swapInventory.Charges
+                ? new Color(0.85f, 0.12f, 0.15f) : new Color(0.72f, 0.74f, 0.77f);
+        if (shieldRing != null)
+            shieldRing.enabled = swapInventory.IsShielded;
+    }
+
+    void OnChargesChanged()
+    {
+        UpdateChargeDisplay();
+        if (chargeActionDone || !playerCar.CanDrive)
+            return;
+
+        // The real pickup system reports the action that spent the charges. Each
+        // lesson unlocks the finish only after the player demonstrates its action.
+        bool teachingShield = lesson == Lesson.Shield;
+        if (swapInventory.LastResult == (teachingShield ? "shielded" : "turbo"))
+        {
+            chargeActionDone = true;
+            chargeBlocks.SetActive(false);
+            practiceFinish.SetActive(true);
+            ShowPrompt(teachingShield ? "Still red! Shield spent. Cross the finish." : "Turbo! Cross the finish");
+            return;
+        }
+
+        if (teachingShield)
+        {
+            // Reveal blue only while the player has a full shield.
+            shieldTarget.SetActive(swapInventory.IsShielded);
+            ShowPrompt(swapInventory.IsShielded ? "Shield ready. A blue block will spend it\nand keep you in the red car."
+                : swapInventory.LastResult == "turbo" ? "Shield spent. Recharge with red blocks"
+                : "Collect three red blocks");
+        }
+        else
+        {
+            ShowPrompt(swapInventory.IsShielded
+                ? $"Shield ready. {swapInventory.turboKey} spends it for turbo."
+                : "Collect three red blocks");
+        }
+    }
+
+    void ShowStartingPrompt()
+    {
+        ShowPrompt(lesson switch
+        {
+            Lesson.Swap => "Grab the blue block",
+            Lesson.Turbo or Lesson.Shield => "Collect three red blocks",
+            _ => "Follow the guide marks"
+        });
     }
 
     void OnPracticeSwap(FuelType previous, FuelType next)
@@ -203,7 +400,7 @@ public class AlphaTutorialManager : MonoBehaviour
 
     void OnPracticeFinished(bool won, string message)
     {
-        if (won && swapped)
+        if (won && (swapped || chargeActionDone))
             ShowCompletion();
     }
 
@@ -275,9 +472,19 @@ public class AlphaTutorialManager : MonoBehaviour
 
     void FixedUpdate()
     {
-        if (swapLesson)
+        if (UsesPracticeRace)
         {
-            if (!complete && !swapped && playerCar.CanDrive)
+            if (IsChargeLesson && !complete && playerCar.CanDrive)
+            {
+                Vector3 chargePosition = playerCar.transform.position;
+                // Recover before the car falls off the end of the practice road.
+                // Keep a usable finish stretch ahead until the required action is done.
+                float end = chargeActionDone ? ChargeRoadLength - 3f : ChargeFinishDistance - 8f;
+                if (Mathf.Abs(chargePosition.x) > 7f || chargePosition.z > end
+                    || chargePosition.z < -2f || chargePosition.y < -2f)
+                    ReturnToChargeExercise();
+            }
+            if (lesson == Lesson.Swap && !complete && !swapped && playerCar.CanDrive)
                 ShowPrompt(playerCar.transform.position.z > 20f ? "Reverse to the blue block" : "Grab the blue block");
             return;
         }
@@ -329,8 +536,10 @@ public class AlphaTutorialManager : MonoBehaviour
     void ShowCompletion()
     {
         complete = true;
-        if (!swapLesson)
+        if (!UsesPracticeRace)
             playerCar.StopDriving();
+        if (chargePips != null)
+            chargePips[0].transform.parent.gameObject.SetActive(false);
 
         var panel = (RectTransform)tutorialMessage.transform.parent;
         Vector2 size = new Vector2(640f, 250f);
@@ -339,22 +548,26 @@ public class AlphaTutorialManager : MonoBehaviour
         panel.sizeDelta = size;
         tutorialMessage.rectTransform.anchoredPosition = new Vector2(0f, 44f);
         tutorialMessage.rectTransform.sizeDelta = new Vector2(580f, 116f);
-        tutorialMessage.text = swapLesson
-            ? "<size=155%><b>Lesson Complete</b></size>\nYou swapped cars and crossed the finish!"
-            : "<size=155%><b>Lesson Complete</b></size>\nYou stopped in the bay!";
+        tutorialMessage.text = lesson switch
+        {
+            Lesson.Swap => "<size=155%><b>Lesson Complete</b></size>\nYou swapped cars and crossed the finish!",
+            Lesson.Turbo => "<size=155%><b>Lesson Complete</b></size>\nYou spent three charges on turbo!",
+            Lesson.Shield => "<size=155%><b>Lesson Complete</b></size>\nYour shield blocked the swap!",
+            _ => "<size=155%><b>Lesson Complete</b></size>\nYou stopped in the bay!"
+        };
 
         // Move the existing buttons into the result panel so they retain their click handlers.
         PlaceButton(retryButton, -145f);
         PlaceButton(mainMenuButton, 145f);
         Button defaultButton = mainMenuButton;
-        if (!swapLesson)
+        if (lesson != Lesson.Turbo)
         {
             Button next = Instantiate(retryButton, panel);
             next.name = "Next Tutorial";
             TMP_Text nextLabel = next.GetComponentInChildren<TMP_Text>();
             nextLabel.text = "Next Tutorial";
             nextLabel.fontSize = 27f;
-            next.onClick.AddListener(() => LoadLesson(true));
+            next.onClick.AddListener(() => LoadLesson(lesson + 1));
             PlaceButton(next, -200f, 185f);
             PlaceButton(retryButton, 0f, 185f);
             PlaceButton(mainMenuButton, 200f, 185f);
@@ -382,7 +595,7 @@ public class AlphaTutorialManager : MonoBehaviour
         complete = false;
         stoppedFor = 0f;
         retryButton.gameObject.SetActive(false);
-        ShowPrompt(swapLesson ? "Grab the blue block" : "Follow the guide marks");
+        ShowStartingPrompt();
     }
 
     static string Controls => Gamepad.current != null
@@ -391,19 +604,25 @@ public class AlphaTutorialManager : MonoBehaviour
 
     void ShowPrompt(string action)
     {
-        string title = swapLesson ? "2 · STEAL A CAR" : "1 · DRIVE AND STOP";
+        string title = lesson switch
+        {
+            Lesson.Swap => "2 · STEAL A CAR",
+            Lesson.Shield => "3 · BLOCK A SWAP",
+            Lesson.Turbo => "4 · TURBO",
+            _ => "1 · DRIVE AND STOP"
+        };
         string text = $"<b>{title}</b>\n{action}";
-        if (!swapLesson)
+        if (lesson == Lesson.Drive)
             text += $"\n<size=70%>{Controls}</size>";
         if (tutorialMessage.text != text)
             tutorialMessage.text = text;
     }
 
-    void Retry() => LoadLesson(swapLesson);
+    void Retry() => LoadLesson(lesson);
 
-    static void LoadLesson(bool swap)
+    static void LoadLesson(Lesson destination)
     {
-        openSwapLesson = swap;
+        nextLesson = destination;
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
     void ReturnToMenu() => SceneManager.LoadScene("MainMenuCanvas");
@@ -411,10 +630,12 @@ public class AlphaTutorialManager : MonoBehaviour
     void OnDestroy()
     {
         playerCar.Respawned -= ResetLesson;
-        if (swapLesson)
+        if (UsesPracticeRace)
         {
             practiceRace.RaceEnded -= OnPracticeFinished;
             swapInventory.Switched -= OnPracticeSwap;
+            swapInventory.Changed -= OnChargesChanged;
+            playerCar.Respawned -= ReturnToChargeExercise;
         }
         retryButton.onClick.RemoveListener(Retry);
         mainMenuButton.onClick.RemoveListener(ReturnToMenu);

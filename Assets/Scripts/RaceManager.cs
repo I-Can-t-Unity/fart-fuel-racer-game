@@ -26,11 +26,11 @@ public class RaceManager : MonoBehaviour
     public bool IsSwapPractice { get; private set; }
 
     // The tutorial owns the start panel and results. The race still owns car identity and swapping.
-    internal void ConfigureSwapPractice(CarDriver red, CarDriver blue)
+    internal void ConfigureSwapPractice(CarDriver[] practiceCars)
     {
         IsSwapPractice = true;
         colorSwitchingMode = true;
-        racers = new[] { red, blue };
+        racers = practiceCars;
         requireCheckpoint = false;
         timerText = speedText = fuelText = resultText = null;
         restartButton = mainMenuButton = null;

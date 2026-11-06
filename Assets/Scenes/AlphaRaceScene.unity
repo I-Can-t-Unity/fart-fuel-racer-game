@@ -7675,6 +7675,8 @@ MonoBehaviour:
   practiceRace: {fileID: 206879158}
   drivingGuide: {fileID: 28356448}
   practiceFinish: {fileID: 629179615}
+  practiceRoad: {fileID: 1238516270}
+  practiceGround: {fileID: 161789260}
 --- !u!4 &1948927004
 Transform:
   m_ObjectHideFlags: 0

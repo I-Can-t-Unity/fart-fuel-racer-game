@@ -33,6 +33,8 @@ public class FartBoost : MonoBehaviour
     public bool IsFarting => Time.time < fartUntil;
     public bool IsChoking => Time.time < chokeUntil;
 
+    internal void ClearBoost() => fartUntil = 0f;
+
     void Awake()
     {
         body = GetComponent<Rigidbody>();
