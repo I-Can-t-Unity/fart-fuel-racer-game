@@ -15,6 +15,9 @@ public class AlphaTutorialManager : MonoBehaviour
     [SerializeField] TMP_Text tutorialMessage;
     [SerializeField] Button retryButton;
     [SerializeField] Button mainMenuButton;
+    [SerializeField] RaceManager practiceRace;
+    [SerializeField] Transform drivingGuide;
+    [SerializeField] GameObject practiceFinish;
 
     const float BrakePromptDistance = 14f;
     const float StoppedSpeedKmh = 1f;
@@ -24,10 +27,23 @@ public class AlphaTutorialManager : MonoBehaviour
     bool passedGate;
     bool complete;
     float stoppedFor;
+    // Both lessons share the practice road. Consume the next lesson choice once on scene load.
+    static bool openSwapLesson;
+    bool swapLesson;
+    bool swapped;
+    CarDriver blueCar;
+    FuelInventory swapInventory;
+    TextMeshPro playerMarker;
+    Camera practiceCamera;
 
     void Start()
     {
-        playerCar.Respawned += ResetLesson;
+        swapLesson = openSwapLesson;
+        openSwapLesson = false;
+        if (swapLesson)
+            SetUpSwapLesson();
+        else
+            playerCar.Respawned += ResetLesson;
         retryButton.onClick.AddListener(Retry);
         mainMenuButton.onClick.AddListener(ReturnToMenu);
         ResetLesson();
@@ -46,7 +62,7 @@ public class AlphaTutorialManager : MonoBehaviour
         Vector2 cornerSize = panel.sizeDelta;
         Vector2 messagePosition = tutorialMessage.rectTransform.anchoredPosition;
         Vector2 messageSize = tutorialMessage.rectTransform.sizeDelta;
-        bool showKeyboard = Gamepad.current == null;
+        bool showKeyboard = !swapLesson && Gamepad.current == null;
         Vector2 introSize = new Vector2(640f, showKeyboard ? 410f : 290f);
         Vector2 introMessagePosition = new Vector2(0f, showKeyboard ? 116f : 38f);
         Vector2 introMessageSize = new Vector2(580f, showKeyboard ? 116f : 140f);
@@ -59,11 +75,13 @@ public class AlphaTutorialManager : MonoBehaviour
         panel.sizeDelta = introSize;
         tutorialMessage.rectTransform.anchoredPosition = introMessagePosition;
         tutorialMessage.rectTransform.sizeDelta = introMessageSize;
-        tutorialMessage.text = "<size=155%><b>Tutorial 1</b></size>\nFollow the guide marks. Stop in the bay.";
+        tutorialMessage.text = swapLesson
+            ? "<size=155%><b>Tutorial 2</b></size>\nCollect a block matching another car's color to take control of that car."
+            : "<size=155%><b>Tutorial 1</b></size>\nFollow the guide marks. Stop in the bay.";
         RectTransform keyboard = null;
         if (showKeyboard)
             keyboard = DrawKeyboard(panel);
-        else
+        else if (!swapLesson)
             tutorialMessage.text += $"\n<size=80%>{Controls}</size>";
 
         // Clone the button for its styling and keep the original available for completion.
@@ -75,15 +93,24 @@ public class AlphaTutorialManager : MonoBehaviour
         buttonRect.sizeDelta = new Vector2(180f, 58f);
         okButton.targetGraphic.color = new Color(0.16f, 0.29f, 0.51f);
         TMP_Text label = okButton.GetComponentInChildren<TMP_Text>(true);
-        label.text = "OK";
+        label.text = swapLesson ? "Next" : "OK";
         label.color = Color.white;
+        bool showSwapObjective = swapLesson;
         okButton.onClick.AddListener(() =>
         {
+            if (showSwapObjective)
+            {
+                showSwapObjective = false;
+                tutorialMessage.text = "<size=155%><b>Try a Swap</b></size>\nGrab the blue block. Then drive the blue car across the finish.";
+                label.text = "OK";
+                return;
+            }
+
             okButton.gameObject.SetActive(false);
             Destroy(okButton.gameObject);
             if (keyboard != null)
                 Destroy(keyboard.gameObject);
-            ShowPrompt("Follow the guide marks");
+            ShowPrompt(swapLesson ? "Grab the blue block" : "Follow the guide marks");
             StartCoroutine(MoveToCorner());
         });
         okButton.gameObject.SetActive(true);
@@ -111,8 +138,82 @@ public class AlphaTutorialManager : MonoBehaviour
             panel.sizeDelta = cornerSize;
             tutorialMessage.rectTransform.anchoredPosition = messagePosition;
             tutorialMessage.rectTransform.sizeDelta = messageSize;
+            if (swapLesson)
+            {
+                // The race initializes the roster one frame after it is enabled.
+                while (!practiceRace.RacersInitialized)
+                    yield return null;
+                blueCar.SetCountdownHold(false);
+            }
             playerCar.SetCountdownHold(false);
         }
+    }
+
+    void SetUpSwapLesson()
+    {
+        drivingGuide.gameObject.SetActive(false);
+        blueCar = Instantiate(playerCar, new Vector3(0f, playerCar.transform.position.y, 40f), playerCar.transform.rotation);
+        blueCar.name = "Blue Practice Car";
+        swapInventory = playerCar.GetComponent<FuelInventory>();
+        swapInventory.cars = new[] { playerCar, blueCar };
+        swapInventory.enabled = true;
+
+        playerCar.gameObject.AddComponent<ApplySelectedCar>();
+        blueCar.gameObject.AddComponent<ApplySelectedCar>();
+        practiceRace.ConfigureSwapPractice(playerCar, blueCar);
+        practiceRace.gameObject.SetActive(true);
+        // With no AI route on the practice road, the other car stays parked.
+        playerCar.gameObject.AddComponent<AICarWaypointDriver>();
+        blueCar.gameObject.AddComponent<AICarWaypointDriver>();
+        practiceRace.RaceEnded += OnPracticeFinished;
+        swapInventory.Switched += OnPracticeSwap;
+
+        GameObject block = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        block.name = "Blue Practice Block";
+        block.transform.position = new Vector3(0f, 1.1f, 18f);
+        block.transform.localScale = Vector3.one * 1.4f;
+        block.GetComponent<Collider>().isTrigger = true;
+        block.GetComponent<Renderer>().sharedMaterial = swapInventory.MaterialOf(FuelType.Diesel);
+        FuelPickup pickup = block.AddComponent<FuelPickup>();
+        pickup.type = FuelType.Diesel;
+        pickup.inventory = swapInventory;
+        pickup.respawnSeconds = 0f;
+
+        playerMarker = new GameObject("Controlled Car Marker").AddComponent<TextMeshPro>();
+        playerMarker.font = tutorialMessage.font;
+        playerMarker.text = "YOU";
+        playerMarker.fontSize = 6f;
+        playerMarker.fontStyle = FontStyles.Bold;
+        playerMarker.alignment = TextAlignmentOptions.Center;
+        playerMarker.outlineWidth = 0.25f;
+        practiceCamera = Camera.main;
+    }
+
+    void OnPracticeSwap(FuelType previous, FuelType next)
+    {
+        if (next != FuelType.Diesel)
+            return;
+
+        swapped = true;
+        // The red car has served its purpose. Hold it in place for the rest of this exercise.
+        playerCar.SetCountdownHold(true);
+        practiceFinish.SetActive(true);
+        ShowPrompt("You're blue! Drive through the finish");
+    }
+
+    void OnPracticeFinished(bool won, string message)
+    {
+        if (won && swapped)
+            ShowCompletion();
+    }
+
+    void LateUpdate()
+    {
+        if (playerMarker == null || practiceCamera == null)
+            return;
+        Transform controlled = swapped ? blueCar.transform : playerCar.transform;
+        playerMarker.transform.SetPositionAndRotation(controlled.position + Vector3.up * 2.7f,
+            practiceCamera.transform.rotation);
     }
 
     RectTransform DrawKeyboard(RectTransform panel)
@@ -174,6 +275,12 @@ public class AlphaTutorialManager : MonoBehaviour
 
     void FixedUpdate()
     {
+        if (swapLesson)
+        {
+            if (!complete && !swapped && playerCar.CanDrive)
+                ShowPrompt(playerCar.transform.position.z > 20f ? "Reverse to the blue block" : "Grab the blue block");
+            return;
+        }
         if (complete || !playerCar.CanDrive)
             return;
 
@@ -222,7 +329,8 @@ public class AlphaTutorialManager : MonoBehaviour
     void ShowCompletion()
     {
         complete = true;
-        playerCar.StopDriving();
+        if (!swapLesson)
+            playerCar.StopDriving();
 
         var panel = (RectTransform)tutorialMessage.transform.parent;
         Vector2 size = new Vector2(640f, 250f);
@@ -231,22 +339,38 @@ public class AlphaTutorialManager : MonoBehaviour
         panel.sizeDelta = size;
         tutorialMessage.rectTransform.anchoredPosition = new Vector2(0f, 44f);
         tutorialMessage.rectTransform.sizeDelta = new Vector2(580f, 116f);
-        tutorialMessage.text = "<size=155%><b>Lesson Complete</b></size>\nYou stopped in the bay!";
+        tutorialMessage.text = swapLesson
+            ? "<size=155%><b>Lesson Complete</b></size>\nYou swapped cars and crossed the finish!"
+            : "<size=155%><b>Lesson Complete</b></size>\nYou stopped in the bay!";
 
         // Move the existing buttons into the result panel so they retain their click handlers.
         PlaceButton(retryButton, -145f);
         PlaceButton(mainMenuButton, 145f);
+        Button defaultButton = mainMenuButton;
+        if (!swapLesson)
+        {
+            Button next = Instantiate(retryButton, panel);
+            next.name = "Next Tutorial";
+            TMP_Text nextLabel = next.GetComponentInChildren<TMP_Text>();
+            nextLabel.text = "Next Tutorial";
+            nextLabel.fontSize = 27f;
+            next.onClick.AddListener(() => LoadLesson(true));
+            PlaceButton(next, -200f, 185f);
+            PlaceButton(retryButton, 0f, 185f);
+            PlaceButton(mainMenuButton, 200f, 185f);
+            defaultButton = next;
+        }
         if (EventSystem.current != null)
-            EventSystem.current.SetSelectedGameObject(retryButton.gameObject);
+            EventSystem.current.SetSelectedGameObject(defaultButton.gameObject);
 
-        void PlaceButton(Button button, float x)
+        void PlaceButton(Button button, float x, float width = 260f)
         {
             var rect = (RectTransform)button.transform;
             rect.SetParent(panel, false);
             rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0f);
             rect.pivot = new Vector2(0.5f, 0.5f);
             rect.anchoredPosition = new Vector2(x, 51f);
-            rect.sizeDelta = new Vector2(260f, 62f);
+            rect.sizeDelta = new Vector2(width, 62f);
             button.gameObject.SetActive(true);
         }
     }
@@ -258,7 +382,7 @@ public class AlphaTutorialManager : MonoBehaviour
         complete = false;
         stoppedFor = 0f;
         retryButton.gameObject.SetActive(false);
-        ShowPrompt("Follow the guide marks");
+        ShowPrompt(swapLesson ? "Grab the blue block" : "Follow the guide marks");
     }
 
     static string Controls => Gamepad.current != null
@@ -267,17 +391,31 @@ public class AlphaTutorialManager : MonoBehaviour
 
     void ShowPrompt(string action)
     {
-        string text = $"<b>1 · DRIVE AND STOP</b>\n{action}\n<size=70%>{Controls}</size>";
+        string title = swapLesson ? "2 · STEAL A CAR" : "1 · DRIVE AND STOP";
+        string text = $"<b>{title}</b>\n{action}";
+        if (!swapLesson)
+            text += $"\n<size=70%>{Controls}</size>";
         if (tutorialMessage.text != text)
             tutorialMessage.text = text;
     }
 
-    void Retry() => SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+    void Retry() => LoadLesson(swapLesson);
+
+    static void LoadLesson(bool swap)
+    {
+        openSwapLesson = swap;
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+    }
     void ReturnToMenu() => SceneManager.LoadScene("MainMenuCanvas");
 
     void OnDestroy()
     {
         playerCar.Respawned -= ResetLesson;
+        if (swapLesson)
+        {
+            practiceRace.RaceEnded -= OnPracticeFinished;
+            swapInventory.Switched -= OnPracticeSwap;
+        }
         retryButton.onClick.RemoveListener(Retry);
         mainMenuButton.onClick.RemoveListener(ReturnToMenu);
     }

@@ -153,6 +153,13 @@ public class AICarWaypointDriver : MonoBehaviour
         driver.ExternalInput = true;
         driver.enabled = true;
 
+        // Practice cars participate in control handoffs and stay parked when uncontrolled.
+        if (RaceManager.Instance != null && RaceManager.Instance.IsSwapPractice)
+        {
+            paintWithFuelColour = false;
+            return;
+        }
+
         FuelInventory player = FindFirstObjectByType<FuelInventory>();
         CarDriver playerDriver = player != null ? player.GetComponent<CarDriver>() : null;
         if (playerDriver != null)

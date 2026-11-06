@@ -23,6 +23,18 @@ public class RaceManager : MonoBehaviour
     readonly Dictionary<CarDriver, System.Action> resetHandlers = new Dictionary<CarDriver, System.Action>();
     bool initialized;
     public bool RacersInitialized => initialized;
+    public bool IsSwapPractice { get; private set; }
+
+    // The tutorial owns the start panel and results. The race still owns car identity and swapping.
+    internal void ConfigureSwapPractice(CarDriver red, CarDriver blue)
+    {
+        IsSwapPractice = true;
+        colorSwitchingMode = true;
+        racers = new[] { red, blue };
+        requireCheckpoint = false;
+        timerText = speedText = fuelText = resultText = null;
+        restartButton = mainMenuButton = null;
+    }
 
     // Kept for existing scene references and teammate integrations.
     public Transform car;
@@ -102,7 +114,10 @@ public class RaceManager : MonoBehaviour
             mainMenuButton.gameObject.SetActive(false);
         }
 
-        StartCoroutine(StartCountdown());
+        if (IsSwapPractice)
+            IsCountingDown = false; // The tutorial releases the cars when its intro closes.
+        else
+            StartCoroutine(StartCountdown());
     }
 
     IEnumerator StartCountdown()
@@ -267,7 +282,7 @@ public class RaceManager : MonoBehaviour
                 roster.Add(opponent.GetComponentInParent<CarDriver>());
         }
         racers = roster.ToArray();
-        if (racers.Length != 3)
+        if (!IsSwapPractice && racers.Length != 3)
             Debug.LogWarning("Color race requires exactly three cars. Assign RaceManager > Racers in Red/Blue/Yellow order. Current count: " + racers.Length, this);
         fuel = 100f;
         fuelDrainPerSecond = fuelDrainPerSpeed = fuelDrainPerThrottle = 0f;
@@ -292,7 +307,8 @@ public class RaceManager : MonoBehaviour
             if (appearance != null) appearance.ApplyColor(i % 3);
         }
         initialized = true;
-        int selection = Mathf.Clamp(PlayerPrefs.GetInt("SelectedCarColor", PlayerPrefs.GetInt("SelectedCarFuel", 0)), 0, 2);
+        int selection = IsSwapPractice ? 0
+            : Mathf.Clamp(PlayerPrefs.GetInt("SelectedCarColor", PlayerPrefs.GetInt("SelectedCarFuel", 0)), 0, 2);
         CarDriver startingCar = racers.Length > selection ? racers[selection] : racers.Length > 0 ? racers[0] : null;
         if (startingCar != null) InitializeStartingControl(startingCar);
     }

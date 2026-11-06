@@ -2752,7 +2752,7 @@ Transform:
   m_GameObject: {fileID: 629179615}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: -34}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -7672,6 +7672,9 @@ MonoBehaviour:
   tutorialMessage: {fileID: 814338736}
   retryButton: {fileID: 1268359206}
   mainMenuButton: {fileID: 2200000002}
+  practiceRace: {fileID: 206879158}
+  drivingGuide: {fileID: 28356448}
+  practiceFinish: {fileID: 629179615}
 --- !u!4 &1948927004
 Transform:
   m_ObjectHideFlags: 0
