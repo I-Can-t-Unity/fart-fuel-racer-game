@@ -55,7 +55,6 @@ public static class CarHandlingRegression
                 TestDoorContact();
                 TestRearImpact();
                 TestAirborne();
-                TestAIContactRecovery();
                 TestBarriers();
                 TestBarrierBlockingAndLanding();
             }
@@ -327,32 +326,6 @@ public static class CarHandlingRegression
         UnityEngine.Object.DestroyImmediate(car.gameObject);
         VehicleBarrierContacts.RemoveBarrier(wallId);
         UnityEngine.Object.DestroyImmediate(wall);
-    }
-
-    private static void TestAIContactRecovery()
-    {
-        CarDriver car = Spawn(new Vector3(0, 30, 0));
-        Rigidbody body = car.GetComponent<Rigidbody>();
-        body.useGravity = false;
-        body.angularDamping = 0f;
-        body.linearVelocity = new Vector3(3, 0, 12);
-        body.angularVelocity = Vector3.up;
-        var ai = car.gameObject.AddComponent<AICarWaypointDriver>();
-        ai.enabled = false;
-        const BindingFlags fields = BindingFlags.Instance | BindingFlags.NonPublic;
-        typeof(AICarWaypointDriver).GetField("rb", fields).SetValue(ai, body);
-        typeof(AICarWaypointDriver).GetField("driver", fields).SetValue(ai, car);
-        typeof(AICarWaypointDriver).GetField("recoverUntil", fields).SetValue(ai, Time.time + 10f);
-        typeof(CarDriver).GetField("lastVehicleContact", fields)?.SetValue(car, Time.fixedTime);
-        typeof(CarDriver).GetField("<GroundedWheelCount>k__BackingField", fields)?.SetValue(car, 4);
-        typeof(AICarWaypointDriver).GetMethod("Recover", fields).Invoke(ai,
-            new object[] { Vector3.forward, Vector3.right, 70f, 43f });
-        Physics.Simulate(Dt);
-        Check(Mathf.Abs(body.linearVelocity.x - 3f) < 0.01f &&
-            Mathf.Abs(body.linearVelocity.z - 12f) < 0.01f &&
-            Mathf.Abs(body.angularVelocity.y - 1f) < 0.01f,
-            "AI recovery leaves contact velocity and spin to the collision solver");
-        UnityEngine.Object.DestroyImmediate(car.gameObject);
     }
 
 }

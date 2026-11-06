@@ -54,6 +54,17 @@ public class CarDriver : MonoBehaviour
     [SerializeField, Min(0.1f)] private float throttleRise = 3f;
     [Tooltip("How fast the throttle drops back when the pedal is released, per second.")]
     [SerializeField, Min(0.1f)] private float throttleFall = 6f;
+    [Header("Corner assist (player only)")]
+    [Tooltip("Holding throttle and steering together through a corner eases the car down to a speed that can make the turn, then lets it accelerate out.")]
+    [SerializeField] private bool cornerAssist = true;
+    [Tooltip("Tightest turn the assist aims to make, in metres. Smaller slows the car more in a held turn.")]
+    [SerializeField, Min(3)] private float cornerAssistRadius = 14f;
+    [Tooltip("How hard the assist slows the car, in metres per second squared.")]
+    [SerializeField, Min(0)] private float cornerAssistDecel = 6f;
+    [Tooltip("Seconds a turn must be held before the assist starts, so quick taps on gentle bends keep full speed.")]
+    [SerializeField, Min(0)] private float cornerAssistDelay = 0.12f;
+    [Tooltip("Seconds after the delay for the assist to reach full strength.")]
+    [SerializeField, Min(0.01f)] private float cornerAssistRamp = 0.3f;
 
     private Rigidbody body;
     private Vector3 spawnPosition;
@@ -75,6 +86,9 @@ public class CarDriver : MonoBehaviour
         new System.Collections.Generic.Dictionary<Collider, bool>();
     private int barrierBodyId;
     private float steeringInputSmoothed;
+    private float steerHeldSeconds;
+    private float steerHeldSign;
+    public bool IsCornerAssisting { get; private set; }
     public int GroundedWheelCount { get; private set; }
     public bool HasVehicleContact => Time.fixedTime - lastVehicleContact < Time.fixedDeltaTime * 2.5f;
     private float lastVehicleContact = float.NegativeInfinity;
@@ -214,6 +228,11 @@ public class CarDriver : MonoBehaviour
         sputterBelowFuel = other.sputterBelowFuel;
         throttleRise = other.throttleRise;
         throttleFall = other.throttleFall;
+        cornerAssist = other.cornerAssist;
+        cornerAssistRadius = other.cornerAssistRadius;
+        cornerAssistDecel = other.cornerAssistDecel;
+        cornerAssistDelay = other.cornerAssistDelay;
+        cornerAssistRamp = other.cornerAssistRamp;
     }
 
     // Lets an AI driver give its car its own handling without editing the scene.
@@ -404,6 +423,7 @@ public class CarDriver : MonoBehaviour
         float limit = (throttle >= 0 ? topSpeedKmh * power : reverseSpeedKmh) / 3.6f;
         float torque = applyBrake || !EngineRunning || Mathf.Abs(forwardSpeed) >= limit ? 0 : throttle * motorTorque * power;
         float idleBrake = !EngineRunning ? engineOffDrag : Mathf.Abs(throttleInput) < 0.01f ? 40f : 0;
+        torque = ApplyCornerAssist(forwardSpeed, power, applyBrake) ? 0 : torque;
         float speedFraction = Mathf.Clamp01(SpeedKmh / topSpeedKmh);
         float steeringLimit = Mathf.Lerp(steeringAngle, steeringAngle * 0.4f, speedFraction);
         // Bicycle-model estimate: lateral acceleration = speed^2 * tan(angle) / wheelbase.
@@ -443,6 +463,33 @@ public class CarDriver : MonoBehaviour
         VehicleBarrierContacts.UpdateCar(barrierBodyId, body.worldCenterOfMass.y,
             GroundedWheelCount >= 2 && Vector3.Dot(transform.up, Vector3.up) > 0.7f);
         ApplyGroundedStability(forwardSpeed, planarSpeedSquared, topSpeed);
+    }
+
+    // Players tend to hold throttle and steer together through corners instead of braking.
+    // While a turn is held, cap speed at what the car can corner at on a tight radius
+    // (speed = sqrt(cornering x radius)), easing off the power and slowing it gently.
+    // Returns true while it is holding the car back, so the engine gives no drive.
+    private bool ApplyCornerAssist(float forwardSpeed, float power, bool applyBrake)
+    {
+        float sign = Mathf.Abs(steering) > 0.5f ? Mathf.Sign(steering) : 0f;
+        steerHeldSeconds = sign != 0f && sign == steerHeldSign ? steerHeldSeconds + Time.fixedDeltaTime : 0f;
+        steerHeldSign = sign;
+        IsCornerAssisting = false;
+        if (!cornerAssist || ExternalInput || applyBrake || throttleInput <= 0f || forwardSpeed <= 0f
+            || GroundedWheelCount < 2)
+            return false;
+        float strength = Mathf.Clamp01((steerHeldSeconds - cornerAssistDelay) / cornerAssistRamp)
+            * Mathf.Abs(steeringInputSmoothed);
+        if (strength <= 0f)
+            return false;
+        float cornerSpeed = Mathf.Sqrt(maxCorneringAcceleration * cornerAssistRadius);
+        float cap = Mathf.Lerp(topSpeedKmh * power / 3.6f, cornerSpeed, strength);
+        if (forwardSpeed <= cap)
+            return false;
+        float slow = Mathf.Min(cornerAssistDecel, (forwardSpeed - cap) / Time.fixedDeltaTime);
+        body.AddForce(-transform.forward * slow, ForceMode.Acceleration);
+        IsCornerAssisting = true;
+        return true;
     }
 
     private void ApplyGroundedStability(float forwardSpeed, float speedSquared, float topSpeed)

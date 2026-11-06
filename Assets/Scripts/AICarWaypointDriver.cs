@@ -1,23 +1,22 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// Drives an AI car around the loop. It feeds steering and pedals into the same CarDriver the
-// player uses, so it handles like a real car. Cube choices live in AIFuelTank.
-// Runs early so it can sort the start grid before the cars record their reset spots.
 [DefaultExecutionOrder(-300)]
 [RequireComponent(typeof(Rigidbody))]
 public class AICarWaypointDriver : MonoBehaviour
 {
     [Header("Track")]
     public LoopTrackGenerator track;
-    [Tooltip("The racing line, in metres to the side of the centre. The road is 20 m wide on Bridge Circuit.")]
+    [Tooltip("The racing line, in metres to the side of the centre.")]
     public float laneOffset = 1.5f;
 
     [Header("AI Driving")]
-    [Tooltip("Target speed on straights, in km/h. The player's car tops out at 70.")]
+    [Tooltip("Target speed on straights, in km/h. Keep it a little under the car's top speed so catch-up has room.")]
     public float speedKph = 80f;
-    [Tooltip("Target speed through the sharpest corners, in km/h.")]
-    public float cornerSpeedKph = 50f;
+    [Tooltip("Share of the car's cornering limit the AI uses in corners. Below 1 leaves a safety margin.")]
+    [Range(0.5f, 1f)] public float cornerSpeedMargin = 0.9f;
+    [Tooltip("Braking the AI plans on before a corner, in metres per second squared.")]
+    public float cornerBrakeDecel = 7f;
     [Tooltip("How far ahead the AI aims when standing still, in metres.")]
     public float lookAheadMinMetres = 10f;
     [Tooltip("Extra aim distance for every m/s of speed, in seconds. Further ahead at speed keeps the line smooth; closer in slow corners stops it cutting them.")]
@@ -73,22 +72,6 @@ public class AICarWaypointDriver : MonoBehaviour
     [Tooltip("Most the AI eases off when ahead of the player, as a fraction of its target speed.")]
     public float catchUpMaxSlowdown = 0.07f;
 
-    [Header("Same car as the player")]
-    [Tooltip("Drive by the player's rules: the player's car handling (copied from its CarDriver at the start, so launch and top speed match), and no recovery help after hits. Off uses the handling and help below.")]
-    public bool mimicPlayer = true;
-
-    [Header("Handling (the rival's own car, only with Mimic Player off)")]
-    [Tooltip("Gives the rival the handling below instead of the values on its CarDriver in the scene.")]
-    public bool overrideHandling = true;
-    [Tooltip("The player's car does 70. Only while the AI drives; the car goes back to its own handling when the player takes it over.")]
-    public float topSpeedKmh = 82f;
-    [Tooltip("The player's car has 800, so the AI pulls away harder from slow corners.")]
-    public float motorTorque = 1100f;
-    [Tooltip("How fast the throttle rises to full, per second. The player's car has 3.")]
-    public float throttleRise = 4f;
-    [Tooltip("Cornering limit in metres per second squared. The player's car has 15.")]
-    public float maxCorneringAcceleration = 16f;
-
     [Header("Looks")]
     [Tooltip("The car body. Leave empty to use the car model's main mesh.")]
     public Renderer bodyRenderer;
@@ -104,21 +87,7 @@ public class AICarWaypointDriver : MonoBehaviour
     [Tooltip("With a different car: off picks one of the other two at random each race; on always takes the next one (Gasoline > Diesel > Ethanol > Gasoline).")]
     public bool alwaysNextCar = false;
 
-    [Header("Collisions")]
-    [Tooltip("Hits weaker than this, in km/h, are ignored so scraping alongside doesn't start a recovery.")]
-    public float minImpactKph = 5f;
-    [Tooltip("How long after a hit the AI gets help recovering, in seconds. The player gets none.")]
-    public float recoverySeconds = 1.2f;
-    [Tooltip("How quickly spin from a hit dies away while recovering. Higher settles faster.")]
-    public float spinDamping = 5f;
-    [Tooltip("How quickly a sideways skid is cancelled while recovering. Higher grips sooner.")]
-    public float slideDamping = 3f;
-    [Tooltip("While recovering, the AI is turned back toward the track if it points more than this many degrees off.")]
-    public float realignAboveDegrees = 15f;
-    [Tooltip("How fast that turn back happens, in degrees per second.")]
-    public float realignDegreesPerSecond = 90f;
-    [Tooltip("Extra push while recovering, in metres per second squared, so the AI regains speed faster than the player.")]
-    public float catchUpAcceleration = 4f;
+    [Header("Respawn")]
     [Tooltip("If the AI is flipped, pinned against something or off the track this long, it is put back on the road.")]
     public float stuckSeconds = 2.5f;
     [Tooltip("Height above the road the AI is put back at, in metres.")]
@@ -137,7 +106,6 @@ public class AICarWaypointDriver : MonoBehaviour
     private AIFuelTank tank;
     private AIShortcutRouter router;
     private int currentWaypoint = -1;
-    private float recoverUntil = -1;
     private float stuckFor;
     private float graceUntil = -1;
     private int branchRespawns;
@@ -157,21 +125,15 @@ public class AICarWaypointDriver : MonoBehaviour
     private float targetSpeedKph = -1f;
     private float laneLengthFactor = 1f;
     private float measuredLane = float.NaN;
-    private bool haveOwnHandling;
-    private float ownTopSpeedKmh, ownMotorTorque, ownThrottleRise, ownCornering;
-
-    public bool IsRecovering => Time.time < recoverUntil;
 
     private static int arrangedScene = -1;
 
-    // FuelInventory calls this right before the player and the AI swap a car.
     public void PrepareControlHandoff()
     {
         chasing = null;
         currentLane = laneOffset;
         currentWaypoint = -1;
         stuckFor = 0f;
-        recoverUntil = -1f;
         targetSpeedKph = -1f;
         graceUntil = Time.time + stuckGraceSeconds;
     }
@@ -191,15 +153,10 @@ public class AICarWaypointDriver : MonoBehaviour
         driver.ExternalInput = true;
         driver.enabled = true;
 
-        FuelInventory player = mimicPlayer ? FindFirstObjectByType<FuelInventory>() : null;
+        FuelInventory player = FindFirstObjectByType<FuelInventory>();
         CarDriver playerDriver = player != null ? player.GetComponent<CarDriver>() : null;
         if (playerDriver != null)
             driver.CopyHandlingFrom(playerDriver);
-        ownTopSpeedKmh = driver.TopSpeedKmh;
-        ownMotorTorque = driver.MotorTorque;
-        ownThrottleRise = driver.ThrottleRise;
-        ownCornering = driver.MaxCorneringAcceleration;
-        haveOwnHandling = true;
 
         tank = GetComponent<AIFuelTank>();
         if (tank == null)
@@ -219,7 +176,6 @@ public class AICarWaypointDriver : MonoBehaviour
         }
     }
 
-    // Put whichever car the player picked in the middle slot. Only the first AI to wake up does it.
     void ArrangeStartGrid()
     {
         if (!playerStartsInMiddle || arrangedScene == gameObject.scene.handle)
@@ -275,18 +231,9 @@ public class AICarWaypointDriver : MonoBehaviour
         }
     }
 
-    // The AI gets its own handling while it drives; the car goes back to normal when the player takes it.
     void OnEnable()
     {
         targetSpeedKph = -1f;
-        if (driver != null && !mimicPlayer && overrideHandling)
-            driver.Tune(topSpeedKmh, motorTorque, throttleRise, maxCorneringAcceleration);
-    }
-
-    void OnDisable()
-    {
-        if (driver != null && haveOwnHandling)
-            driver.Tune(ownTopSpeedKmh, ownMotorTorque, ownThrottleRise, ownCornering);
     }
 
     void OnDestroy()
@@ -338,7 +285,6 @@ public class AICarWaypointDriver : MonoBehaviour
         float speed = Vector3.Dot(rb.linearVelocity, forward) * 3.6f;
         float speedMs = Mathf.Max(0f, speed / 3.6f);
 
-        // Look further ahead the faster we go, so steering stays smooth.
         float aimDistance = lookAheadMinMetres + speedMs * lookAheadSeconds;
         tank.UpdateStanding(rb);
         laneRate = laneChangeSpeed;
@@ -347,7 +293,7 @@ public class AICarWaypointDriver : MonoBehaviour
         Vector3 target = PointAlongTrack(aimDistance, currentLane);
         if (chasing != null)
         {
-            float cubeAhead = MetresAhead(chasing, track.centerline.Count);
+            float cubeAhead = MetresAhead(chasing);
             if (cubeAhead <= aimDistance)
             {
                 target = PointAlongTrack(cubeAhead + aimPastCubeMetres, cubeLane);
@@ -359,31 +305,27 @@ public class AICarWaypointDriver : MonoBehaviour
         if (toTarget.sqrMagnitude < 0.001f)
             return;
 
-        float turnAngle = SharpestTurnWithin(aimDistance + speedMs * cornerPreviewSeconds);
-        float cornerFactor = Mathf.Clamp01(turnAngle / 60f);
-        float wantedSpeed = Mathf.Lerp(speedKph, cornerSpeedKph, cornerFactor) * LaneLengthFactor() * CatchUpFactor();
+        float cornerLimit = CornerLimitKph(aimDistance + speedMs * cornerPreviewSeconds, lane);
+        float wantedSpeed = Mathf.Min(speedKph, cornerLimit) * LaneLengthFactor() * CatchUpFactor();
         targetSpeedKph = targetSpeedKph < 0f
             ? wantedSpeed
             : Mathf.MoveTowards(targetSpeedKph, wantedSpeed, speedRampKph * Time.fixedDeltaTime);
         float desiredSpeed = targetSpeedKph;
 
-        // Taking the turn rate off the steering stops it weaving.
         float yawRate = Vector3.Dot(rb.angularVelocity, Vector3.up) * Mathf.Rad2Deg;
         float aimAngle = Vector3.SignedAngle(forward, toTarget, Vector3.up);
         float steer = Mathf.Clamp((aimAngle - yawRate * steerDamping) / fullSteerAtDegrees, -1f, 1f);
         Pedals(desiredSpeed, speed, out float throttle, out bool brake);
-        if (tank.Fart != null && tank.Fart.IsFarting && cornerFactor < 0.5f)
+        if (tank.Fart != null && tank.Fart.IsFarting && cornerLimit >= speedKph)
         {
             throttle = 1f;
             brake = false;
         }
 
         driver.SetInput(throttle, steer, brake);
-        Recover(forward, toTarget.normalized, desiredSpeed, speed);
         CheckStuck(speed, throttle);
     }
 
-    // Pick the nearest cube of the colour we want that we can still line up with in time.
     bool FindCubeLane(int count, float speedMs, out float lane)
     {
         lane = laneOffset;
@@ -397,7 +339,7 @@ public class AICarWaypointDriver : MonoBehaviour
 
         if (chasing != null)
         {
-            float ahead = MetresAhead(chasing, count);
+            float ahead = MetresAhead(chasing);
             if (chasing.IsAvailable && chasing.type == wanted && ahead <= cubeSearchMetres && ahead > 0.5f)
             {
                 lane = cubeSpots[chasing].y;
@@ -413,7 +355,7 @@ public class AICarWaypointDriver : MonoBehaviour
         {
             if (cube == null || !cube.IsAvailable || cube.type != wanted)
                 continue;
-            float ahead = MetresAhead(cube, count);
+            float ahead = MetresAhead(cube);
             if (ahead < cubeMinAheadMetres || ahead > cubeSearchMetres || ahead >= nearest)
                 continue;
             float cubeLane = cubeSpots[cube].y;
@@ -433,7 +375,6 @@ public class AICarWaypointDriver : MonoBehaviour
         return true;
     }
 
-    // Move across just fast enough to be lined up a moment before the cube.
     float LaneRateFor(float cubeLane, float ahead, float speedMs)
     {
         float secondsToLineUp = Mathf.Max(ahead / Mathf.Max(speedMs, 5f) - laneSettleSeconds, 0.25f);
@@ -441,7 +382,6 @@ public class AICarWaypointDriver : MonoBehaviour
         return Mathf.Clamp(needed, laneChangeSpeed, maxLaneChangeSpeed);
     }
 
-    // Exact distance along the lap and offset across the road for a point near track point `near`.
     void ProjectOnTrack(Vector3 position, int near, out float along, out float lateral)
     {
         int count = track.centerline.Count;
@@ -470,7 +410,7 @@ public class AICarWaypointDriver : MonoBehaviour
         }
     }
 
-    float MetresAhead(FuelPickup cube, int count)
+    float MetresAhead(FuelPickup cube)
     {
         return Mathf.Repeat(cubeSpots[cube].x - carAlong, lapMetres);
     }
@@ -501,7 +441,7 @@ public class AICarWaypointDriver : MonoBehaviour
         }
     }
 
-    // Disabled scripts still get trigger calls, hence the enabled check: no picking up cubes for the player.
+    // OnTriggerEnter still fires on a disabled script, hence the enabled check.
     void OnTriggerEnter(Collider other)
     {
         if (!enabled || !huntCubes || tank == null)
@@ -541,7 +481,6 @@ public class AICarWaypointDriver : MonoBehaviour
         }
 
         driver.SetInput(throttle, steer, brake);
-        Recover(forward, toTarget.normalized, desiredSpeed, speed);
         CheckStuck(speed, throttle);
     }
 
@@ -554,7 +493,6 @@ public class AICarWaypointDriver : MonoBehaviour
             throttle = 0f;
     }
 
-    // Outside lanes are longer than inside ones, so scale speed to make every lane take the same time.
     float LaneLengthFactor()
     {
         if (!equalizeLaneLength)
@@ -583,7 +521,6 @@ public class AICarWaypointDriver : MonoBehaviour
         return track.GetPoint(index) + new Vector3(-direction.z, 0f, direction.x) * lane;
     }
 
-    // A bit faster when behind the player, a bit slower when ahead. Keeps the pack together.
     float CatchUpFactor()
     {
         RacePositionHUD race = RacePositionHUD.Instance;
@@ -628,59 +565,32 @@ public class AICarWaypointDriver : MonoBehaviour
         return from;
     }
 
-    float SharpestTurnWithin(float distance)
+    float CornerLimitKph(float distance, float lane)
     {
         int count = track.centerline.Count;
-        Vector3 heading = track.GetForward(currentWaypoint);
-        float sharpest = 0f;
+        float cornering = driver.MaxCorneringAcceleration * cornerSpeedMargin;
+        float limit = float.MaxValue;
         float travelled = 0f;
         int index = currentWaypoint;
         for (int step = 0; step < count && travelled < distance; step++)
         {
             int next = (index + 1) % count;
             travelled += Vector3.Distance(track.GetPoint(index), track.GetPoint(next));
-            sharpest = Mathf.Max(sharpest, Vector3.Angle(heading, track.GetForward(next)));
+            Vector3 before = track.GetForward(next - 1);
+            Vector3 after = track.GetForward(next + 1);
+            float angle = Vector3.Angle(before, after) * Mathf.Deg2Rad;
+            if (angle > 0.001f)
+            {
+                float radius = Vector3.Distance(track.GetPoint(next - 1), track.GetPoint(next + 1)) / angle;
+                radius = Mathf.Max(radius + lane * Mathf.Sign(Vector3.Cross(before, after).y), 3f);
+                float cornerMs = Mathf.Sqrt(cornering * radius);
+                limit = Mathf.Min(limit, Mathf.Sqrt(cornerMs * cornerMs + 2f * cornerBrakeDecel * travelled));
+            }
             index = next;
         }
-        return sharpest;
+        return limit == float.MaxValue ? speedKph : limit * 3.6f;
     }
 
-    void OnCollisionEnter(Collision collision)
-    {
-        float impactKph = collision.impulse.magnitude / rb.mass * 3.6f;
-        if (impactKph >= minImpactKph)
-            recoverUntil = Time.time + recoverySeconds;
-    }
-
-    // Extra help after a hit, only when not mimicking the player (the player gets none).
-    // CarHandlingRegression reaches in here by name, so don't rename it.
-    void Recover(Vector3 forward, Vector3 aimDirection, float desiredSpeed, float speed)
-    {
-        if (mimicPlayer)
-            return;
-        if (!IsRecovering || driver.HasVehicleContact || driver.GroundedWheelCount < 2)
-            return;
-
-        float yaw = Vector3.Dot(rb.angularVelocity, Vector3.up);
-        rb.AddTorque(-Vector3.up * yaw * spinDamping, ForceMode.Acceleration);
-
-        Vector3 right = Vector3.Cross(Vector3.up, forward);
-        float slide = Vector3.Dot(rb.linearVelocity, right);
-        rb.AddForce(-right * Mathf.Clamp(slide * slideDamping, -6f, 6f), ForceMode.Acceleration);
-
-        float headingError = Vector3.SignedAngle(forward, aimDirection, Vector3.up);
-        if (Mathf.Abs(headingError) > realignAboveDegrees)
-        {
-            float desiredYaw = Mathf.Clamp(headingError, -realignDegreesPerSecond, realignDegreesPerSecond)
-                * Mathf.Deg2Rad;
-            rb.AddTorque(Vector3.up * Mathf.Clamp((desiredYaw - yaw) * 2f, -3f, 3f), ForceMode.Acceleration);
-        }
-
-        if (speed < desiredSpeed)
-            rb.AddForce(forward * catchUpAcceleration, ForceMode.Acceleration);
-    }
-
-    // Flipped, pinned or off the road for too long: put it back. Jumps and shortcuts don't count.
     void CheckStuck(float speed, float throttle)
     {
         if (driver.GroundedWheelCount == 0)
@@ -752,7 +662,6 @@ public class AICarWaypointDriver : MonoBehaviour
         PutBackOnTrack();
     }
 
-    // Keeps getting stuck in the same spot? Nudge it a bit further along each time.
     void PutBackOnTrack()
     {
         if (RepeatRespawn(currentWaypoint))
@@ -770,7 +679,6 @@ public class AICarWaypointDriver : MonoBehaviour
         chasing = null;
         currentLane = laneOffset;
         stuckFor = 0f;
-        recoverUntil = -1;
         graceUntil = Time.time + stuckGraceSeconds;
 
         rb.linearVelocity = Vector3.zero;
@@ -793,12 +701,11 @@ public class AICarWaypointDriver : MonoBehaviour
         if (index >= 0)
             currentWaypoint = index;
         stuckFor = 0f;
-        recoverUntil = -1;
         branchRespawns = 0;
         graceUntil = Time.time + stuckGraceSeconds;
     }
 
-    // Only search near the last point, since parts of the loop pass close to each other.
+    // Search only near the last point: parts of the loop pass close to each other.
     void UpdateWaypoint(int count)
     {
         currentWaypoint = currentWaypoint < 0
@@ -835,10 +742,9 @@ public class AICarWaypointDriver : MonoBehaviour
         return Vector3.Dot(offset, across);
     }
 
-    // On the three-car grid a car's colour is just its slot in RaceManager > Racers.
     bool UseGridColour()
     {
-        CarDriver myCar = GetComponent<CarDriver>();
+        CarDriver myCar = driver;
         RaceManager race = FindFirstObjectByType<RaceManager>();
         int slot = race != null && race.colorSwitchingMode && race.racers != null && myCar != null
             ? System.Array.IndexOf(race.racers, myCar) : -1;
@@ -857,7 +763,6 @@ public class AICarWaypointDriver : MonoBehaviour
         return true;
     }
 
-    // Older one-rival scenes: pick a different car from the one chosen in the menu.
     void ChooseCar()
     {
         int carCount = System.Enum.GetValues(typeof(FuelType)).Length;

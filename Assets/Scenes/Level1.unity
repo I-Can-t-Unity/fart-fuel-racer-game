@@ -26288,17 +26288,17 @@ MonoBehaviour:
     steering: 0
   motorTorque: 800
   brakeTorque: 2500
-  topSpeedKmh: 70
+  topSpeedKmh: 80
   reverseSpeedKmh: 30
   steeringAngle: 38
-  steeringResponse: 180
-  maxCorneringAcceleration: 15
+  steeringResponse: 300
+  maxCorneringAcceleration: 20
   holdTurnRadiusAboveTopSpeed: 0
   centerOfMass: {x: 0, y: 0.35, z: -0.35}
   engineOffDrag: 300
   raceEndDeceleration: 8
   showControls: 1
-  tireGrip: 1.2
+  tireGrip: 1.5
   downforceAcceleration: 5
   yawStability: 2.5
   maxBoostGrip: 1.6
@@ -26421,8 +26421,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AICarWaypointDriver
   track: {fileID: 347017635}
   laneOffset: -3.5
-  speedKph: 75
-  cornerSpeedKph: 45
+  speedKph: 78
+  cornerSpeedKph: 55
   lookAheadMinMetres: 10
   lookAheadSeconds: 0.9
   cornerPreviewSeconds: 1.6
@@ -26523,7 +26523,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FartBoost
   acceleration: 12
-  maxBoostKph: 100
+  maxBoostKph: 105
   chokeMaxKph: 25
   exhaustOffset: {x: 0, y: 0.5, z: -2.4}
   puffLifetime: 0.8
@@ -43526,17 +43526,17 @@ MonoBehaviour:
     steering: 0
   motorTorque: 800
   brakeTorque: 2500
-  topSpeedKmh: 70
+  topSpeedKmh: 80
   reverseSpeedKmh: 30
   steeringAngle: 38
-  steeringResponse: 180
-  maxCorneringAcceleration: 15
+  steeringResponse: 300
+  maxCorneringAcceleration: 20
   holdTurnRadiusAboveTopSpeed: 1
   centerOfMass: {x: 0, y: 0.35, z: -0.35}
   engineOffDrag: 300
   raceEndDeceleration: 8
   showControls: 1
-  tireGrip: 1.2
+  tireGrip: 1.5
   downforceAcceleration: 5
   yawStability: 2.5
   maxBoostGrip: 1.6
@@ -99083,7 +99083,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FartBoost
   acceleration: 12
-  maxBoostKph: 100
+  maxBoostKph: 105
   chokeMaxKph: 25
   exhaustOffset: {x: 0, y: 0.5, z: -2.4}
   puffLifetime: 0.8
@@ -99101,8 +99101,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AICarWaypointDriver
   track: {fileID: 347017635}
   laneOffset: 3.5
-  speedKph: 75
-  cornerSpeedKph: 45
+  speedKph: 78
+  cornerSpeedKph: 55
   lookAheadMinMetres: 10
   lookAheadSeconds: 0.9
   cornerPreviewSeconds: 1.6
@@ -99196,17 +99196,17 @@ MonoBehaviour:
     steering: 0
   motorTorque: 800
   brakeTorque: 2500
-  topSpeedKmh: 70
+  topSpeedKmh: 80
   reverseSpeedKmh: 30
   steeringAngle: 38
-  steeringResponse: 180
-  maxCorneringAcceleration: 15
+  steeringResponse: 300
+  maxCorneringAcceleration: 20
   holdTurnRadiusAboveTopSpeed: 0
   centerOfMass: {x: 0, y: 0.35, z: -0.35}
   engineOffDrag: 300
   raceEndDeceleration: 8
   showControls: 1
-  tireGrip: 1.2
+  tireGrip: 1.5
   downforceAcceleration: 5
   yawStability: 2.5
   maxBoostGrip: 1.6
@@ -102307,7 +102307,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FartBoost
   acceleration: 12
-  maxBoostKph: 100
+  maxBoostKph: 105
   chokeMaxKph: 25
   exhaustOffset: {x: 0, y: 0.5, z: -2.4}
   puffLifetime: 0.8
@@ -124902,8 +124902,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AICarWaypointDriver
   track: {fileID: 347017635}
   laneOffset: 0
-  speedKph: 75
-  cornerSpeedKph: 45
+  speedKph: 78
+  cornerSpeedKph: 55
   lookAheadMinMetres: 10
   lookAheadSeconds: 0.9
   cornerPreviewSeconds: 1.6
