@@ -1,55 +1,57 @@
-using System;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 public class LevelSelectionMenu : MonoBehaviour
 {
-    [Serializable]
-    public class LevelEntry
-    {
-        public string title;
-        public string sceneName;
-    }
-
     public GameObject selectionPanel;
     public CarSelectionMenu colorSelection;
-
-    public Button raceButton;
-    public Button tutorialButton;
-    public Button gainPositionButton;
-    public Button protectLeadButton;
+    [SerializeField] GameObject tutorialPanel;
+    [SerializeField] Button[] tutorialButtons;
+    [SerializeField] Button tutorialBackButton;
+    [SerializeField] Button titleTutorialButton;
+    [SerializeField] Button firstRaceButton;
     public Button backButton;
 
-    public LevelEntry[] levels = new[]
+    // Carry the destination through the scene load, then consume it once.
+    static bool returnToLevelSelection;
+
+    public static void ReturnFromGameplay()
     {
-        new LevelEntry { title = "Tutorial", sceneName = "" },
-        new LevelEntry { title = "Race", sceneName = "LoopRaceScene" },
-        new LevelEntry { title = "Gain position", sceneName = "" },
-        new LevelEntry { title = "Protect your lead", sceneName = "" }
-    };
+        returnToLevelSelection = true;
+        Time.timeScale = 1f;
+        SceneManager.LoadScene("MainMenuCanvas");
+    }
 
     void Awake()
     {
         if (colorSelection == null)
             colorSelection = GetComponent<CarSelectionMenu>();
 
-        if (raceButton != null)
-            raceButton.onClick.AddListener(PlayRace);
-
-        if (tutorialButton != null)
-            tutorialButton.onClick.AddListener(PlayTutorial);
-
-        if (gainPositionButton != null)
-            gainPositionButton.onClick.AddListener(PlayGainPosition);
-
-        if (protectLeadButton != null)
-            protectLeadButton.onClick.AddListener(PlayProtectLead);
+        for (int i = 0; tutorialButtons != null && i < tutorialButtons.Length; i++)
+        {
+            int tutorialNumber = i + 1;
+            if (tutorialButtons[i] != null)
+                tutorialButtons[i].onClick.AddListener(() => AlphaTutorialManager.StartTutorial(tutorialNumber));
+        }
 
         if (backButton != null)
             backButton.onClick.AddListener(Back);
+        if (tutorialBackButton != null)
+            tutorialBackButton.onClick.AddListener(CloseTutorials);
 
         Close();
+        tutorialPanel?.SetActive(false);
+    }
+
+    void Start()
+    {
+        if (!returnToLevelSelection)
+            return;
+
+        returnToLevelSelection = false;
+        Open();
     }
 
     public void Open()
@@ -60,13 +62,33 @@ public class LevelSelectionMenu : MonoBehaviour
             return;
         }
 
-        SetAvailable(tutorialButton, 0);
-        SetAvailable(raceButton, 1);
-        SetAvailable(gainPositionButton, 2);
-        SetAvailable(protectLeadButton, 3);
-
+        colorSelection?.CloseSelection();
+        tutorialPanel?.SetActive(false);
         selectionPanel.SetActive(true);
         selectionPanel.transform.SetAsLastSibling();
+        Focus(firstRaceButton);
+    }
+
+    public void OpenTutorials()
+    {
+        Close();
+        colorSelection?.CloseSelection();
+        tutorialPanel.SetActive(true);
+        tutorialPanel.transform.SetAsLastSibling();
+        if (tutorialButtons.Length > 0)
+            Focus(tutorialButtons[0]);
+    }
+
+    void CloseTutorials()
+    {
+        tutorialPanel.SetActive(false);
+        Focus(titleTutorialButton);
+    }
+
+    static void Focus(Button button)
+    {
+        if (button != null && EventSystem.current != null)
+            EventSystem.current.SetSelectedGameObject(button.gameObject);
     }
 
     public void Close()
@@ -87,61 +109,11 @@ public class LevelSelectionMenu : MonoBehaviour
         colorSelection.OpenSelection();
     }
 
-    void PlayRace() => LoadEntry(1);
-    void PlayTutorial() => LoadEntry(0);
-    void PlayGainPosition() => LoadEntry(2);
-    void PlayProtectLead() => LoadEntry(3);
-
-    void SetAvailable(Button button, int index)
-    {
-        if (button != null)
-            button.interactable = IsAvailable(index);
-    }
-
-    bool IsAvailable(int index)
-    {
-        return levels != null
-            && index >= 0
-            && index < levels.Length
-            && levels[index] != null
-            && !string.IsNullOrWhiteSpace(levels[index].sceneName)
-            && Application.CanStreamedLevelBeLoaded(levels[index].sceneName);
-    }
-
-    void LoadEntry(int index)
-    {
-        if (IsAvailable(index))
-            LoadLevel(levels[index].sceneName);
-    }
-
-    public void LoadLevel(string sceneName)
-    {
-        if (string.IsNullOrWhiteSpace(sceneName)
-            || !Application.CanStreamedLevelBeLoaded(sceneName))
-        {
-            Debug.LogWarning("Scene is not in the active Build Profile: " + sceneName);
-            return;
-        }
-
-        Time.timeScale = 1f;
-        SceneManager.LoadScene(sceneName);
-    }
-
     void OnDestroy()
     {
-        if (raceButton != null)
-            raceButton.onClick.RemoveListener(PlayRace);
-
-        if (tutorialButton != null)
-            tutorialButton.onClick.RemoveListener(PlayTutorial);
-
-        if (gainPositionButton != null)
-            gainPositionButton.onClick.RemoveListener(PlayGainPosition);
-
-        if (protectLeadButton != null)
-            protectLeadButton.onClick.RemoveListener(PlayProtectLead);
-
         if (backButton != null)
             backButton.onClick.RemoveListener(Back);
+        if (tutorialBackButton != null)
+            tutorialBackButton.onClick.RemoveListener(CloseTutorials);
     }
 }

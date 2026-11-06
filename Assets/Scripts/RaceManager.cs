@@ -440,7 +440,6 @@ public class RaceManager : MonoBehaviour
 
     public void ReturnToMainMenu()
     {
-        Time.timeScale = 1f;
-        SceneManager.LoadScene("MainMenuCanvas");
+        LevelSelectionMenu.ReturnFromGameplay();
     }
 }

@@ -9,6 +9,9 @@ using UnityEngine.UI;
 // Runs the practice lessons using the same driving and pickup logic as the races.
 public class AlphaTutorialManager : MonoBehaviour
 {
+    const string CompletedTutorialKey = "CompletedTutorial";
+    internal static bool HasCompletedTutorial => PlayerPrefs.GetInt(CompletedTutorialKey, 0) != 0;
+
     [SerializeField] CarDriver playerCar;
     [SerializeField] Transform steeringGate;
     [SerializeField] Transform stoppingBay;
@@ -536,6 +539,12 @@ public class AlphaTutorialManager : MonoBehaviour
     void ShowCompletion()
     {
         complete = true;
+        if (!HasCompletedTutorial)
+        {
+            PlayerPrefs.SetInt(CompletedTutorialKey, 1);
+            PlayerPrefs.Save();
+        }
+
         if (!UsesPracticeRace)
             playerCar.StopDriving();
         if (chargePips != null)
@@ -618,14 +627,21 @@ public class AlphaTutorialManager : MonoBehaviour
             tutorialMessage.text = text;
     }
 
+    internal static void StartTutorial(int number)
+    {
+        if (number >= 1 && number <= (int)Lesson.Turbo + 1)
+            LoadLesson((Lesson)(number - 1));
+    }
+
     void Retry() => LoadLesson(lesson);
 
     static void LoadLesson(Lesson destination)
     {
         nextLesson = destination;
-        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        Time.timeScale = 1f;
+        SceneManager.LoadScene("AlphaRaceScene");
     }
-    void ReturnToMenu() => SceneManager.LoadScene("MainMenuCanvas");
+    void ReturnToMenu() => LevelSelectionMenu.ReturnFromGameplay();
 
     void OnDestroy()
     {
