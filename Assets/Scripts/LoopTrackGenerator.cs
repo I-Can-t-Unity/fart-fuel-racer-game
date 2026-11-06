@@ -34,7 +34,13 @@ public class LoopTrackGenerator : MonoBehaviour
 
     private readonly List<int> barrierColliderIds = new List<int>();
 
-    public enum Layout { Classic, BridgeCircuit }
+    public enum Layout
+    {
+        Classic,
+        [InspectorName("Level 1 - Bridge Circuit")] BridgeCircuit,
+        [InspectorName("Level 2 - Figure Eight")] FigureEight,
+        [InspectorName("Level 3 - Flyover")] Flyover
+    }
 
     [Header("Layout")]
     [Tooltip("Classic = the original short loop. BridgeCircuit = 1.4 km circuit with a straight broken-bridge shortcut.")]
@@ -67,7 +73,62 @@ public class LoopTrackGenerator : MonoBehaviour
         new Vector2(-150,-85)
     };
 
-    Vector2[] anchors => layout == Layout.Classic ? classicAnchors : bridgeAnchors;
+    // LEVEL 2 - Figure Eight (~1.38 km). Anchors are (x, z, HEIGHT): the road climbs a ramp,
+    // crosses OVER the middle on a bridge (6.6 m up), loops right (chicane), comes back
+    // UNDER the bridge and loops left (tunnel goes on the top-left of this loop).
+    static readonly Vector3[] figureEightAnchors = {
+        new Vector3(-150,-95,0), new Vector3(-110,-98,0), new Vector3(-82,-87,0.2f), new Vector3(-52,-60,2.6f),
+        new Vector3(-25,-31,6.1f), new Vector3(0,0,6.6f), new Vector3(25,31,6.1f), new Vector3(52,60,2.6f),
+        new Vector3(82,87,0.2f),
+        new Vector3(115,100,0), new Vector3(165,102,0), new Vector3(212,80,0),
+        new Vector3(238,38,0), new Vector3(224,2,0), new Vector3(240,-34,0),
+        new Vector3(215,-82,0), new Vector3(160,-102,0), new Vector3(105,-98,0),
+        new Vector3(55,-68,0), new Vector3(22,-28,0), new Vector3(0,0,0), new Vector3(-22,28,0),
+        new Vector3(-55,68,0),
+        new Vector3(-100,96,0), new Vector3(-150,104,0), new Vector3(-200,86,0), new Vector3(-232,40,0),
+        new Vector3(-232,-28,0), new Vector3(-202,-80,0)
+    };
+
+    // LEVEL 3 - Flyover (~1.89 km). Start straight with the JUMP GAP, right side, top straight
+    // (tunnel), inner loop, then up a ramp and over a flyover bridge across your own road.
+    static readonly Vector3[] flyoverAnchors = {
+        new Vector3(-150,-142,0), new Vector3(-90,-150,0), new Vector3(-30,-152,0),
+        new Vector3(30,-152,0), new Vector3(90,-148,0), new Vector3(140,-134,0),
+        new Vector3(175,-112,0), new Vector3(222,-62,0), new Vector3(240,5,0), new Vector3(228,72,0),
+        new Vector3(190,122,0),
+        new Vector3(120,150,0), new Vector3(30,160,0), new Vector3(-60,155,0), new Vector3(-130,135,0),
+        new Vector3(-175,100,0), new Vector3(-185,55,0), new Vector3(-180,10,0),
+        new Vector3(-155,-35,0), new Vector3(-105,-55,0), new Vector3(-40,-55,0),
+        new Vector3(5,-42,0), new Vector3(22,-8,0), new Vector3(10,32,0), new Vector3(-20,55,0),
+        new Vector3(-65,62,0), new Vector3(-115,60,3.4f), new Vector3(-160,50,6.6f), new Vector3(-200,32,6.8f),
+        new Vector3(-238,5,6.4f),
+        new Vector3(-262,-38,2.4f), new Vector3(-255,-95,0), new Vector3(-215,-132,0)
+    };
+
+    [Header("Jump gap (Level 3 only) - centre-line point numbers")]
+    [Tooltip("Ramp starts rising here.")] public int jumpRampStart = 26;
+    [Tooltip("Top of the ramp; the road stops here.")] public int jumpLip = 31;
+    [Tooltip("The road starts again here (landing ramp).")] public int jumpLanding = 33;
+    [Tooltip("Landing ramp is back down at road level here.")] public int jumpLandingEnd = 39;
+    public float jumpHeight = 2.5f;
+
+    // Anchors as (x, z, height) for every layout.
+    Vector3[] anchors
+    {
+        get
+        {
+            if (layout == Layout.FigureEight) return figureEightAnchors;
+            if (layout == Layout.Flyover) return flyoverAnchors;
+            Vector2[] flat = layout == Layout.Classic ? classicAnchors : bridgeAnchors;
+            var a = new Vector3[flat.Length];
+            for (int i = 0; i < flat.Length; i++) a[i] = new Vector3(flat[i].x, flat[i].y, 0f);
+            return a;
+        }
+    }
+
+    bool HasJump => layout == Layout.Flyover;
+    // Segment i (point i to i+1) has no road: the jump gap.
+    bool InGap(int i) => HasJump && i >= jumpLip && i < jumpLanding;
 
     void Start() { Generate(); }
 
@@ -76,23 +137,38 @@ public class LoopTrackGenerator : MonoBehaviour
     {
         ClearGenerated();
         centerline.Clear();
-        for (int i = 0; i < anchors.Length; i++)
+        Vector3[] A = anchors;
+        for (int i = 0; i < A.Length; i++)
         {
-            Vector2 p0 = anchors[(i - 1 + anchors.Length) % anchors.Length];
-            Vector2 p1 = anchors[i];
-            Vector2 p2 = anchors[(i + 1) % anchors.Length];
-            Vector2 p3 = anchors[(i + 2) % anchors.Length];
+            Vector3 p0 = A[(i - 1 + A.Length) % A.Length];
+            Vector3 p1 = A[i];
+            Vector3 p2 = A[(i + 1) % A.Length];
+            Vector3 p3 = A[(i + 2) % A.Length];
             for (int j = 0; j < samplesPerSegment; j++)
             {
                 float t = (float)j / samplesPerSegment;
-                Vector2 p = 0.5f * ((2f * p1) + (-p0 + p2) * t +
+                Vector3 p = 0.5f * ((2f * p1) + (-p0 + p2) * t +
                     (2f*p0 - 5f*p1 + 4f*p2 - p3) * t*t +
                     (-p0 + 3f*p1 - 3f*p2 + p3) * t*t*t);
-                centerline.Add(new Vector3(p.x * scale, surfaceY, p.y * scale));
+                // p = (x, z, height)
+                centerline.Add(new Vector3(p.x * scale, surfaceY + Mathf.Max(0f, p.z) * scale, p.y * scale));
             }
         }
 
-        if (reverseDirection) centerline.Reverse();
+        // Level 3 jump: straight ramp up to the lip, gap, landing ramp back down.
+        if (HasJump)
+            for (int i = jumpRampStart; i <= jumpLandingEnd && i < centerline.Count; i++)
+            {
+                float h;
+                if (i <= jumpLip) h = jumpHeight * (i - jumpRampStart) / (float)(jumpLip - jumpRampStart);
+                else if (i < jumpLanding) h = jumpHeight;
+                else h = (jumpHeight - 0.5f) * (1f - (i - jumpLanding) / (float)(jumpLandingEnd - jumpLanding));
+                Vector3 c = centerline[i];
+                centerline[i] = new Vector3(c.x, surfaceY + h, c.z);
+            }
+
+        // Levels 2 and 3 only work in their designed direction.
+        if (reverseDirection && (layout == Layout.Classic || layout == Layout.BridgeCircuit)) centerline.Reverse();
         FitGround();
 
         int n = centerline.Count;
@@ -100,18 +176,27 @@ public class LoopTrackGenerator : MonoBehaviour
         Vector3[] sides = new Vector3[n];
         for (int i = 0; i < n; i++)
         {
-            Vector3 tangent = (centerline[(i+1)%n] - centerline[(i-1+n)%n]).normalized;
+            Vector3 tangent = centerline[(i+1)%n] - centerline[(i-1+n)%n];
+            tangent.y = 0f; tangent.Normalize();
             Vector3 side = new Vector3(-tangent.z, 0, tangent.x);
             sides[i] = side;
             left[i] = centerline[i] - side * roadWidth * .5f;
             right[i] = centerline[i] + side * roadWidth * .5f;
         }
 
-        Mesh roadMesh = MakeStrip(left, right, 0f);
+        Mesh roadMesh = MakeStrip(left, right, 0f, false);
         GetComponent<MeshFilter>().sharedMesh = roadMesh;
         GetComponent<MeshCollider>().sharedMesh = null;
         GetComponent<MeshCollider>().sharedMesh = roadMesh;
         GetComponent<MeshRenderer>().sharedMaterial = Mat(roadMaterial, new Color(.29f,.30f,.32f));
+
+        // Underside of the road, so bridges look solid when you drive under them.
+        var underL = new Vector3[n]; var underR = new Vector3[n];
+        for (int i = 0; i < n; i++) { underL[i] = left[i] + Vector3.down * 0.6f; underR[i] = right[i] + Vector3.down * 0.6f; }
+        GameObject under = new GameObject("RoadUnderside");
+        under.transform.SetParent(transform, false);
+        under.AddComponent<MeshFilter>().sharedMesh = MakeStrip(underL, underR, 0f, true);
+        under.AddComponent<MeshRenderer>().sharedMaterial = Mat(null, new Color(.22f,.22f,.24f));
 
         // Walls just outside the unmarked shoulders. They are frictionless so a car that hits
         // one slides along it instead of being grabbed and spun round.
@@ -128,6 +213,7 @@ public class LoopTrackGenerator : MonoBehaviour
             float offset = roadWidth * .5f + curbWidth + wallGap + wallThickness * .5f;
             for (int i = 0; i < n; i++)
             {
+                if (InGap(i)) continue;
                 int next = (i+1)%n;
                 Vector3 aL = centerline[i] - sides[i] * offset, bL = centerline[next] - sides[next] * offset;
                 Vector3 aR = centerline[i] + sides[i] * offset, bR = centerline[next] + sides[next] * offset;
@@ -143,7 +229,7 @@ public class LoopTrackGenerator : MonoBehaviour
         for (int i = 0; i < n; i++)
         {
             int next = (i+1)%n;
-            if (Mathf.FloorToInt(distance / 2.8f) % 2 == 0)
+            if (!InGap(i) && Mathf.FloorToInt(distance / 2.8f) % 2 == 0)
             {
                 Vector3 tangent = (centerline[next]-centerline[i]).normalized;
                 Vector3 side = new Vector3(-tangent.z,0,tangent.x)*lineWidth*.5f;
@@ -170,7 +256,8 @@ public class LoopTrackGenerator : MonoBehaviour
         // }
 
         // Black-and-white checkered start/finish line.
-        Vector3 forward = (GetPoint(startIndex + 1) - GetPoint(startIndex - 1)).normalized;
+        Vector3 forward = GetPoint(startIndex + 1) - GetPoint(startIndex - 1);
+        forward.y = 0f; forward.Normalize();
         Vector3 across = new Vector3(-forward.z, 0, forward.x);
         Vector3 start = GetPoint(startIndex);
 
@@ -265,7 +352,10 @@ public class LoopTrackGenerator : MonoBehaviour
     // }
 
 
-    Mesh MakeStrip(Vector3[] a, Vector3[] b, float height)
+    Mesh MakeStrip(Vector3[] a, Vector3[] b, float height) => MakeStrip(a, b, height, false);
+
+    // faceDown = visible from below (the bridge underside). Gap segments are left out.
+    Mesh MakeStrip(Vector3[] a, Vector3[] b, float height, bool faceDown)
     {
         int count = a.Length;
         bool closed = count > 2;
@@ -273,7 +363,7 @@ public class LoopTrackGenerator : MonoBehaviour
 
         Vector3[] verts = new Vector3[count * 2];
         Vector2[] uv = new Vector2[count * 2];
-        int[] tris = new int[segments * 6];
+        var tris = new List<int>(segments * 6);
 
         for (int i = 0; i < count; i++)
         {
@@ -286,25 +376,20 @@ public class LoopTrackGenerator : MonoBehaviour
 
         for (int i = 0; i < segments; i++)
         {
+            if (closed && InGap(i)) continue;   // the jump gap (only on the main road strip)
             int x = i * 2;
             int y = ((i + 1) % count) * 2;
-            int k = i * 6;
 
-            // Single-sided triangles facing upward.
-            tris[k] = x;
-            tris[k + 1] = x + 1;
-            tris[k + 2] = y;
-
-            tris[k + 3] = x + 1;
-            tris[k + 4] = y + 1;
-            tris[k + 5] = y;
+            // Single-sided triangles facing upward (or downward for the underside).
+            if (!faceDown) tris.AddRange(new[] { x, x + 1, y, x + 1, y + 1, y });
+            else tris.AddRange(new[] { x, y, x + 1, x + 1, y, y + 1 });
         }
 
         Mesh mesh = new Mesh();
         mesh.name = "Track Strip";
         mesh.vertices = verts;
         mesh.uv = uv;
-        mesh.triangles = tris;
+        mesh.SetTriangles(tris, 0);
 
         mesh.RecalculateNormals();
         mesh.RecalculateBounds();

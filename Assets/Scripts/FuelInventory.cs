@@ -106,6 +106,12 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
     public CarDriver[] cars;
     public float switchImmunityTime = 4f;
 
+    [Header("Charges (own colour = +1, max 3)")]
+    public int maxCharges = 3;
+    [Tooltip("With a full set of charges, this key spends them on a turbo.")]
+    public Key turboKey = Key.Q;
+    public float turboSeconds = 2.5f;
+
     private CarDriver currentCar;
     private FuelType streakColor;
     private int streakNum = 0;
@@ -115,7 +121,14 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
     private GaugeAnimator gauge;
     private RaceManager race;
 
+    // Charges belong to the CAR, so swapping into a car takes over its stash.
+    readonly Dictionary<CarDriver, int> charges = new Dictionary<CarDriver, int>();
+
     public CarDriver CurrentCar =>currentCar;
+    public int Charges => ChargesOf(currentCar);
+    public bool IsShielded => IsShieldedCar(currentCar);
+    public int ChargesOf(CarDriver car) => car != null && charges.TryGetValue(car, out int c) ? c : 0;
+    public bool IsShieldedCar(CarDriver car) => ChargesOf(car) >= maxCharges;
     public FuelType StreakColor =>streakColor;
     public int StreakNum =>streakNum;
     public bool IsImmune => Time.time < immunityEndingTime;
@@ -201,6 +214,53 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
         Changed?.Invoke();
     }
 
+    void Update()
+    {
+        // Q with a full set of charges = turbo.
+        if (currentCar == null || Keyboard.current == null) return;
+        if (RaceManager.Instance != null && !RaceManager.Instance.IsRacing) return;
+        if (Keyboard.current[turboKey].wasPressedThisFrame && IsShielded)
+        {
+            SetCharges(currentCar, 0);
+            if (fart != null) fart.Fart(turboSeconds);
+            lastResult = "turbo";
+            Announce("TURBO!");
+            Changed?.Invoke();
+        }
+    }
+
+    void SetCharges(CarDriver car, int value)
+    {
+        if (car == null) return;
+        charges[car] = Mathf.Clamp(value, 0, maxCharges);
+    }
+
+    void AddCharge(CarDriver car) => SetCharges(car, ChargesOf(car) + 1);
+
+    /// Spends a full set of charges on something else (e.g. a bridge gate). False if not full.
+    public bool TrySpendCharges(CarDriver car)
+    {
+        if (!IsShieldedCar(car)) return false;
+        SetCharges(car, 0);
+        Changed?.Invoke();
+        return true;
+    }
+
+    /// Call from the AI when an AI car takes a block. Same rules as the player:
+    /// its own colour = +1 charge; the player's colour = it swaps with the player.
+    public void AIPickedUp(CarDriver aiCar, FuelType type)
+    {
+        int index = cars != null ? Array.IndexOf(cars, aiCar) : -1;
+        if (index < 0) return;
+        if ((FuelType)index == type)
+        {
+            AddCharge(aiCar);
+            Changed?.Invoke();
+        }
+        else if (type == carFuel)
+            ForceSwitchTo(aiCar);
+    }
+
     // Change input ownership; positions, velocities and checkpoints stay on each car.
     bool Control(CarDriver next)
     {
@@ -237,11 +297,36 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
         int index = cars != null ? Array.IndexOf(cars, aiCar) : -1;
         if (index < 0 || IsImmune || aiCar == currentCar)
             return false;
+        // A full set of charges on either car blocks the swap (and is used up).
+        if (BlockedByShield(currentCar, aiCar, (FuelType)index)) return false;
         FuelType lost = carFuel;
         if (!SwitchCar((FuelType)index))
             return false;
-        Announce($"{NameOf(lost)} CAR TAKEN! YOU ARE NOW {NameOf((FuelType)index)}");
+        Announce($"{NameOf(lost)} CAR STOLEN! YOU'RE {NameOf((FuelType)index)} NOW");
         return true;
+    }
+
+    // Shield rule: if the car you're in, or the car you'd swap with, has 3 charges,
+    // the swap is blocked and that shield is spent.
+    bool BlockedByShield(CarDriver mine, CarDriver theirs, FuelType theirColor)
+    {
+        if (IsShieldedCar(mine))
+        {
+            SetCharges(mine, 0);
+            immunityEndingTime = Time.time + 1f;
+            Announce("SHIELD SAID NO!");
+            Changed?.Invoke();
+            return true;
+        }
+        if (IsShieldedCar(theirs))
+        {
+            SetCharges(theirs, 0);
+            immunityEndingTime = Time.time + 1f;
+            Announce($"{NameOf(theirColor)}'S SHIELD BLOCKED YOU!");
+            Changed?.Invoke();
+            return true;
+        }
+        return false;
     }
 
     bool SwitchCar(FuelType type)
@@ -252,7 +337,7 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
         if (!Control(cars[index])) return false;
         streakNum = 0;
         immunityEndingTime = Time.time + switchImmunityTime;
-        Announce($"YOU ARE NOW {NameOf(type)}");
+        Announce($"SWITCHEROO! YOU'RE {NameOf(type)} NOW");
         Switched?.Invoke(oldColor, type);
         return true;
     }
@@ -268,29 +353,33 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
         if (RaceManager.Instance != null && !RaceManager.Instance.IsRacing)
             return false;
         if (currentCar == null || (int)type < 0 || (int)type > 2) return false;
+        // Rule 1: your colour = speed boost + 1 charge (max 3).
         if(type == carFuel)
         {
             if (fart != null) fart.Fart(pickupFartSeconds);
-            streakNum = 0;
+            AddCharge(currentCar);
             lastResult = "boost";
-            Announce("BOOST!");
+            Announce(IsShielded ? $"SHIELD UP!  {turboKey} = TURBO" : $"BOOST!  CHARGE {Charges}/{maxCharges}");
         }
+        // 4 s after a swap nothing can swap you again; the block stays on the track.
         else if(IsImmune)
         {
             lastResult = "protected";
             return false;
         }
-        else if(streakNum == 1 && type == streakColor)
-        {
-            if (!SwitchCar(streakColor)) return false;
-            lastResult = "switch";
-        }
+        // Rule 2: a rival's colour = you swap cars with that rival (unless a shield blocks it).
         else
         {
-            streakColor = type;
-            streakNum = 1;
-            lastResult = "streak";
-            Announce($"{NameOf(type)} 1/2");
+            CarDriver target = cars != null && (int)type < cars.Length ? cars[(int)type] : null;
+            if (BlockedByShield(currentCar, target, type))
+            {
+                lastResult = "shielded";
+            }
+            else
+            {
+                if (!SwitchCar(type)) return false;
+                lastResult = "switch";
+            }
         }
         Changed?.Invoke();
         return true;
@@ -299,8 +388,10 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
     // Spends the held mix on something other than its Q effect, such as unlocking
     // a shortcut. False, with the bag left as it is, unless that exact mix is held.
     // Q goes through HeldMix too, so a single mix can only ever be spent once.
+    // Shortcut gates (e.g. the bridge jump) ask for "Super Fart": that now means a full set of charges.
     public bool TryConsumeMix(FuelMix mix)
     {
+        if (mix == FuelMix.SuperFart) return TrySpendCharges(currentCar);
         if (mix == FuelMix.None || HeldMix != mix)
             return false;
 
@@ -309,7 +400,7 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
         return true;
     }
 
-    FuelMixType IFuelMixHolder.HeldMix => HeldMix.ToShortcutMix();
+    FuelMixType IFuelMixHolder.HeldMix => IsShielded ? FuelMixType.SuperFart : HeldMix.ToShortcutMix();
 
     bool IFuelMixHolder.TryConsumeMix(FuelMixType mix)
         => TryConsumeMix(mix.ToFuelMix());
@@ -409,6 +500,13 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
 
         if (material.HasProperty("_GlossyReflections"))
             material.SetFloat("_GlossyReflections", 0f);
+
+        // Soft glow so blocks are easy to spot from far away.
+        if (material.HasProperty("_EmissionColor"))
+        {
+            material.EnableKeyword("_EMISSION");
+            material.SetColor("_EmissionColor", color * 0.45f);
+        }
 
         material.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");
         material.EnableKeyword("_ENVIRONMENTREFLECTIONS_OFF");
