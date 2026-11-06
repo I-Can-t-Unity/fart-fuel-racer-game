@@ -33635,6 +33635,11 @@ MonoBehaviour:
   sputterBelowFuel: 0.1
   throttleRise: 3
   throttleFall: 6
+  cornerAssist: 1
+  cornerAssistRadius: 14
+  cornerAssistDecel: 6
+  cornerAssistDelay: 0.12
+  cornerAssistRamp: 0.3
 --- !u!65 &408367764
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -33718,7 +33723,8 @@ MonoBehaviour:
   track: {fileID: 347017635}
   laneOffset: -3.5
   speedKph: 97
-  cornerSpeedKph: 80
+  cornerSpeedMargin: 0.9
+  cornerBrakeDecel: 7
   lookAheadMinMetres: 10
   lookAheadSeconds: 0.9
   cornerPreviewSeconds: 1.6
@@ -33743,25 +33749,12 @@ MonoBehaviour:
   catchUpFullAtMetres: 120
   catchUpMaxBoost: 0.07
   catchUpMaxSlowdown: 0.07
-  mimicPlayer: 1
-  overrideHandling: 1
-  topSpeedKmh: 78
-  motorTorque: 1100
-  throttleRise: 5
-  maxCorneringAcceleration: 15
   bodyRenderer: {fileID: 0}
   bodyMaterialSlot: 0
   paintWithFuelColour: 0
   pickCarFromMenu: 0
   sameCarAsPlayer: 0
   alwaysNextCar: 0
-  minImpactKph: 5
-  recoverySeconds: 1.2
-  spinDamping: 5
-  slideDamping: 3
-  realignAboveDegrees: 15
-  realignDegreesPerSecond: 90
-  catchUpAcceleration: 4
   stuckSeconds: 2.5
   respawnHeight: 0.8
   stuckGraceSeconds: 1.5
@@ -55720,6 +55713,11 @@ MonoBehaviour:
   sputterBelowFuel: 0.1
   throttleRise: 3
   throttleFall: 6
+  cornerAssist: 1
+  cornerAssistRadius: 14
+  cornerAssistDecel: 6
+  cornerAssistDelay: 0.12
+  cornerAssistRamp: 0.3
 --- !u!114 &684248057
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -117586,7 +117584,8 @@ MonoBehaviour:
   track: {fileID: 347017635}
   laneOffset: 3.5
   speedKph: 97
-  cornerSpeedKph: 80
+  cornerSpeedMargin: 0.9
+  cornerBrakeDecel: 7
   lookAheadMinMetres: 10
   lookAheadSeconds: 0.9
   cornerPreviewSeconds: 1.6
@@ -117611,25 +117610,12 @@ MonoBehaviour:
   catchUpFullAtMetres: 120
   catchUpMaxBoost: 0.07
   catchUpMaxSlowdown: 0.07
-  mimicPlayer: 1
-  overrideHandling: 1
-  topSpeedKmh: 78
-  motorTorque: 1100
-  throttleRise: 5
-  maxCorneringAcceleration: 15
   bodyRenderer: {fileID: 0}
   bodyMaterialSlot: 0
   paintWithFuelColour: 0
   pickCarFromMenu: 0
   sameCarAsPlayer: 0
   alwaysNextCar: 0
-  minImpactKph: 5
-  recoverySeconds: 1.2
-  spinDamping: 5
-  slideDamping: 3
-  realignAboveDegrees: 15
-  realignDegreesPerSecond: 90
-  catchUpAcceleration: 4
   stuckSeconds: 2.5
   respawnHeight: 0.8
   stuckGraceSeconds: 1.5
@@ -117731,6 +117717,11 @@ MonoBehaviour:
   sputterBelowFuel: 0.1
   throttleRise: 3
   throttleFall: 6
+  cornerAssist: 1
+  cornerAssistRadius: 14
+  cornerAssistDecel: 6
+  cornerAssistDelay: 0.12
+  cornerAssistRamp: 0.3
 --- !u!65 &1464350125
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -120112,7 +120103,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FuelPickupSpawner
   track: {fileID: 347017635}
   inventory: {fileID: 1501234021}
-  rowWaypoints: 0e0000001e00000048000000620000007f00000094000000bb000000dc000000f4000000
+  rowWaypoints: 100000002c000000490000005e00000074000000a6000000ce000000ea0000000c0100002d010000
   laneSpacing: 7
   abTestLaneSpacings: []
   gateOffset: 6
@@ -148590,7 +148581,8 @@ MonoBehaviour:
   track: {fileID: 347017635}
   laneOffset: 0
   speedKph: 97
-  cornerSpeedKph: 80
+  cornerSpeedMargin: 0.9
+  cornerBrakeDecel: 7
   lookAheadMinMetres: 10
   lookAheadSeconds: 0.9
   cornerPreviewSeconds: 1.6
@@ -148615,25 +148607,12 @@ MonoBehaviour:
   catchUpFullAtMetres: 120
   catchUpMaxBoost: 0.07
   catchUpMaxSlowdown: 0.07
-  mimicPlayer: 1
-  overrideHandling: 1
-  topSpeedKmh: 78
-  motorTorque: 1100
-  throttleRise: 5
-  maxCorneringAcceleration: 15
   bodyRenderer: {fileID: 0}
   bodyMaterialSlot: 0
   paintWithFuelColour: 0
   pickCarFromMenu: 0
   sameCarAsPlayer: 0
   alwaysNextCar: 0
-  minImpactKph: 5
-  recoverySeconds: 1.2
-  spinDamping: 5
-  slideDamping: 3
-  realignAboveDegrees: 15
-  realignDegreesPerSecond: 90
-  catchUpAcceleration: 4
   stuckSeconds: 2.5
   respawnHeight: 0.8
   stuckGraceSeconds: 1.5
