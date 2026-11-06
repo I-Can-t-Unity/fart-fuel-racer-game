@@ -9,8 +9,11 @@ using UnityEngine.UI;
 // Runs the practice lessons using the same driving and pickup logic as the races.
 public class AlphaTutorialManager : MonoBehaviour
 {
-    const string CompletedTutorialKey = "CompletedTutorial";
-    internal static bool HasCompletedTutorial => PlayerPrefs.GetInt(CompletedTutorialKey, 0) != 0;
+    // The old CompletedTutorial preference only meant that one lesson had been finished.
+    const string CompletedLessonsKey = "CompletedTutorialLessons";
+    const int AllLessonsMask = (1 << ((int)Lesson.Turbo + 1)) - 1;
+    internal static bool HasCompletedAllTutorials =>
+        (PlayerPrefs.GetInt(CompletedLessonsKey, 0) & AllLessonsMask) == AllLessonsMask;
 
     [SerializeField] CarDriver playerCar;
     [SerializeField] Transform steeringGate;
@@ -47,8 +50,6 @@ public class AlphaTutorialManager : MonoBehaviour
     bool swapped;
     CarDriver blueCar;
     FuelInventory swapInventory;
-    TextMeshPro playerMarker;
-    Camera practiceCamera;
     GameObject chargeBlocks;
     GameObject shieldTarget;
     Image[] chargePips;
@@ -219,15 +220,6 @@ public class AlphaTutorialManager : MonoBehaviour
         {
             SetUpChargeLesson();
         }
-
-        playerMarker = new GameObject("Controlled Car Marker").AddComponent<TextMeshPro>();
-        playerMarker.font = tutorialMessage.font;
-        playerMarker.text = "YOU";
-        playerMarker.fontSize = 6f;
-        playerMarker.fontStyle = FontStyles.Bold;
-        playerMarker.alignment = TextAlignmentOptions.Center;
-        playerMarker.outlineWidth = 0.25f;
-        practiceCamera = Camera.main;
     }
 
     void CreatePracticeBlock(FuelType color, float distance, Transform group, float respawnSeconds = 0f)
@@ -374,7 +366,7 @@ public class AlphaTutorialManager : MonoBehaviour
         else
         {
             ShowPrompt(swapInventory.IsShielded
-                ? $"Shield ready. {swapInventory.turboKey} spends it for turbo."
+                ? $"Shield ready. Press {swapInventory.turboKey} to spend it for turbo!"
                 : "Collect three red blocks");
         }
     }
@@ -405,15 +397,6 @@ public class AlphaTutorialManager : MonoBehaviour
     {
         if (won && (swapped || chargeActionDone))
             ShowCompletion();
-    }
-
-    void LateUpdate()
-    {
-        if (playerMarker == null || practiceCamera == null)
-            return;
-        Transform controlled = swapped ? blueCar.transform : playerCar.transform;
-        playerMarker.transform.SetPositionAndRotation(controlled.position + Vector3.up * 2.7f,
-            practiceCamera.transform.rotation);
     }
 
     RectTransform DrawKeyboard(RectTransform panel)
@@ -539,9 +522,11 @@ public class AlphaTutorialManager : MonoBehaviour
     void ShowCompletion()
     {
         complete = true;
-        if (!HasCompletedTutorial)
+        int completedLessons = PlayerPrefs.GetInt(CompletedLessonsKey, 0);
+        int updatedLessons = completedLessons | (1 << (int)lesson);
+        if (updatedLessons != completedLessons)
         {
-            PlayerPrefs.SetInt(CompletedTutorialKey, 1);
+            PlayerPrefs.SetInt(CompletedLessonsKey, updatedLessons);
             PlayerPrefs.Save();
         }
 
@@ -565,34 +550,32 @@ public class AlphaTutorialManager : MonoBehaviour
             _ => "<size=155%><b>Lesson Complete</b></size>\nYou stopped in the bay!"
         };
 
-        // Move the existing buttons into the result panel so they retain their click handlers.
-        PlaceButton(retryButton, -145f);
-        PlaceButton(mainMenuButton, 145f);
-        Button defaultButton = mainMenuButton;
-        if (lesson != Lesson.Turbo)
-        {
-            Button next = Instantiate(retryButton, panel);
-            next.name = "Next Tutorial";
-            TMP_Text nextLabel = next.GetComponentInChildren<TMP_Text>();
-            nextLabel.text = "Next Tutorial";
-            nextLabel.fontSize = 27f;
+        bool finalLesson = lesson == Lesson.Turbo;
+        Button next = Instantiate(retryButton, panel);
+        next.name = finalLesson ? "Start Game" : "Next Tutorial";
+        TMP_Text nextLabel = next.GetComponentInChildren<TMP_Text>();
+        nextLabel.text = next.name;
+        nextLabel.fontSize = 27f;
+        if (finalLesson)
+            next.onClick.AddListener(MainMenuController.StartGameFromTutorial);
+        else
             next.onClick.AddListener(() => LoadLesson(lesson + 1));
-            PlaceButton(next, -200f, 185f);
-            PlaceButton(retryButton, 0f, 185f);
-            PlaceButton(mainMenuButton, 200f, 185f);
-            defaultButton = next;
-        }
+
+        PlaceButton(next, -200f);
+        PlaceButton(retryButton, 0f);
+        PlaceButton(mainMenuButton, 200f);
+        Button defaultButton = finalLesson ? mainMenuButton : next;
         if (EventSystem.current != null)
             EventSystem.current.SetSelectedGameObject(defaultButton.gameObject);
 
-        void PlaceButton(Button button, float x, float width = 260f)
+        void PlaceButton(Button button, float x)
         {
             var rect = (RectTransform)button.transform;
             rect.SetParent(panel, false);
             rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0f);
             rect.pivot = new Vector2(0.5f, 0.5f);
             rect.anchoredPosition = new Vector2(x, 51f);
-            rect.sizeDelta = new Vector2(width, 62f);
+            rect.sizeDelta = new Vector2(185f, 62f);
             button.gameObject.SetActive(true);
         }
     }
@@ -627,11 +610,7 @@ public class AlphaTutorialManager : MonoBehaviour
             tutorialMessage.text = text;
     }
 
-    internal static void StartTutorial(int number)
-    {
-        if (number >= 1 && number <= (int)Lesson.Turbo + 1)
-            LoadLesson((Lesson)(number - 1));
-    }
+    internal static void StartTutorial() => LoadLesson(Lesson.Drive);
 
     void Retry() => LoadLesson(lesson);
 
@@ -641,7 +620,11 @@ public class AlphaTutorialManager : MonoBehaviour
         Time.timeScale = 1f;
         SceneManager.LoadScene("AlphaRaceScene");
     }
-    void ReturnToMenu() => LevelSelectionMenu.ReturnFromGameplay();
+    void ReturnToMenu()
+    {
+        Time.timeScale = 1f;
+        SceneManager.LoadScene("MainMenuCanvas");
+    }
 
     void OnDestroy()
     {

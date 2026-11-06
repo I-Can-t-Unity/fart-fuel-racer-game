@@ -7,7 +7,7 @@ public class CarSelectionMenu : MonoBehaviour
 
     public LevelSelectionMenu levelSelection;
 
-    void Start()
+    void Awake()
     {
         CloseSelection();
     }
