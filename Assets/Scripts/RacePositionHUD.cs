@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 
-// The player's race position against the AI rival (1ST or 2ND) and the gap between
-// them, just under the timer. Both cars are measured in metres driven along the centre
+// Physical-car race progress, displayed for the currently controlled car.
+// Cars are measured in metres driven along the centre
 // line since the start line. On a shortcut a car is placed between the split and the
 // merge by how far along the shortcut it is, so the jump shows up as ground gained
 // instead of the car standing still. Built at runtime under this canvas, like FuelInventoryUI.
@@ -17,13 +17,14 @@ public class RacePositionHUD : MonoBehaviour
     public float gapFontSize = 30f;
     public Color aheadColor = new Color(.35f, 1f, .45f);
     public Color behindColor = new Color(1f, .4f, .3f);
-    [Tooltip("How far one car has to pull ahead, in metres, before the positions swap, so they don't flicker while the cars are side by side.")]
+    [Tooltip("Legacy setting retained for scene compatibility; standings use physical-car progress.")]
     public float swapMargin = 1f;
 
     // Where one car is on the lap.
     class Racer
     {
         public Rigidbody body;
+        public System.Action onRespawn;
         public CarDriver driver;
         // Nearest centre-line point, or -1 until the car has been placed on the lap.
         public int point = -1;
@@ -36,87 +37,114 @@ public class RacePositionHUD : MonoBehaviour
         public bool ignoreShortcut;
     }
 
-    readonly Racer player = new Racer(), rival = new Racer();
+    readonly List<Racer> racers = new List<Racer>();
+    RaceManager race;
     // Centre-line points of each shortcut's split (x) and merge (y).
     readonly Dictionary<ShortcutBranch, Vector2Int> spans = new Dictionary<ShortcutBranch, Vector2Int>();
     // Metres from centre-line point 0 to each point.
     float[] along;
     float lapLength;
-    bool ahead = true;
     TMP_Text positionText, gapText;
+
+    public static RacePositionHUD Instance { get; private set; }
+
+    void Awake() => Instance = this;
+
+    // Lets the AI see how far each car has got (same numbers as the panel).
+    public bool TryGetMetres(Rigidbody body, out float metres)
+    {
+        metres = 0f;
+        if (along == null || body == null) return false;
+        foreach (Racer racer in racers)
+            if (racer.body == body && racer.point >= 0) { metres = racer.metres; return true; }
+        return false;
+    }
+
+    public Rigidbody PlayerBody => race != null ? race.carBody : null;
 
     IEnumerator Start()
     {
-        RaceManager race = RaceManager.Instance;
-        if (track == null)
-            track = FindFirstObjectByType<LoopTrackGenerator>();
-        if (race != null)
+        while (RaceManager.Instance == null) yield return null;
+        race = RaceManager.Instance;
+        while (race.IsCountingDown) yield return null;
+        if (track == null) track = FindFirstObjectByType<LoopTrackGenerator>();
+        if (track == null) { enabled = false; yield break; }
+        while (track.centerline.Count < 2) yield return null;
+        if (race.colorSwitchingMode)
         {
-            player.body = race.carBody != null ? race.carBody : race.car != null ? race.car.GetComponentInParent<Rigidbody>() : null;
-            rival.body = race.opponent != null ? race.opponent.GetComponentInParent<Rigidbody>() : null;
+            foreach (CarDriver physicalCar in race.Racers) AddRacer(physicalCar);
         }
-        if (track == null || player.body == null || rival.body == null)
+        else
         {
-            enabled = false;
-            yield break;
+            AddRacer(race.car != null ? race.car.GetComponentInParent<CarDriver>() : null);
+            AddRacer(race.opponent != null ? race.opponent.GetComponentInParent<CarDriver>() : null);
         }
-
+        if (racers.Count == 0) { enabled = false; yield break; }
         BuildPanel();
-
-        player.driver = player.body.GetComponent<CarDriver>();
-        rival.driver = rival.body.GetComponent<CarDriver>();
-        if (player.driver != null)
-            player.driver.Respawned += PlayerRespawned;
-        if (rival.driver != null)
-            rival.driver.Respawned += RivalRespawned;
-        ShortcutTracker.Failed += ShortcutFailed;
-
-        // The track fills in its centre line in its own Start.
-        while (track.centerline.Count == 0)
-            yield return null;
         MeasureTrack();
+        ShortcutTracker.Failed += ShortcutFailed;
+    }
+
+    void AddRacer(CarDriver physicalCar)
+    {
+        if (physicalCar == null) return;
+        Rigidbody body = physicalCar.GetComponent<Rigidbody>();
+        if (body == null || racers.Exists(item => item.body == body)) return;
+        var racer = new Racer { body = body, driver = physicalCar };
+        racer.onRespawn = () => Restart(racer);
+        physicalCar.Respawned += racer.onRespawn;
+        racers.Add(racer);
     }
 
     void OnDestroy()
     {
-        if (player.driver != null)
-            player.driver.Respawned -= PlayerRespawned;
-        if (rival.driver != null)
-            rival.driver.Respawned -= RivalRespawned;
+        if (Instance == this) Instance = null;
+        foreach (Racer racer in racers)
+            if (racer.driver != null) racer.driver.Respawned -= racer.onRespawn;
         ShortcutTracker.Failed -= ShortcutFailed;
     }
-
-    // R puts the car back on the start line, and the lap has to be driven again.
-    void PlayerRespawned() => Restart(player);
-    void RivalRespawned() => Restart(rival);
 
     void Restart(Racer racer)
     {
         racer.point = -1;
+        racer.pointMetres = racer.metres = 0;
         racer.ignoreShortcut = ShortcutTracker.IsOnBranch(racer.body);
     }
 
-    // The fail zone has put the car back on the main road before the split.
     void ShortcutFailed(Rigidbody body, ShortcutBranch branch)
     {
-        if (body == player.body) player.lost = true;
-        else if (body == rival.body) rival.lost = true;
+        foreach (Racer racer in racers)
+            if (racer.body == body) racer.lost = true;
     }
 
     void Update()
     {
-        if (along == null)
-            return;
-        Follow(player);
-        Follow(rival);
-
-        float gap = player.metres - rival.metres;
-        if (gap > swapMargin) ahead = true;
-        else if (gap < -swapMargin) ahead = false;
-
-        positionText.text = (ahead ? "1ST" : "2ND") + "<size=50%> / 2</size>";
-        positionText.color = ahead ? aheadColor : behindColor;
-        gapText.text = $"{(ahead ? "AHEAD" : "BEHIND")} {Mathf.Abs(gap):0} m";
+        if (along == null || race == null) return;
+        Racer controlled = null;
+        foreach (Racer racer in racers)
+        {
+            if (racer.body == null) continue;
+            Follow(racer);
+            if (racer.body == race.carBody) controlled = racer;
+        }
+        if (controlled == null) return;
+        int rank = 1;
+        float leaderMetres = controlled.metres;
+        float closestBehind = float.NegativeInfinity;
+        foreach (Racer racer in racers)
+        {
+            if (racer == controlled || racer.body == null) continue;
+            // Stable tie order follows roster order and cannot assign two leaders.
+            if (racer.metres > controlled.metres + .01f ||
+                (Mathf.Abs(racer.metres - controlled.metres) <= .01f && racers.IndexOf(racer) < racers.IndexOf(controlled))) rank++;
+            leaderMetres = Mathf.Max(leaderMetres, racer.metres);
+            closestBehind = Mathf.Max(closestBehind, racer.metres);
+        }
+        positionText.text = rank + "<size=50%> / " + racers.Count + "</size>";
+        positionText.color = rank == 1 ? aheadColor : behindColor;
+        gapText.text = rank == 1
+            ? (float.IsNegativeInfinity(closestBehind) ? "" : $"AHEAD {Mathf.Max(0, controlled.metres - closestBehind):0} m")
+            : $"TO LEADER {Mathf.Max(0, leaderMetres - controlled.metres):0} m";
     }
 
     void Follow(Racer racer)

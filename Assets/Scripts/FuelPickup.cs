@@ -153,12 +153,11 @@ public class FuelPickup : MonoBehaviour
         {
             return;
         }
-        if(!inventory)
-        {
+        if (inventory == null || inventory.CurrentCar == null)
             return;
-        }
         //if not player's car, return
-        if(!other.transform.IsChildOf(inventory.CurrentCar.transform))
+        Transform controlled = inventory.CurrentCar.transform;
+        if (other.transform != controlled && !other.transform.IsChildOf(controlled))
         {
             return;
         }
@@ -171,6 +170,17 @@ public class FuelPickup : MonoBehaviour
         SetAvailable(false);
         if (respawnSeconds > 0)
             respawnAt = Time.time + respawnSeconds;
+    }
+
+    // For AI cars. Same as the player grabbing it: hide it and start the respawn timer.
+    public bool TakeForAI()
+    {
+        if (!IsAvailable)
+            return false;
+        SetAvailable(false);
+        if (respawnSeconds > 0)
+            respawnAt = Time.time + respawnSeconds;
+        return true;
     }
 
     void SetAvailable(bool available)

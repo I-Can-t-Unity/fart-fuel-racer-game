@@ -16,8 +16,9 @@ public class FuelInventoryUI : MonoBehaviour
     static readonly Color EmptySlot = new Color(0, 0, 0, .45f);
     static readonly Color Frame = new Color(1, 1, 1, .9f);
 
-    readonly Image[] slotFills = new Image[FuelInventory.Capacity];
-    readonly TMP_Text[] slotLabels = new TMP_Text[FuelInventory.Capacity];
+    // One pip per charge (3).
+    Image[] slotFills;
+    TMP_Text[] slotLabels;
     GameObject slotsGroup, mixGroup;
     Image mixFill;
     // Removed: the Super Fart recipe line above the bag.
@@ -33,13 +34,13 @@ public class FuelInventoryUI : MonoBehaviour
             return;
         }
 
-        RectTransform bag = NewRect("FuelBag", transform, bottomOffset, new Vector2(520, 230));
+        RectTransform bag = NewRect("ColorStreakHUD", transform, bottomOffset, new Vector2(620, 200));
         bag.anchorMin = bag.anchorMax = new Vector2(.5f, 0);
         bag.pivot = new Vector2(.5f, 0);
         bag.gameObject.AddComponent<Image>().color = new Color(0, 0, 0, .35f);
         bag.GetComponent<Image>().raycastTarget = false;
 
-        title = NewText("Title", bag, new Vector2(0, 95), new Vector2(500, 30), 22, TextAlignmentOptions.Center);
+        title = NewText("Title", bag, new Vector2(0, 80), new Vector2(600, 30), 22, TextAlignmentOptions.Center);
 
         // Removed: always on screen just above the bag, which fuel makes this car's Super Fart.
         // recipe = NewText("SuperFartRecipe", bag, new Vector2(0, 140), new Vector2(700, 36), 26, TextAlignmentOptions.Center);
@@ -48,10 +49,13 @@ public class FuelInventoryUI : MonoBehaviour
         // recipe.outlineColor = Color.black;
 
         slotsGroup = NewRect("Slots", bag, Vector2.zero, bag.sizeDelta).gameObject;
-        for (int i = 0; i < FuelInventory.Capacity; i++)
+        int pips = Mathf.Max(1, inventory.maxCharges);
+        slotFills = new Image[pips];
+        slotLabels = new TMP_Text[pips];
+        for (int i = 0; i < pips; i++)
         {
-            float x = (i - .5f) * (slotSize + 30);
-            slotFills[i] = NewSlot("Slot" + i, slotsGroup.transform, new Vector2(x, 30));
+            float x = (i - (pips - 1) * .5f) * (slotSize + 30);
+            slotFills[i] = NewSlot("Slot" + i, slotsGroup.transform, new Vector2(x, 15));
             slotLabels[i] = NewText("Label" + i, slotsGroup.transform, new Vector2(x, -30), new Vector2(160, 26), 18, TextAlignmentOptions.Center);
         }
 
@@ -61,7 +65,9 @@ public class FuelInventoryUI : MonoBehaviour
         mixName.fontStyle = FontStyles.Bold;
         mixEffect = NewText("MixEffect", mixGroup.transform, new Vector2(50, 0), new Vector2(340, 34), 22, TextAlignmentOptions.Left);
 
-        hint = NewText("Hint", bag, new Vector2(0, -62), new Vector2(500, 32), 26, TextAlignmentOptions.Center);
+        // One line, inside the panel: smaller text and no wrapping.
+        hint = NewText("Hint", bag, new Vector2(0, -70), new Vector2(600, 30), 22, TextAlignmentOptions.Center);
+        hint.textWrappingMode = TextWrappingModes.NoWrap;
         hint.color = Color.white;
         // Old: messages sat in the bag, under the hint, where they were easy to miss.
         // message = NewText("Message", bag, new Vector2(0, -95), new Vector2(500, 32), 26, TextAlignmentOptions.Center);
@@ -96,17 +102,21 @@ public class FuelInventoryUI : MonoBehaviour
 
     void Refresh()
     {
-        title.text = "YOU: " + inventory.NameOf(inventory.carFuel);
-        title.color = inventory.ColorOf(inventory.carFuel);
+        // YOU: BLUE, three charge pips in your colour, and what a full set does.
+        Color mine = inventory.ColorOf(inventory.carFuel);
+        title.text = "YOU: " + inventory.NameOf(inventory.carFuel) + "   CHARGES";
+        title.color = mine;
         slotsGroup.SetActive(true);
         mixGroup.SetActive(false);
-        for (int i = 0; i < FuelInventory.Capacity; i++)
+        for (int i = 0; i < slotFills.Length; i++)
         {
-            bool filled = i < inventory.StreakNum;
-            slotFills[i].color = filled ? inventory.ColorOf(inventory.StreakColor) : EmptySlot;
-            slotLabels[i].text = filled ? inventory.NameOf(inventory.StreakColor) : "";
+            bool filled = i < inventory.Charges;
+            slotFills[i].color = filled ? mine : EmptySlot;
+            slotLabels[i].text = "";
         }
-        hint.text = inventory.StreakNum == 1 ? $"1 MORE {inventory.NameOf(inventory.StreakColor)} = TAKE THE {inventory.NameOf(inventory.StreakColor)} CAR" : "";
+        hint.text = inventory.IsShielded
+            ? $"SHIELD ON  ·  {inventory.turboKey} = TURBO"
+            : $"{inventory.NameOf(inventory.carFuel)} = CHARGE   ·   OTHERS = SWAP";
     }
 
     void ShowMessage(string text)

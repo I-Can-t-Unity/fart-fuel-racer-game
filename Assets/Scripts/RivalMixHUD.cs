@@ -4,12 +4,20 @@ using UnityEngine;
 public class RivalMixHUD : MonoBehaviour
 {
     public TMP_Text mixText;
+    [Tooltip("The AI doesn't mix any more, so this would only ever say NO MIX. Hides the whole panel.")]
+    public bool hideWhileAIHasNoMixes = true;
 
     AIFuelTank rival;
     float nextSearch;
 
     void OnEnable()
     {
+        if (hideWhileAIHasNoMixes)
+        {
+            gameObject.SetActive(false);
+            return;
+        }
+
         rival = null;
         nextSearch = 0f;
 

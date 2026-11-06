@@ -2,24 +2,27 @@ using UnityEngine;
 
 public class FinishLine : MonoBehaviour
 {
-    // Checkpoints mark progress around a loop instead of ending the race.
     public bool isCheckpoint;
 
     void OnTriggerEnter(Collider other)
     {
-        var manager=RaceManager.Instance;
-        if(manager==null) return;
-
-        bool player=IsPartOf(other.transform, manager.car);
-        bool opponent=IsPartOf(other.transform, manager.opponent);
-        if(!player && !opponent) return;
-
-        if(isCheckpoint) manager.ReachCheckpoint(opponent);
+        RaceManager manager = RaceManager.Instance;
+        if (manager == null) return;
+        if (manager.colorSwitchingMode)
+        {
+            CarDriver racer = manager.ResolveRacer(other.transform);
+            if (racer == null) return;
+            if (isCheckpoint) manager.ReachCheckpoint(racer.transform);
+            else manager.CrossFinish(racer.transform);
+            return;
+        }
+        bool player = IsPartOf(other.transform, manager.car);
+        bool opponent = IsPartOf(other.transform, manager.opponent);
+        if (!player && !opponent) return;
+        if (isCheckpoint) manager.ReachCheckpoint(opponent);
         else manager.CrossFinish(opponent);
     }
 
-    static bool IsPartOf(Transform t, Transform car)
-    {
-        return car!=null && (t==car || t.IsChildOf(car));
-    }
+    static bool IsPartOf(Transform candidate, Transform car)
+        => car != null && (candidate == car || candidate.IsChildOf(car));
 }
