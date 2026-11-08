@@ -39,7 +39,9 @@ public class LoopTrackGenerator : MonoBehaviour
         Classic,
         [InspectorName("Level 1 - Bridge Circuit")] BridgeCircuit,
         [InspectorName("Level 2 - Figure Eight")] FigureEight,
-        [InspectorName("Level 3 - Flyover")] Flyover
+        [InspectorName("Level 3 - Flyover")] Flyover,
+        [InspectorName("Level 4 - Whirlpool")] Whirlpool,
+        [InspectorName("Level 5 - Sky Helix")] SkyHelix
     }
 
     [Header("Layout")]
@@ -57,52 +59,96 @@ public class LoopTrackGenerator : MonoBehaviour
         new Vector2(23, -2), new Vector2(16, -27), new Vector2(0, -39)
     };
 
-    // Bridge Circuit (~1.39 km, ~80-90 s a lap). Long start straight, fast right sweeper,
-    // the ARCH detour (right-left-right) that the broken-bridge shortcut cuts straight across,
-    // top-right corner, tight top hairpin loop, S-bends through the middle, big left sweeper.
-    // Checked: no corner tighter than 13.5 m radius, separate parts of the track always
-    // >= 60 m apart (centre to centre), so walls never touch.
+    // LEVEL 1 - Bridge Circuit (EASY, ~1.41 km). Start-straight chicane, right sweeper, the arch,
+    // top hairpin loop, S-bends through the middle, left S-bend before home.
+    // 18 corners under 35 m radius, longest straight ~110 m, tightest corner 13.5 m radius.
     static readonly Vector2[] bridgeAnchors = {
-        new Vector2(-110,-110), new Vector2(0,-118), new Vector2(90,-110), new Vector2(140,-85),
-        new Vector2(160,-40), new Vector2(160,-5),
+        new Vector2(-110,-110), new Vector2(0,-118), new Vector2(38,-110), new Vector2(72,-124),
+        new Vector2(106,-110), new Vector2(140,-85), new Vector2(160,-40), new Vector2(160,-5),
         new Vector2(200,20), new Vector2(225,55), new Vector2(200,90), new Vector2(160,115),
         new Vector2(158,150), new Vector2(130,185), new Vector2(80,192), new Vector2(35,180),
         new Vector2(20,150), new Vector2(40,125), new Vector2(85,115), new Vector2(105,85),
         new Vector2(90,50), new Vector2(40,30), new Vector2(-10,50), new Vector2(-40,90),
-        new Vector2(-90,105), new Vector2(-140,85), new Vector2(-165,40), new Vector2(-165,-30),
-        new Vector2(-150,-85)
+        new Vector2(-90,105), new Vector2(-140,85), new Vector2(-162,45), new Vector2(-152,10),
+        new Vector2(-174,-28), new Vector2(-162,-62), new Vector2(-150,-85)
     };
 
-    // LEVEL 2 - Figure Eight (~1.38 km). Anchors are (x, z, HEIGHT): the road climbs a ramp,
-    // crosses OVER the middle on a bridge (6.6 m up), loops right (chicane), comes back
-    // UNDER the bridge and loops left (tunnel goes on the top-left of this loop).
+    // LEVEL 2 - Figure Eight (MEDIUM, ~1.56 km). Anchors are (x, z, HEIGHT). Ramp up and OVER the
+    // middle on a bridge, right lobe = snake with a 180 hairpin, back UNDER the bridge, left loop
+    // (tunnel), left-right flick into the finish. Bridge, ramps and tunnel area are unchanged.
     static readonly Vector3[] figureEightAnchors = {
         new Vector3(-150,-95,0), new Vector3(-110,-98,0), new Vector3(-82,-87,0.2f), new Vector3(-52,-60,2.6f),
         new Vector3(-25,-31,6.1f), new Vector3(0,0,6.6f), new Vector3(25,31,6.1f), new Vector3(52,60,2.6f),
-        new Vector3(82,87,0.2f),
-        new Vector3(115,100,0), new Vector3(165,102,0), new Vector3(212,80,0),
-        new Vector3(238,38,0), new Vector3(224,2,0), new Vector3(240,-34,0),
-        new Vector3(215,-82,0), new Vector3(160,-102,0), new Vector3(105,-98,0),
-        new Vector3(55,-68,0), new Vector3(22,-28,0), new Vector3(0,0,0), new Vector3(-22,28,0),
-        new Vector3(-55,68,0),
+        new Vector3(82,87,0.2f), new Vector3(115,100,0), new Vector3(165,110,0), new Vector3(212,100,0),
+        new Vector3(228,75,0), new Vector3(210,54,0), new Vector3(175,53,0), new Vector3(155,52,0),
+        new Vector3(137.3f,44.7f,0), new Vector3(130,27,0), new Vector3(137.3f,9.3f,0), new Vector3(155,2,0),
+        new Vector3(185,-5,0), new Vector3(225,-8,0), new Vector3(245,-35,0), new Vector3(235,-72,0),
+        new Vector3(200,-88,0), new Vector3(160,-102,0), new Vector3(105,-98,0), new Vector3(55,-68,0),
+        new Vector3(22,-28,0), new Vector3(0,0,0), new Vector3(-22,28,0), new Vector3(-55,68,0),
         new Vector3(-100,96,0), new Vector3(-150,104,0), new Vector3(-200,86,0), new Vector3(-232,40,0),
-        new Vector3(-232,-28,0), new Vector3(-202,-80,0)
+        new Vector3(-232,-28,0), new Vector3(-224,-48,0), new Vector3(-214,-74,0)
     };
 
-    // LEVEL 3 - Flyover (~1.89 km). Start straight with the JUMP GAP, right side, top straight
-    // (tunnel), inner loop, then up a ramp and over a flyover bridge across your own road.
+    // LEVEL 3 - Flyover (HARD, ~2.1 km). Start straight + JUMP GAP, right side = hairpin snake,
+    // top straight (tunnel), inner loop with a chicane, up and over the flyover, far-left home.
+    // Start/jump, tunnel and flyover are unchanged.
     static readonly Vector3[] flyoverAnchors = {
-        new Vector3(-150,-142,0), new Vector3(-90,-150,0), new Vector3(-30,-152,0),
-        new Vector3(30,-152,0), new Vector3(90,-148,0), new Vector3(140,-134,0),
-        new Vector3(175,-112,0), new Vector3(222,-62,0), new Vector3(240,5,0), new Vector3(228,72,0),
-        new Vector3(190,122,0),
-        new Vector3(120,150,0), new Vector3(30,160,0), new Vector3(-60,155,0), new Vector3(-130,135,0),
-        new Vector3(-175,100,0), new Vector3(-185,55,0), new Vector3(-180,10,0),
-        new Vector3(-155,-35,0), new Vector3(-105,-55,0), new Vector3(-40,-55,0),
-        new Vector3(5,-42,0), new Vector3(22,-8,0), new Vector3(10,32,0), new Vector3(-20,55,0),
-        new Vector3(-65,62,0), new Vector3(-115,60,3.4f), new Vector3(-160,50,6.6f), new Vector3(-200,32,6.8f),
-        new Vector3(-238,5,6.4f),
-        new Vector3(-262,-38,2.4f), new Vector3(-255,-95,0), new Vector3(-215,-132,0)
+        new Vector3(-150,-142,0), new Vector3(-90,-150,0), new Vector3(-30,-152,0), new Vector3(30,-152,0),
+        new Vector3(90,-148,0), new Vector3(140,-134,0), new Vector3(185,-118,0), new Vector3(228,-104,0),
+        new Vector3(246,-82,0), new Vector3(236,-58,0), new Vector3(205,-52,0), new Vector3(175,-50,0),
+        new Vector3(158,-50,0), new Vector3(141.7f,-43.3f,0), new Vector3(135,-27,0), new Vector3(141.7f,-10.7f,0),
+        new Vector3(158,-4,0), new Vector3(205,-5,0), new Vector3(240,15,0), new Vector3(242,50,0),
+        new Vector3(215,75,0), new Vector3(190,122,0), new Vector3(120,150,0), new Vector3(30,160,0),
+        new Vector3(-60,155,0), new Vector3(-130,135,0), new Vector3(-175,100,0), new Vector3(-185,55,0),
+        new Vector3(-180,10,0), new Vector3(-155,-35,0), new Vector3(-120,-58,0), new Vector3(-88,-47,0),
+        new Vector3(-58,-58,0), new Vector3(-24,-51,0), new Vector3(8,-32,0), new Vector3(24,2,0),
+        new Vector3(8,34,0), new Vector3(-20,55,0), new Vector3(-65,62,0), new Vector3(-115,60,3.4f),
+        new Vector3(-160,50,6.6f), new Vector3(-200,32,6.8f), new Vector3(-238,5,6.4f), new Vector3(-262,-38,2.4f),
+        new Vector3(-255,-95,0), new Vector3(-215,-132,0)
+    };
+
+    // LEVEL 4 - Whirlpool (~1.9 km). A double spiral: wind INTO the centre on one arm (corners keep
+    // getting tighter), flick through an S-bend in the middle, then wind back OUT on the other arm
+    // (corners keep opening up), hairpin, repeat. No crossings, no straights - you are always turning.
+    static readonly Vector3[] whirlpoolAnchors = {
+        new Vector3(-117.6f,56,0), new Vector3(-99.1f,79.3f,0), new Vector3(-75.7f,97.5f,0), new Vector3(-48.5f,109.7f,0),
+        new Vector3(-19.3f,114.7f,0), new Vector3(10.3f,112.1f,0), new Vector3(38.1f,101.8f,0), new Vector3(62,84.3f,0),
+        new Vector3(80,60.9f,0), new Vector3(90.3f,33.2f,0), new Vector3(91.6f,3.7f,0), new Vector3(83.4f,-24.6f,0),
+        new Vector3(66.1f,-48.4f,0), new Vector3(41.5f,-64.4f,0), new Vector3(12.8f,-69.8f,0), new Vector3(-15.5f,-62.9f,0),
+        new Vector3(-37.6f,-44.3f,0), new Vector3(-52,-8,0), new Vector3(-38,20,0), new Vector3(-12,16,0),
+        new Vector3(12,-16,0), new Vector3(38,-20,0), new Vector3(52,8,0), new Vector3(40.3f,40.3f,0),
+        new Vector3(16.5f,62.4f,0), new Vector3(-14.6f,69.8f,0), new Vector3(-45.4f,62.7f,0), new Vector3(-70.5f,43.9f,0),
+        new Vector3(-86.6f,17.1f,0), new Vector3(-92.2f,-13.4f,0), new Vector3(-87.4f,-44,0), new Vector3(-73.2f,-71.4f,0),
+        new Vector3(-51.5f,-93.3f,0), new Vector3(-24.5f,-107.9f,0), new Vector3(5.5f,-114.4f,0), new Vector3(36.1f,-112.7f,0),
+        new Vector3(65.2f,-103.2f,0), new Vector3(90.9f,-86.7f,0), new Vector3(111.8f,-64.5f,0), new Vector3(126.9f,-37.9f,0),
+        new Vector3(135.5f,-8.7f,0), new Vector3(137.2f,21.7f,0), new Vector3(132.3f,51.8f,0), new Vector3(121.1f,80,0),
+        new Vector3(104.2f,105.3f,0), new Vector3(82.5f,126.6f,0), new Vector3(56.9f,143,0), new Vector3(28.7f,154.1f,0),
+        new Vector3(-1.2f,159.5f,0), new Vector3(-31.5f,159.2f,0), new Vector3(-61.2f,153.2f,0), new Vector3(-89.3f,141.8f,0),
+        new Vector3(-114.9f,125.5f,0), new Vector3(-137.2f,105,0), new Vector3(-155.5f,80.9f,0), new Vector3(-169.4f,54,0),
+        new Vector3(-178.4f,25.1f,0), new Vector3(-182.2f,0,0), new Vector3(-177.9f,-13.4f,0), new Vector3(-166.5f,-21.7f,0),
+        new Vector3(-152.4f,-21.7f,0), new Vector3(-141,-13.4f,0), new Vector3(-136.7f,0,0), new Vector3(-130.3f,29.1f,0)
+    };
+
+    // LEVEL 5 - Sky Helix (~2.1 km). Ground road snakes across the middle, then a corkscrew climbs
+    // 2.5 turns to 17.5 m, a skyway twists back across the map OVER the ground road, and a second
+    // corkscrew spirals you back down. Pillars and tunnels are placed by hand.
+    static readonly Vector3[] skyHelixAnchors = {
+        new Vector3(-165,-32,0), new Vector3(-120,-40,0), new Vector3(-85,-25,0), new Vector3(-70,20,0),
+        new Vector3(-40,70,0), new Vector3(10,85,0), new Vector3(50,60,0), new Vector3(60,10,0),
+        new Vector3(100,-20,0), new Vector3(140,-60,0), new Vector3(180,-42,0), new Vector3(210,-30,0.25f),
+        new Vector3(231.2f,-21.2f,1.11f), new Vector3(240,0,1.98f), new Vector3(231.2f,21.2f,2.84f), new Vector3(210,30,3.7f),
+        new Vector3(188.8f,21.2f,4.56f), new Vector3(180,0,5.42f), new Vector3(188.8f,-21.2f,6.29f), new Vector3(210,-30,7.15f),
+        new Vector3(231.2f,-21.2f,8.01f), new Vector3(240,0,8.88f), new Vector3(231.2f,21.2f,9.74f), new Vector3(210,30,10.6f),
+        new Vector3(188.8f,21.2f,11.46f), new Vector3(180,0,12.32f), new Vector3(188.8f,-21.2f,13.19f), new Vector3(210,-30,14.05f),
+        new Vector3(231.2f,-21.2f,14.91f), new Vector3(240,0,15.78f), new Vector3(231.2f,21.2f,16.64f), new Vector3(210,30,17.5f),
+        new Vector3(165,32,17.5f), new Vector3(120,25,17.5f), new Vector3(85,-15,17.5f), new Vector3(60,-75,17.5f),
+        new Vector3(15,-110,17.5f), new Vector3(-28,-88,17.5f), new Vector3(-18,-38,17.5f), new Vector3(-40,10,17.5f),
+        new Vector3(-80,45,17.5f), new Vector3(-120,60,17.5f), new Vector3(-160,40,17.5f), new Vector3(-210,30,17.5f),
+        new Vector3(-231.2f,21.2f,16.64f), new Vector3(-240,0,15.78f), new Vector3(-231.2f,-21.2f,14.91f), new Vector3(-210,-30,14.05f),
+        new Vector3(-188.8f,-21.2f,13.19f), new Vector3(-180,0,12.32f), new Vector3(-188.8f,21.2f,11.46f), new Vector3(-210,30,10.6f),
+        new Vector3(-231.2f,21.2f,9.74f), new Vector3(-240,0,8.88f), new Vector3(-231.2f,-21.2f,8.01f), new Vector3(-210,-30,7.15f),
+        new Vector3(-188.8f,-21.2f,6.29f), new Vector3(-180,0,5.43f), new Vector3(-188.8f,21.2f,4.56f), new Vector3(-210,30,3.7f),
+        new Vector3(-231.2f,21.2f,2.84f), new Vector3(-240,0,1.97f), new Vector3(-231.2f,-21.2f,1.11f), new Vector3(-210,-30,0.25f)
     };
 
     [Header("Jump gap (Level 3 only) - centre-line point numbers")]
@@ -119,6 +165,8 @@ public class LoopTrackGenerator : MonoBehaviour
         {
             if (layout == Layout.FigureEight) return figureEightAnchors;
             if (layout == Layout.Flyover) return flyoverAnchors;
+            if (layout == Layout.Whirlpool) return whirlpoolAnchors;
+            if (layout == Layout.SkyHelix) return skyHelixAnchors;
             Vector2[] flat = layout == Layout.Classic ? classicAnchors : bridgeAnchors;
             var a = new Vector3[flat.Length];
             for (int i = 0; i < flat.Length; i++) a[i] = new Vector3(flat[i].x, flat[i].y, 0f);

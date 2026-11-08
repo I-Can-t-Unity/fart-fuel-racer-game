@@ -112,6 +112,14 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
     public Key turboKey = Key.Q;
     public float turboSeconds = 2.5f;
 
+    [Header("Shield (3 charges = shield for a few seconds)")]
+    [Tooltip("How long the shield lasts. Charges go back to 0 when it switches on.")]
+    [Range(3f, 15f)] public float shieldSeconds = 8f;
+    [Tooltip("Your ShieldBubble prefab. It is put on the car and tinted to the car's colour.")]
+    public GameObject shieldVisual;
+    [Tooltip("The bubble blinks for this many seconds before it runs out.")]
+    public float shieldBlinkSeconds = 2f;
+
     private CarDriver currentCar;
     private FuelType streakColor;
     private int streakNum = 0;
@@ -123,12 +131,16 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
 
     // Charges belong to the CAR, so swapping into a car takes over its stash.
     readonly Dictionary<CarDriver, int> charges = new Dictionary<CarDriver, int>();
+    // Shields also belong to the car: when each car's shield runs out, and its bubble.
+    readonly Dictionary<CarDriver, float> shieldEnds = new Dictionary<CarDriver, float>();
+    readonly Dictionary<CarDriver, GameObject> bubbles = new Dictionary<CarDriver, GameObject>();
 
     public CarDriver CurrentCar =>currentCar;
     public int Charges => ChargesOf(currentCar);
     public bool IsShielded => IsShieldedCar(currentCar);
     public int ChargesOf(CarDriver car) => car != null && charges.TryGetValue(car, out int c) ? c : 0;
-    public bool IsShieldedCar(CarDriver car) => ChargesOf(car) >= maxCharges;
+    public bool IsShieldedCar(CarDriver car) => car != null && shieldEnds.TryGetValue(car, out float end) && Time.time < end;
+    public float ShieldTimeLeft => currentCar != null && shieldEnds.TryGetValue(currentCar, out float end) ? Mathf.Max(0f, end - Time.time) : 0f;
     public FuelType StreakColor =>streakColor;
     public int StreakNum =>streakNum;
     public bool IsImmune => Time.time < immunityEndingTime;
@@ -216,12 +228,14 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
 
     void Update()
     {
-        // Q with a full set of charges = turbo.
+        UpdateShields();
+
+        // Q while shielded = trade the rest of the shield for a turbo.
         if (currentCar == null || Keyboard.current == null) return;
         if (RaceManager.Instance != null && !RaceManager.Instance.IsRacing) return;
         if (Keyboard.current[turboKey].wasPressedThisFrame && IsShielded)
         {
-            SetCharges(currentCar, 0);
+            EndShield(currentCar, false);
             if (fart != null) fart.Fart(turboSeconds);
             lastResult = "turbo";
             Announce("TURBO!");
@@ -235,14 +249,85 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
         charges[car] = Mathf.Clamp(value, 0, maxCharges);
     }
 
-    void AddCharge(CarDriver car) => SetCharges(car, ChargesOf(car) + 1);
+    // +1 charge. The 3rd one turns into a shield and the charges start again from 0.
+    void AddCharge(CarDriver car)
+    {
+        SetCharges(car, ChargesOf(car) + 1);
+        if (ChargesOf(car) >= maxCharges) StartShield(car);
+    }
 
-    /// Spends a full set of charges on something else (e.g. a bridge gate). False if not full.
+    void StartShield(CarDriver car)
+    {
+        SetCharges(car, 0);
+        shieldEnds[car] = Time.time + shieldSeconds;
+        ShowBubble(car, true);
+        Announce(car == currentCar
+            ? $"SHIELD ON!  {shieldSeconds:0}s  ·  {turboKey} = TURBO"
+            : $"{NameOfCar(car)} HAS A SHIELD!");
+        Changed?.Invoke();
+    }
+
+    void EndShield(CarDriver car, bool announce)
+    {
+        shieldEnds.Remove(car);
+        ShowBubble(car, false);
+        if (announce && car == currentCar) Announce("SHIELD OFF");
+        Changed?.Invoke();
+    }
+
+    // Runs every frame: switches bubbles off when time is up, blinks them near the end.
+    void UpdateShields()
+    {
+        if (shieldEnds.Count == 0) return;
+        foreach (var car in new List<CarDriver>(shieldEnds.Keys))
+        {
+            float left = shieldEnds[car] - Time.time;
+            if (left <= 0f) { EndShield(car, true); continue; }
+            if (bubbles.TryGetValue(car, out GameObject bubble) && bubble != null)
+                bubble.SetActive(left > shieldBlinkSeconds || Mathf.Repeat(Time.time * 6f, 1f) < .6f);
+        }
+    }
+
+    // Puts a copy of the ShieldBubble prefab on the car (once) and tints it to the car's colour.
+    void ShowBubble(CarDriver car, bool on)
+    {
+        if (car == null) return;
+        if (!bubbles.TryGetValue(car, out GameObject bubble) || bubble == null)
+        {
+            if (!on) return;
+            if (shieldVisual == null) { Debug.LogWarning("Drag your ShieldBubble prefab into FuelInventory → Shield Visual.", this); return; }
+            bubble = Instantiate(shieldVisual, car.transform);
+            bubble.name = "ShieldBubble";
+            bubble.transform.localPosition = shieldVisual.transform.localPosition;
+            bubble.transform.localRotation = shieldVisual.transform.localRotation;
+            foreach (var c in bubble.GetComponentsInChildren<Collider>()) Destroy(c);
+            int index = cars != null ? Array.IndexOf(cars, car) : -1;
+            if (index >= 0)
+            {
+                Color tint = FuelPalette.ColorOf((FuelType)index);
+                foreach (var r in bubble.GetComponentsInChildren<Renderer>())
+                {
+                    Color old = r.material.color;   // keeps the prefab's see-through amount
+                    r.material.color = new Color(tint.r, tint.g, tint.b, old.a);
+                    if (r.material.HasProperty("_EmissionColor")) r.material.SetColor("_EmissionColor", tint * 1.5f);
+                }
+            }
+            bubbles[car] = bubble;
+        }
+        bubble.SetActive(on);
+    }
+
+    string NameOfCar(CarDriver car)
+    {
+        int index = cars != null ? Array.IndexOf(cars, car) : -1;
+        return index >= 0 ? NameOf((FuelType)index) : "RIVAL";
+    }
+
+    /// Uses up a shield on something else (e.g. a bridge gate). False if not shielded.
     public bool TrySpendCharges(CarDriver car)
     {
         if (!IsShieldedCar(car)) return false;
-        SetCharges(car, 0);
-        Changed?.Invoke();
+        EndShield(car, false);
         return true;
     }
 
@@ -306,13 +391,12 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
         return true;
     }
 
-    // Shield rule: if the car you're in, or the car you'd swap with, has 3 charges,
-    // the swap is blocked and that shield is spent.
+    // Shield rule: while the car you're in, or the car you'd swap with, has its shield up,
+    // swaps are blocked. The shield keeps going until its time runs out.
     bool BlockedByShield(CarDriver mine, CarDriver theirs, FuelType theirColor)
     {
         if (IsShieldedCar(mine))
         {
-            SetCharges(mine, 0);
             immunityEndingTime = Time.time + 1f;
             Announce("SHIELD SAID NO!");
             Changed?.Invoke();
@@ -320,7 +404,6 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
         }
         if (IsShieldedCar(theirs))
         {
-            SetCharges(theirs, 0);
             immunityEndingTime = Time.time + 1f;
             Announce($"{NameOf(theirColor)}'S SHIELD BLOCKED YOU!");
             Changed?.Invoke();
@@ -357,9 +440,9 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
         if(type == carFuel)
         {
             if (fart != null) fart.Fart(pickupFartSeconds);
-            AddCharge(currentCar);
             lastResult = "boost";
-            Announce(IsShielded ? $"SHIELD UP!  {turboKey} = TURBO" : $"BOOST!  CHARGE {Charges}/{maxCharges}");
+            if (Charges + 1 < maxCharges) Announce($"BOOST!  CHARGE {Charges + 1}/{maxCharges}");
+            AddCharge(currentCar);   // the 3rd charge announces SHIELD ON itself
         }
         // 4 s after a swap nothing can swap you again; the block stays on the track.
         else if(IsImmune)
@@ -500,13 +583,6 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
 
         if (material.HasProperty("_GlossyReflections"))
             material.SetFloat("_GlossyReflections", 0f);
-
-        // Soft glow so blocks are easy to spot from far away.
-        if (material.HasProperty("_EmissionColor"))
-        {
-            material.EnableKeyword("_EMISSION");
-            material.SetColor("_EmissionColor", color * 0.45f);
-        }
 
         material.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");
         material.EnableKeyword("_ENVIRONMENTREFLECTIONS_OFF");

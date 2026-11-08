@@ -93,6 +93,9 @@ public class FuelInventoryUI : MonoBehaviour
 
     void Update()
     {
+        // Count the shield down on the HUD.
+        if (inventory != null && inventory.IsShielded)
+            hint.text = $"SHIELD ON  {Mathf.CeilToInt(inventory.ShieldTimeLeft)}s  ·  {inventory.turboKey} = TURBO";
         if (messageUntil > 0 && Time.time >= messageUntil)
         {
             message.text = "";
