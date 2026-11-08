@@ -7961,24 +7961,24 @@ MonoBehaviour:
   m_text: '<b>SWITCHEROO RULES</b>
 
 
-    <b>Your colour</b>    Boost + 1 charge
+    <b>Your colour</b>    1 s turbo + 1 charge
 
     <b>Rival''s
     colour</b>    Swap into their car
 
-    <b>3 charges</b>    Shield: blocks your
-    next swap
+    <b>3 charges</b>    Auto shield: no swaps
+    for 8 s
 
-    <b>Q at 3 charges</b>    Turbo boost
+    <b>Shield ends</b>    Charges reset, collect again
 
 
-    <size=24>After a swap,
-    nobody can swap again for 4 s.
+    <size=24>After
+    a swap, nobody can swap again for 4 s.
 
-    Charges stay with the car, so a swap steals
+    Charges stay with the car, so a swap
+    steals
 
-    their
-    stash. Behind? Hunt rival colours.
+    their stash. Behind? Hunt rival colours.
 
     Ahead? Dodge them.</size>'
   m_isRightToLeft: 0

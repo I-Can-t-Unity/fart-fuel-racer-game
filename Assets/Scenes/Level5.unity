@@ -216870,7 +216870,7 @@ MonoBehaviour:
   turboKey: 31
   turboSeconds: 2.5
   shieldSeconds: 8
-  shieldVisual: {fileID: 7977973088508291296, guid: 510ad26eff21f44749e93bfa610de317, type: 3}
+  shieldVisual: {fileID: 8856322269017009276, guid: c52e56625cefa4ecc80ff55b7df8684e, type: 3}
   shieldBlinkSeconds: 2
 --- !u!114 &1501234022
 MonoBehaviour:

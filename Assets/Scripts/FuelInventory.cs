@@ -117,8 +117,8 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
     [Range(3f, 15f)] public float shieldSeconds = 8f;
     [Tooltip("Your ShieldBubble prefab. It is put on the car and tinted to the car's colour.")]
     public GameObject shieldVisual;
-    [Tooltip("The bubble blinks for this many seconds before it runs out.")]
-    public float shieldBlinkSeconds = 2f;
+    [Tooltip("The ring flashes for this many seconds before it runs out (faster and faster).")]
+    public float shieldBlinkSeconds = 3f;
 
     private CarDriver currentCar;
     private FuelType streakColor;
@@ -262,8 +262,8 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
         shieldEnds[car] = Time.time + shieldSeconds;
         ShowBubble(car, true);
         Announce(car == currentCar
-            ? $"SHIELD ON!  {shieldSeconds:0}s  ·  {turboKey} = TURBO"
-            : $"{NameOfCar(car)} HAS A SHIELD!");
+            ? $"{Paint(car, "SHIELD ON!")}  {shieldSeconds:0}s"
+            : $"{Paint(car, NameOfCar(car) + " HAS A SHIELD!")}");
         Changed?.Invoke();
     }
 
@@ -271,7 +271,7 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
     {
         shieldEnds.Remove(car);
         ShowBubble(car, false);
-        if (announce && car == currentCar) Announce("SHIELD OFF");
+        if (announce && car == currentCar) Announce(Paint(car, "SHIELD OFF"));
         Changed?.Invoke();
     }
 
@@ -284,7 +284,18 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
             float left = shieldEnds[car] - Time.time;
             if (left <= 0f) { EndShield(car, true); continue; }
             if (bubbles.TryGetValue(car, out GameObject bubble) && bubble != null)
-                bubble.SetActive(left > shieldBlinkSeconds || Mathf.Repeat(Time.time * 6f, 1f) < .6f);
+            {
+                // Flashes in the last few seconds, faster as it runs out (4 -> 12 flashes a second).
+                bool visible = true;
+                if (left < shieldBlinkSeconds)
+                {
+                    float rate = Mathf.Lerp(12f, 4f, left / shieldBlinkSeconds);
+                    visible = Mathf.Repeat(Time.time * rate, 1f) < .55f;
+                }
+                // Hide only the visible parts, so the spin animation keeps running smoothly.
+                foreach (var r in bubble.GetComponentsInChildren<Renderer>(true))
+                    if (r.enabled != visible) r.enabled = visible;
+            }
         }
     }
 
@@ -302,19 +313,54 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
             bubble.transform.localRotation = shieldVisual.transform.localRotation;
             foreach (var c in bubble.GetComponentsInChildren<Collider>()) Destroy(c);
             int index = cars != null ? Array.IndexOf(cars, car) : -1;
-            if (index >= 0)
-            {
-                Color tint = FuelPalette.ColorOf((FuelType)index);
-                foreach (var r in bubble.GetComponentsInChildren<Renderer>())
-                {
-                    Color old = r.material.color;   // keeps the prefab's see-through amount
-                    r.material.color = new Color(tint.r, tint.g, tint.b, old.a);
-                    if (r.material.HasProperty("_EmissionColor")) r.material.SetColor("_EmissionColor", tint * 1.5f);
-                }
-            }
+            if (index >= 0) Tint(bubble, FuelPalette.ColorOf((FuelType)index));
             bubbles[car] = bubble;
         }
         bubble.SetActive(on);
+        if (on) foreach (var r in bubble.GetComponentsInChildren<Renderer>(true)) r.enabled = true;
+    }
+
+    // Colours the shield in the car's colour, whatever it is made of: a mesh (Renderer),
+    // a Line Renderer or a Particle System. The prefab's see-through amount is kept.
+    static void Tint(GameObject root, Color tint)
+    {
+        foreach (var r in root.GetComponentsInChildren<Renderer>(true))
+        {
+            if (r is LineRenderer line)
+            {
+                line.startColor = new Color(tint.r, tint.g, tint.b, line.startColor.a);
+                line.endColor = new Color(tint.r, tint.g, tint.b, line.endColor.a);
+            }
+            if (r is ParticleSystemRenderer) continue;
+            foreach (var m in r.materials)
+            {
+                foreach (var prop in new[] { "_BaseColor", "_Color" })
+                    if (m.HasProperty(prop))
+                    {
+                        float a = m.GetColor(prop).a;
+                        m.SetColor(prop, new Color(tint.r, tint.g, tint.b, a));
+                    }
+                if (m.HasProperty("_EmissionColor"))
+                {
+                    m.EnableKeyword("_EMISSION");
+                    m.SetColor("_EmissionColor", tint * 2f);
+                }
+            }
+        }
+        foreach (var ps in root.GetComponentsInChildren<ParticleSystem>(true))
+        {
+            var main = ps.main;
+            main.startColor = tint;
+        }
+    }
+
+    // Wraps a message in the car's colour (a bit lighter so dark blue still reads).
+    string Paint(CarDriver car, string text)
+    {
+        int index = cars != null ? Array.IndexOf(cars, car) : -1;
+        if (index < 0) return text;
+        Color c = Color.Lerp(FuelPalette.ColorOf((FuelType)index), Color.white, .3f);
+        return $"<color=#{ColorUtility.ToHtmlStringRGB(c)}>{text}</color>";
     }
 
     string NameOfCar(CarDriver car)
@@ -398,14 +444,14 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
         if (IsShieldedCar(mine))
         {
             immunityEndingTime = Time.time + 1f;
-            Announce("SHIELD SAID NO!");
+            Announce(Paint(mine, "SHIELD SAID NO!"));
             Changed?.Invoke();
             return true;
         }
         if (IsShieldedCar(theirs))
         {
             immunityEndingTime = Time.time + 1f;
-            Announce($"{NameOf(theirColor)}'S SHIELD BLOCKED YOU!");
+            Announce(Paint(theirs, $"{NameOf(theirColor)}'S SHIELD BLOCKED YOU!"));
             Changed?.Invoke();
             return true;
         }

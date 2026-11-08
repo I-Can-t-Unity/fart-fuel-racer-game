@@ -25,6 +25,8 @@ public class FuelInventoryUI : MonoBehaviour
     // TMP_Text mixName, mixEffect, hint, message, recipe;
     TMP_Text mixName, mixEffect, hint, message, title;
     float messageUntil;
+    float messageShownAt;
+    Image messagePlate;
 
     void Start()
     {
@@ -72,12 +74,20 @@ public class FuelInventoryUI : MonoBehaviour
         // Old: messages sat in the bag, under the hint, where they were easy to miss.
         // message = NewText("Message", bag, new Vector2(0, -95), new Vector2(500, 32), 26, TextAlignmentOptions.Center);
         // At the top centre of the screen, with an outline so they read over sky and road alike.
+        // Dark plate behind the message so it pops over bright sky or grey road.
+        messagePlate = NewRect("MessagePlate", transform, messageTopOffset + new Vector2(0, 12), new Vector2(600, messageFontSize * 2f)).gameObject.AddComponent<Image>();
+        messagePlate.rectTransform.anchorMin = messagePlate.rectTransform.anchorMax = new Vector2(.5f, 1);
+        messagePlate.rectTransform.pivot = new Vector2(.5f, 1);
+        messagePlate.color = new Color(0, 0, 0, .65f);
+        messagePlate.raycastTarget = false;
+        messagePlate.enabled = false;
         message = NewText("Message", transform, messageTopOffset, new Vector2(1000, messageFontSize * 1.6f), messageFontSize, TextAlignmentOptions.Center);
         message.rectTransform.anchorMin = message.rectTransform.anchorMax = new Vector2(.5f, 1);
         message.rectTransform.pivot = new Vector2(.5f, 1);
         message.fontStyle = FontStyles.Bold;
-        message.outlineWidth = .2f;
+        message.outlineWidth = .3f;
         message.outlineColor = Color.black;
+        message.textWrappingMode = TextWrappingModes.NoWrap;
 
         inventory.Changed += Refresh;
         inventory.Announced += ShowMessage;
@@ -100,6 +110,15 @@ public class FuelInventoryUI : MonoBehaviour
         {
             message.text = "";
             messageUntil = 0;
+            messagePlate.enabled = false;
+        }
+        // Pop-in: starts 40% bigger and settles in 0.2 s.
+        if (messageUntil > 0)
+        {
+            float t = Mathf.Clamp01((Time.time - messageShownAt) / .2f);
+            float scale = Mathf.Lerp(1.4f, 1f, 1f - (1f - t) * (1f - t));
+            message.rectTransform.localScale = Vector3.one * scale;
+            messagePlate.rectTransform.localScale = new Vector3(scale, 1f, 1f);
         }
     }
 
@@ -126,6 +145,12 @@ public class FuelInventoryUI : MonoBehaviour
     {
         message.text = text;
         messageUntil = Time.time + messageSeconds;
+        messageShownAt = Time.time;
+        // Size the plate to the text, with some padding.
+        message.ForceMeshUpdate();
+        float width = Mathf.Min(message.preferredWidth + 60f, 1100f);
+        messagePlate.rectTransform.sizeDelta = new Vector2(width, messageFontSize * 1.6f + 24f);
+        messagePlate.enabled = !string.IsNullOrEmpty(text);
     }
 
     // A white frame with a coloured square inside; returns the square.
