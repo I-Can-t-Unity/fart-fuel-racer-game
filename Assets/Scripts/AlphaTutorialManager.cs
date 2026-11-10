@@ -557,7 +557,7 @@ public class AlphaTutorialManager : MonoBehaviour
         nextLabel.text = next.name;
         nextLabel.fontSize = 27f;
         if (finalLesson)
-            next.onClick.AddListener(MainMenuController.StartGameFromTutorial);
+            next.onClick.AddListener(ReturnToMenu);
         else
             next.onClick.AddListener(() => LoadLesson(lesson + 1));
 

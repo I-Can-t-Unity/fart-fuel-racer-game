@@ -41,7 +41,8 @@ public class LoopTrackGenerator : MonoBehaviour
         [InspectorName("Level 2 - Figure Eight")] FigureEight,
         [InspectorName("Level 3 - Flyover")] Flyover,
         [InspectorName("Level 4 - Whirlpool")] Whirlpool,
-        [InspectorName("Level 5 - Sky Helix")] SkyHelix
+        [InspectorName("Level 5 - Sky Helix")] SkyHelix,
+        Tutorial
     }
 
     [Header("Layout")]
@@ -57,6 +58,13 @@ public class LoopTrackGenerator : MonoBehaviour
         new Vector2(6, 53), new Vector2(25, 65), new Vector2(58, 62),
         new Vector2(77, 43), new Vector2(76, 14), new Vector2(55, 4),
         new Vector2(23, -2), new Vector2(16, -27), new Vector2(0, -39)
+    };
+
+    static readonly Vector2[] tutorialAnchors = {
+        new Vector2(-95, -55), new Vector2(0, -55), new Vector2(75, -55),
+        new Vector2(120, -35), new Vector2(140, 5), new Vector2(125, 46),
+        new Vector2(85, 65), new Vector2(15, 65), new Vector2(-60, 65),
+        new Vector2(-112, 47), new Vector2(-135, 5), new Vector2(-125, -34)
     };
 
     // LEVEL 1 - Bridge Circuit (EASY, ~1.41 km). Start-straight chicane, right sweeper, the arch,
@@ -167,7 +175,8 @@ public class LoopTrackGenerator : MonoBehaviour
             if (layout == Layout.Flyover) return flyoverAnchors;
             if (layout == Layout.Whirlpool) return whirlpoolAnchors;
             if (layout == Layout.SkyHelix) return skyHelixAnchors;
-            Vector2[] flat = layout == Layout.Classic ? classicAnchors : bridgeAnchors;
+            Vector2[] flat = layout == Layout.Tutorial ? tutorialAnchors
+                : layout == Layout.Classic ? classicAnchors : bridgeAnchors;
             var a = new Vector3[flat.Length];
             for (int i = 0; i < flat.Length; i++) a[i] = new Vector3(flat[i].x, flat[i].y, 0f);
             return a;

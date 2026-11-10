@@ -21,6 +21,7 @@ public class FuelPickup : MonoBehaviour
 
     // The player's car hit this cube; true if the fuel went into the bag (for analytics).
     public static event System.Action<FuelPickup, bool> PlayerTouched;
+    internal bool RequiresShield { get; set; }
 
     Vector3 basePosition;
     Renderer pickupRenderer;
@@ -77,7 +78,10 @@ public class FuelPickup : MonoBehaviour
     {
         basePosition = transform.position;
         if (inventory != null)
+        {
             label = CreateLabel();
+            label.gameObject.SetActive(IsAvailable);
+        }
     }
 
     TextMeshPro CreateLabel()
@@ -155,12 +159,11 @@ public class FuelPickup : MonoBehaviour
         }
         if (inventory == null || inventory.CurrentCar == null)
             return;
-        //if not player's car, return
         Transform controlled = inventory.CurrentCar.transform;
         if (other.transform != controlled && !other.transform.IsChildOf(controlled))
-        {
             return;
-        }
+        if (RequiresShield && !inventory.IsShielded)
+            return;
         bool collected = inventory.TryCollect(type);
         PlayerTouched?.Invoke(this, collected);
 
@@ -170,6 +173,18 @@ public class FuelPickup : MonoBehaviour
         SetAvailable(false);
         if (respawnSeconds > 0)
             respawnAt = Time.time + respawnSeconds;
+    }
+
+    internal void RestoreForTutorial()
+    {
+        respawnAt = -1;
+        SetAvailable(true);
+    }
+
+    internal void HideForTutorial()
+    {
+        respawnAt = -1;
+        SetAvailable(false);
     }
 
     // For AI cars. Same as the player grabbing it: hide it and start the respawn timer.

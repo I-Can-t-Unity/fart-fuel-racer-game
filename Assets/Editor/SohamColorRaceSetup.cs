@@ -58,11 +58,8 @@ public static class SohamColorRaceSetup
         }
         foreach (CarSelectionMenu selection in Object.FindObjectsByType<CarSelectionMenu>(FindObjectsInactive.Include, FindObjectsSortMode.None))
         {
-            Undo.RecordObject(selection, "Connect level selection");
-            LevelSelectionMenu levels = selection.GetComponent<LevelSelectionMenu>();
-            if (levels == null) levels = Undo.AddComponent<LevelSelectionMenu>(selection.gameObject);
-            selection.levelSelection = levels;
-            EditorUtility.SetDirty(selection);
+            if (selection.GetComponent<LevelSelectionMenu>() == null)
+                Undo.AddComponent<LevelSelectionMenu>(selection.gameObject);
             if (selection.selectionPanel == null) continue;
             foreach (Button button in selection.selectionPanel.GetComponentsInChildren<Button>(true))
             {

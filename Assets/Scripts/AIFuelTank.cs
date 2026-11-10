@@ -86,7 +86,7 @@ public class AIFuelTank : MonoBehaviour, IFuelMixHolder
             if (metres > leaderMetres + positionMarginMetres)
             {
                 leaderMetres = metres;
-                LeaderColour = (FuelType)i;
+                LeaderColour = race.ColorForRacerIndex(i);
             }
         }
         if (RacePosition > 1 && LeaderColour == ownFuel)
@@ -177,7 +177,7 @@ public class AIFuelTank : MonoBehaviour, IFuelMixHolder
         {
             if (race.Racers[i] == playerCar)
             {
-                colour = (FuelType)i;
+            colour = race.ColorForRacerIndex(i);
                 return true;
             }
         }

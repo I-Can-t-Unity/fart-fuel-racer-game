@@ -111,6 +111,7 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
     [Tooltip("With a full set of charges, this key spends them on a turbo.")]
     public Key turboKey = Key.Q;
     public float turboSeconds = 2.5f;
+    internal bool TurboKeyEnabled { get; set; } = true;
 
     [Header("Shield (3 charges = shield for a few seconds)")]
     [Tooltip("How long the shield lasts. Charges go back to 0 when it switches on.")]
@@ -207,13 +208,15 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
         OnControlledCarChanged(null, race.CurrentPlayerCar);
     }
 
+    FuelType ColorForRacerIndex(int index) => race != null ? race.ColorForRacerIndex(index) : (FuelType)index;
+
     void OnControlledCarChanged(Transform previous, Transform next)
     {
         if (currentCar != null) currentCar.Respawned -= ResetStreak;
         currentCar = next != null ? next.GetComponent<CarDriver>() : null;
         if (currentCar == null) return;
         int index = Array.IndexOf(cars, currentCar);
-        if (index >= 0) carFuel = (FuelType)index;
+        if (index >= 0) carFuel = ColorForRacerIndex(index);
         fart = currentCar.GetComponent<FartBoost>();
         currentCar.Respawned += ResetStreak;
         Changed?.Invoke();
@@ -231,7 +234,7 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
         UpdateShields();
 
         // Q while shielded = trade the rest of the shield for a turbo.
-        if (currentCar == null || Keyboard.current == null) return;
+        if (!TurboKeyEnabled || currentCar == null || Keyboard.current == null) return;
         if (RaceManager.Instance != null && !RaceManager.Instance.IsRacing) return;
         if (Keyboard.current[turboKey].wasPressedThisFrame && IsShielded)
         {
@@ -275,6 +278,13 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
         Changed?.Invoke();
     }
 
+    internal void ResetTutorialCharges(CarDriver car)
+    {
+        SetCharges(car, 0);
+        if (IsShieldedCar(car)) EndShield(car, false);
+        else Changed?.Invoke();
+    }
+
     // Runs every frame: switches bubbles off when time is up, blinks them near the end.
     void UpdateShields()
     {
@@ -313,7 +323,7 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
             bubble.transform.localRotation = shieldVisual.transform.localRotation;
             foreach (var c in bubble.GetComponentsInChildren<Collider>()) Destroy(c);
             int index = cars != null ? Array.IndexOf(cars, car) : -1;
-            if (index >= 0) Tint(bubble, FuelPalette.ColorOf((FuelType)index));
+            if (index >= 0) Tint(bubble, FuelPalette.ColorOf(ColorForRacerIndex(index)));
             bubbles[car] = bubble;
         }
         bubble.SetActive(on);
@@ -359,14 +369,14 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
     {
         int index = cars != null ? Array.IndexOf(cars, car) : -1;
         if (index < 0) return text;
-        Color c = Color.Lerp(FuelPalette.ColorOf((FuelType)index), Color.white, .3f);
+        Color c = Color.Lerp(FuelPalette.ColorOf(ColorForRacerIndex(index)), Color.white, .3f);
         return $"<color=#{ColorUtility.ToHtmlStringRGB(c)}>{text}</color>";
     }
 
     string NameOfCar(CarDriver car)
     {
         int index = cars != null ? Array.IndexOf(cars, car) : -1;
-        return index >= 0 ? NameOf((FuelType)index) : "RIVAL";
+        return index >= 0 ? NameOf(ColorForRacerIndex(index)) : "RIVAL";
     }
 
     /// Uses up a shield on something else (e.g. a bridge gate). False if not shielded.
@@ -383,7 +393,7 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
     {
         int index = cars != null ? Array.IndexOf(cars, aiCar) : -1;
         if (index < 0) return;
-        if ((FuelType)index == type)
+        if (ColorForRacerIndex(index) == type)
         {
             AddCharge(aiCar);
             Changed?.Invoke();
@@ -397,6 +407,7 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
     {
         if (race == null || !race.IsRacing || next == null || currentCar == null
             || race.ResolveRacer(next.transform) != next) return false;
+        if (race.IsProgressionRace && next.IsStopped) return false;
         if (next == currentCar) return false;
         AICarWaypointDriver nextAI = next.GetComponent<AICarWaypointDriver>();
         AICarWaypointDriver previousAI = currentCar.GetComponent<AICarWaypointDriver>();
@@ -428,12 +439,13 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
         int index = cars != null ? Array.IndexOf(cars, aiCar) : -1;
         if (index < 0 || IsImmune || aiCar == currentCar)
             return false;
-        // A full set of charges on either car blocks the swap (and is used up).
-        if (BlockedByShield(currentCar, aiCar, (FuelType)index)) return false;
+        // Either car's active shield can block the swap.
+        FuelType rivalColor = ColorForRacerIndex(index);
+        if (BlockedByShield(currentCar, aiCar, rivalColor)) return false;
         FuelType lost = carFuel;
-        if (!SwitchCar((FuelType)index))
+        if (!SwitchCar(rivalColor))
             return false;
-        Announce($"{NameOf(lost)} CAR STOLEN! YOU'RE {NameOf((FuelType)index)} NOW");
+        Announce($"{NameOf(lost)} CAR STOLEN! YOU'RE {NameOf(rivalColor)} NOW");
         return true;
     }
 
@@ -460,7 +472,8 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
 
     bool SwitchCar(FuelType type)
     {
-        int index = (int)type;
+        if (race == null) return false;
+        int index = race.RacerIndexForColor(type);
         if (cars == null || index < 0 || index >= cars.Length) return false;
         FuelType oldColor = carFuel;
         if (!Control(cars[index])) return false;
@@ -499,7 +512,8 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
         // Rule 2: a rival's colour = you swap cars with that rival (unless a shield blocks it).
         else
         {
-            CarDriver target = cars != null && (int)type < cars.Length ? cars[(int)type] : null;
+            int index = race != null ? race.RacerIndexForColor(type) : (int)type;
+            CarDriver target = cars != null && index < cars.Length ? cars[index] : null;
             if (BlockedByShield(currentCar, target, type))
             {
                 lastResult = "shielded";

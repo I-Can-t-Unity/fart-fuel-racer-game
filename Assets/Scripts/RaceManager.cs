@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using TMPro;
 
@@ -24,16 +25,40 @@ public class RaceManager : MonoBehaviour
     bool initialized;
     public bool RacersInitialized => initialized;
     public bool IsSwapPractice { get; private set; }
+    internal bool IsTutorialRace { get; private set; }
+    int rivalsFinished;
+    int raceLevel = -1;
+    Button nextButton;
+    internal bool IsProgressionRace => raceLevel >= 0;
+    System.Func<bool> tutorialReady;
+    int firstRacerColor;
+
+    internal FuelType ColorForRacerIndex(int index) => (FuelType)((index + firstRacerColor) % 3);
+    internal int RacerIndexForColor(FuelType color) => ((int)color - firstRacerColor + 3) % 3;
 
     // The tutorial owns the start panel and results. The race still owns car identity and swapping.
     internal void ConfigureSwapPractice(CarDriver[] practiceCars)
     {
-        IsSwapPractice = true;
-        colorSwitchingMode = true;
-        racers = practiceCars;
+        SetPracticeRoster(practiceCars);
         requireCheckpoint = false;
         timerText = speedText = fuelText = resultText = null;
         restartButton = mainMenuButton = null;
+    }
+
+    void SetPracticeRoster(CarDriver[] practiceCars)
+    {
+        IsSwapPractice = true;
+        colorSwitchingMode = true;
+        racers = practiceCars;
+    }
+
+    internal void ConfigureTutorial(CarDriver[] practiceCars, FuelType startingColor, System.Func<bool> ready)
+    {
+        SetPracticeRoster(practiceCars);
+        firstRacerColor = (int)startingColor;
+        IsTutorialRace = true;
+        requireCheckpoint = true;
+        tutorialReady = ready;
     }
 
     // Kept for existing scene references and teammate integrations.
@@ -75,11 +100,13 @@ public class RaceManager : MonoBehaviour
     void Awake()
     {
         Instance = this;
+        raceLevel = LevelSelectionMenu.IndexOfScene(gameObject.scene.name);
     }
 
     IEnumerator Start()
     {
         timeLeft = raceDuration;
+        ConfigureResultButtons();
         // Let scene/grid and AI Start methods finish before assigning control/paint.
         foreach (CarDriver vehicle in FindObjectsByType<CarDriver>(FindObjectsSortMode.None))
             vehicle.SetCountdownHold(true);
@@ -102,6 +129,30 @@ public class RaceManager : MonoBehaviour
         if (resultText != null)
             resultText.gameObject.SetActive(false);
 
+        if (IsTutorialRace)
+        {
+            yield return new WaitUntil(tutorialReady);
+            yield return StartCountdown();
+        }
+        else if (IsSwapPractice)
+            IsCountingDown = false; // The tutorial releases the cars when its intro closes.
+        else
+            StartCoroutine(StartCountdown());
+    }
+
+    void ConfigureResultButtons()
+    {
+        if (IsProgressionRace && restartButton != null && mainMenuButton != null)
+        {
+            nextButton = Instantiate(mainMenuButton, mainMenuButton.transform.parent);
+            nextButton.name = "NextButton";
+            LayoutResultButton(restartButton, "Retry", -330f);
+            LayoutResultButton(mainMenuButton, "Exit", 0f);
+            LayoutResultButton(nextButton, "Next", 330f);
+            nextButton.onClick.AddListener(() => LevelSelectionMenu.ContinueFromGameplay(raceLevel));
+            nextButton.gameObject.SetActive(false);
+        }
+
         if (restartButton != null)
         {
             restartButton.onClick.AddListener(RestartRace);
@@ -113,11 +164,15 @@ public class RaceManager : MonoBehaviour
             mainMenuButton.onClick.AddListener(ReturnToMainMenu);
             mainMenuButton.gameObject.SetActive(false);
         }
+    }
 
-        if (IsSwapPractice)
-            IsCountingDown = false; // The tutorial releases the cars when its intro closes.
-        else
-            StartCoroutine(StartCountdown());
+    static void LayoutResultButton(Button button, string label, float x)
+    {
+        var rect = (RectTransform)button.transform;
+        rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(.5f, .5f);
+        rect.anchoredPosition = new Vector2(x, -145f);
+        rect.sizeDelta = new Vector2(300f, 70f);
+        button.GetComponentInChildren<TMP_Text>(true).text = label;
     }
 
     IEnumerator StartCountdown()
@@ -209,7 +264,7 @@ public class RaceManager : MonoBehaviour
 
         if (timerText != null)
             timerText.text =
-                $"{totalSeconds / 60:00}:{totalSeconds % 60:00}";
+                FormatRaceTime(totalSeconds);
 
         if (speedText != null)
             speedText.text =
@@ -219,6 +274,8 @@ public class RaceManager : MonoBehaviour
             fuelText.text =
                 $"FUEL\n<size=160%><b>{fuel:0}%</b></size>";
     }
+
+    internal static string FormatRaceTime(int seconds) => $"{seconds / 60:00}:{seconds % 60:00}";
 
     public void AddFuel(float amount)
     {
@@ -300,15 +357,17 @@ public class RaceManager : MonoBehaviour
                 oldTank.drainPerSecond = oldTank.drainPerSpeed = oldTank.drainPerThrottle = 0f;
                 oldTank.enabled = false;
             }
-            System.Action onReset = () => eligibleCars.Remove(physicalCar);
+            System.Action onReset = () =>
+            {
+                if (!IsTutorialRace) eligibleCars.Remove(physicalCar);
+            };
             resetHandlers.Add(physicalCar, onReset);
             physicalCar.Respawned += onReset;
             var appearance = physicalCar.GetComponent<ApplySelectedCar>();
-            if (appearance != null) appearance.ApplyColor(i % 3);
+            if (appearance != null) appearance.ApplyColor((int)ColorForRacerIndex(i));
         }
         initialized = true;
-        int selection = IsSwapPractice ? 0
-            : Mathf.Clamp(PlayerPrefs.GetInt("SelectedCarColor", PlayerPrefs.GetInt("SelectedCarFuel", 0)), 0, 2);
+        int selection = IsSwapPractice ? 0 : (int)CarSelectionMenu.SelectedColor;
         CarDriver startingCar = racers.Length > selection ? racers[selection] : racers.Length > 0 ? racers[0] : null;
         if (startingCar != null) InitializeStartingControl(startingCar);
     }
@@ -371,6 +430,24 @@ public class RaceManager : MonoBehaviour
         CarDriver racer = ResolveRacer(physicalCar);
         if (!IsRacing || racer == null || (requireCheckpoint && !eligibleCars.Contains(racer))) return;
         bool won = racer.transform == car;
+        if (IsProgressionRace)
+        {
+            if (!won)
+            {
+                if (racer.IsStopped) return;
+                rivalsFinished++;
+                racer.StopDriving();
+                return;
+            }
+            string place = rivalsFinished switch
+            {
+                0 => "FIRST PLACE",
+                1 => "SECOND PLACE",
+                _ => "THIRD PLACE"
+            };
+            EndRace(rivalsFinished == 0, place, playerFinished: true);
+            return;
+        }
         EndRace(won, won ? "FINISH! YOU WIN!" : "AI WINS!");
     }
 
@@ -407,16 +484,18 @@ public class RaceManager : MonoBehaviour
         if (Instance == this) Instance = null;
     }
 
-    void EndRace(bool won, string message)
+    void EndRace(bool won, string message, bool playerFinished = false)
     {
         if (finished)
             return;
         finished = true;
+        if (IsProgressionRace && playerFinished)
+            LevelSelectionMenu.CompleteLevel(raceLevel);
 
         foreach (CarDriver vehicle in FindObjectsByType<CarDriver>(FindObjectsSortMode.None))
             vehicle.StopDriving();
 
-        if (resultText != null)
+        if (resultText != null && !IsTutorialRace)
         {
             resultText.gameObject.SetActive(true);
             resultText.text = message;
@@ -428,6 +507,22 @@ public class RaceManager : MonoBehaviour
         if (mainMenuButton != null)
             mainMenuButton.gameObject.SetActive(true);
 
+        if (nextButton != null)
+        {
+            nextButton.interactable = playerFinished && LevelSelectionMenu.IsUnlocked(raceLevel);
+            nextButton.gameObject.SetActive(true);
+            restartButton.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnRight = mainMenuButton };
+            mainMenuButton.navigation = new Navigation
+            {
+                mode = Navigation.Mode.Explicit,
+                selectOnLeft = restartButton,
+                selectOnRight = nextButton.interactable ? nextButton : null
+            };
+            nextButton.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnLeft = mainMenuButton };
+            if (EventSystem.current != null)
+                EventSystem.current.SetSelectedGameObject((nextButton.interactable ? nextButton : restartButton).gameObject);
+        }
+
         Debug.Log(message);
         RaceEnded?.Invoke(won, message);
     }
@@ -435,7 +530,10 @@ public class RaceManager : MonoBehaviour
     public void RestartRace()
     {
         Time.timeScale = 1f;
-        SceneManager.LoadScene(SceneManager.GetActiveScene().path);
+        if (IsTutorialRace)
+            TutorialRace.Retry();
+        else
+            SceneManager.LoadScene(gameObject.scene.path);
     }
 
     public void ReturnToMainMenu()

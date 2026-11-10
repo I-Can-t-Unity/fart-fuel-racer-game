@@ -113,6 +113,14 @@ public class CarDriver : MonoBehaviour
 
     public void ConfigureWheels(Wheel[] bindings) => wheels = bindings;
 
+    internal void SetRespawnPoint(Vector3 position, Quaternion rotation)
+    {
+        spawnPosition = position;
+        spawnRotation = rotation;
+    }
+
+    internal void RequestReset() => resetRequested = true;
+
     // Used by an AI driver in place of the player's keys: throttle -1 to 1 (negative reverses),
     // steering -1 (left) to 1 (right). The throttle still eases in, exactly as for the player.
     public void SetInput(float throttleAmount, float steeringAmount, bool brake)

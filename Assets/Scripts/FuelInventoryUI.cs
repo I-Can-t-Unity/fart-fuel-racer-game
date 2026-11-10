@@ -27,6 +27,14 @@ public class FuelInventoryUI : MonoBehaviour
     float messageUntil;
     float messageShownAt;
     Image messagePlate;
+    RectTransform chargeBar;
+    bool showChargeBar = true;
+
+    internal void SetChargeBarVisible(bool visible)
+    {
+        showChargeBar = visible;
+        if (chargeBar != null) chargeBar.gameObject.SetActive(visible);
+    }
 
     void Start()
     {
@@ -37,6 +45,7 @@ public class FuelInventoryUI : MonoBehaviour
         }
 
         RectTransform bag = NewRect("ColorStreakHUD", transform, bottomOffset, new Vector2(620, 200));
+        chargeBar = bag;
         bag.anchorMin = bag.anchorMax = new Vector2(.5f, 0);
         bag.pivot = new Vector2(.5f, 0);
         bag.gameObject.AddComponent<Image>().color = new Color(0, 0, 0, .35f);
@@ -92,6 +101,7 @@ public class FuelInventoryUI : MonoBehaviour
         inventory.Changed += Refresh;
         inventory.Announced += ShowMessage;
         Refresh();
+        SetChargeBarVisible(showChargeBar);
     }
 
     void OnDestroy()
@@ -105,7 +115,7 @@ public class FuelInventoryUI : MonoBehaviour
     {
         // Count the shield down on the HUD.
         if (inventory != null && inventory.IsShielded)
-            hint.text = $"SHIELD ON  {Mathf.CeilToInt(inventory.ShieldTimeLeft)}s  ·  {inventory.turboKey} = TURBO";
+            UpdateShieldHint();
         if (messageUntil > 0 && Time.time >= messageUntil)
         {
             message.text = "";
@@ -136,9 +146,17 @@ public class FuelInventoryUI : MonoBehaviour
             slotFills[i].color = filled ? mine : EmptySlot;
             slotLabels[i].text = "";
         }
-        hint.text = inventory.IsShielded
-            ? $"SHIELD ON  ·  {inventory.turboKey} = TURBO"
-            : $"{inventory.NameOf(inventory.carFuel)} = CHARGE   ·   OTHERS = SWAP";
+        if (inventory.IsShielded)
+            UpdateShieldHint();
+        else
+            hint.text = $"{inventory.NameOf(inventory.carFuel)} = CHARGE   ·   OTHERS = SWAP";
+    }
+
+    void UpdateShieldHint()
+    {
+        hint.text = $"SHIELD ON  {Mathf.CeilToInt(inventory.ShieldTimeLeft)}s";
+        if (inventory.TurboKeyEnabled)
+            hint.text += $"  ·  {inventory.turboKey} = TURBO";
     }
 
     void ShowMessage(string text)
