@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -16,6 +17,7 @@ public class CarDriver : MonoBehaviour
     }
 
     [SerializeField] private Wheel[] wheels = new Wheel[0];
+
     [Header("Driving")]
     [SerializeField, Min(0)] private float motorTorque = 800f;
     [SerializeField, Min(0)] private float brakeTorque = 2500f;
@@ -23,93 +25,118 @@ public class CarDriver : MonoBehaviour
     [SerializeField, Min(1)] private float reverseSpeedKmh = 30f;
     [SerializeField, Range(0, 45)] private float steeringAngle = 28f;
     [SerializeField, Min(0)] private float steeringResponse = 180f;
-    [Tooltip("Limits how sharply the car can corner at speed, in metres per second squared. Lower values give wider, steadier fast turns.")]
+    [Tooltip("Max lateral acceleration at speed (m/s²). Lower = wider fast turns.")]
     [SerializeField, Min(1)] private float maxCorneringAcceleration = 15f;
-    [Tooltip("Above top speed (only reachable with a boost), scale cornering and tyre grip with speed, up to Max Boost Grip.")]
+    [Tooltip("Above top speed, scale grip with speed up to Max Boost Grip.")]
     [SerializeField] private bool holdTurnRadiusAboveTopSpeed = false;
     [SerializeField] private Vector3 centerOfMass = new Vector3(0, 0.35f, -0.35f);
-    [Tooltip("Brake torque on each wheel while the engine is off (out of fuel), so the car coasts to a stop instead of rolling on forever.")]
+    [Tooltip("Brake torque per wheel when out of fuel.")]
     [SerializeField, Min(0)] private float engineOffDrag = 300f;
-    [Tooltip("How quickly the car slows after the race ends, in metres per second squared.")]
+    [Tooltip("Deceleration after the race ends (m/s²).")]
     [SerializeField, Min(0.1f)] private float raceEndDeceleration = 8f;
     [SerializeField] private bool showControls = true;
+
     [Header("Grip and stability")]
-    [Tooltip("Multiplier on the scene's tyre grip. Shared by player and opponents.")]
     [SerializeField, Range(0.5f, 2f)] private float tireGrip = 1.2f;
-    [Tooltip("Extra downward acceleration at top speed. Only applied with at least two wheels on the ground.")]
+    [Tooltip("Downward acceleration at top speed (m/s²).")]
     [SerializeField, Min(0)] private float downforceAcceleration = 5f;
-    [Tooltip("Damps unwanted yaw while grounded, without forcing the car's heading or velocity.")]
     [SerializeField, Min(0)] private float yawStability = 2.5f;
-    [Tooltip("Upper limit on additional boost grip. Prevents unlimited cornering forces at extreme speed.")]
     [SerializeField, Range(1f, 3f)] private float maxBoostGrip = 1.6f;
-    [Tooltip("Zero-friction chassis contact lets cars slide past each other without sticking. Tyre grip is separate.")]
+    [Tooltip("Frictionless chassis so cars slide off each other and walls.")]
     [SerializeField] private bool slidingChassisContacts = true;
+
     [Header("Fuel and throttle")]
-    [Tooltip("Top speed and engine power multiplier by fuel level, from 0 (empty) to 1 (full). Flip the curve to make a light, nearly empty car the fastest.")]
+    [Tooltip("Power and top speed multiplier by fuel level (0 = empty, 1 = full).")]
     [SerializeField] private AnimationCurve powerByFuel = new AnimationCurve(
         new Keyframe(0f, 0.6f), new Keyframe(0.2f, 1f), new Keyframe(1f, 1f));
-    [Tooltip("Below this fuel level the engine sputters, cutting power in short bursts.")]
     [SerializeField, Range(0, 1)] private float sputterBelowFuel = 0.1f;
-    [Tooltip("How fast the throttle rises to full, per second. 3 takes about a third of a second.")]
     [SerializeField, Min(0.1f)] private float throttleRise = 3f;
-    [Tooltip("How fast the throttle drops back when the pedal is released, per second.")]
     [SerializeField, Min(0.1f)] private float throttleFall = 6f;
+
     [Header("Corner assist (player only)")]
-    [Tooltip("Holding throttle and steering together through a corner eases the car down to a speed that can make the turn, then lets it accelerate out.")]
     [SerializeField] private bool cornerAssist = true;
-    [Tooltip("Tightest turn the assist aims to make, in metres. Smaller slows the car more in a held turn.")]
+    [Tooltip("Turn radius used when the track can't be read (m).")]
     [SerializeField, Min(3)] private float cornerAssistRadius = 14f;
-    [Tooltip("How hard the assist slows the car, in metres per second squared.")]
     [SerializeField, Min(0)] private float cornerAssistDecel = 6f;
-    [Tooltip("Seconds a turn must be held before the assist starts, so quick taps on gentle bends keep full speed.")]
     [SerializeField, Min(0)] private float cornerAssistDelay = 0.12f;
-    [Tooltip("Seconds after the delay for the assist to reach full strength.")]
     [SerializeField, Min(0.01f)] private float cornerAssistRamp = 0.3f;
+    [Tooltip("Use the actual bend ahead on the track to decide how much to slow down.")]
+    [SerializeField] private bool cornerAssistReadsTrack = true;
+    [Tooltip("Scales bend radius down so the assist slows a little early.")]
+    [SerializeField, Range(0.5f, 1f)] private float cornerAssistBendMargin = 0.8f;
+    [SerializeField, Min(0.1f)] private float cornerAssistLookAheadSeconds = 2f;
+
+    [Header("High-speed handling")]
+    [Tooltip("Player steering speed at top speed, relative to low speed.")]
+    [SerializeField, Range(0.2f, 1f)] private float highSpeedSteerRate = 0.85f;
+    [Tooltip("How much faster steering returns to centre than it turns in.")]
+    [SerializeField, Range(1f, 4f)] private float steerReturnRate = 1.5f;
+    [SerializeField, Min(0)] private float antiRollForce = 3500f;
+    [SerializeField, Range(0.3f, 1f)] private float rearBrakeShare = 0.7f;
+    [Tooltip("Torque fades out over this last fraction of top speed.")]
+    [SerializeField, Range(0f, 0.3f)] private float topSpeedTaper = 0.08f;
+    [Tooltip("Extra steering angle allowed at speed beyond the no-slip limit.")]
+    [SerializeField, Range(1f, 1.6f)] private float steerSlipAllowance = 1.2f;
+    [Tooltip("Fraction of sideways sliding removed per second while grounded.")]
+    [SerializeField, Min(0)] private float sideSlipDamping = 1.5f;
+
+    [Header("Collisions")]
+    [SerializeField] private bool bounceOnContact = true;
+    [SerializeField, Range(0f, 1f)] private float carBounce = 0.35f;
+    [SerializeField, Range(0f, 1f)] private float wallBounce = 0.2f;
+    [Tooltip("Minimum speed (m/s) at which the car is pushed away from what it touches.")]
+    [SerializeField, Min(0)] private float minSeparationSpeed = 1.2f;
+    [SerializeField, Min(0)] private float maxBounceSpeed = 6f;
+    [SerializeField, Min(0.02f)] private float bounceCooldown = 0.35f;
+
+    private static readonly List<CarDriver> all = new List<CarDriver>();
+    public static IReadOnlyList<CarDriver> All => all;
 
     private Rigidbody body;
     private Vector3 spawnPosition;
     private Quaternion spawnRotation;
-    // What the player is asking for, and the eased value the engine actually uses.
     private float throttleInput;
     private float throttle;
     private float steering;
     private float currentSteering;
+    private float steeringInputSmoothed;
     private bool braking;
     private bool resetRequested;
     private float wheelbase = 2.3f;
     private float[] baseSidewaysStiffness;
     private float[] baseForwardStiffness;
     private PhysicsMaterial chassisMaterial;
-    private readonly System.Collections.Generic.Dictionary<Collider, PhysicsMaterial> chassisMaterials =
-        new System.Collections.Generic.Dictionary<Collider, PhysicsMaterial>();
-    private readonly System.Collections.Generic.Dictionary<Collider, bool> modifiableContacts =
-        new System.Collections.Generic.Dictionary<Collider, bool>();
+    private readonly Dictionary<Collider, PhysicsMaterial> chassisMaterials = new Dictionary<Collider, PhysicsMaterial>();
+    private readonly Dictionary<Collider, bool> modifiableContacts = new Dictionary<Collider, bool>();
+    private readonly List<Vector2Int> axles = new List<Vector2Int>();
     private int barrierBodyId;
-    private float steeringInputSmoothed;
     private float steerHeldSeconds;
     private float steerHeldSign;
-    public bool IsCornerAssisting { get; private set; }
-    public int GroundedWheelCount { get; private set; }
-    public bool HasVehicleContact => Time.fixedTime - lastVehicleContact < Time.fixedDeltaTime * 2.5f;
     private float lastVehicleContact = float.NegativeInfinity;
-    private string extraControls = "";
+    private float lastBounceTime = float.NegativeInfinity;
+    private LoopTrackGenerator assistTrack;
+    private bool searchedAssistTrack;
+    private int assistTrackIndex = -1;
+    private RigidbodyConstraints constraintsBeforeCountdown;
 
+    public Rigidbody Body => body;
+    public int GroundedWheelCount { get; private set; }
     public float SpeedKmh => body == null ? 0 : body.linearVelocity.magnitude * 3.6f;
     public bool IsBraking { get; private set; }
     public bool IsStopped { get; private set; }
     public bool IsCountdownHeld { get; private set; }
     public bool CanDrive => !IsStopped && !IsCountdownHeld
         && (RaceManager.Instance == null || RaceManager.Instance.IsRacing);
-    private RigidbodyConstraints constraintsBeforeCountdown;
-    // Turned off when the tank is empty: throttle does nothing, but steering and brakes still work.
+    // False when the tank is empty: no drive, but steering and brakes still work.
     public bool EngineRunning { get; set; } = true;
-    // Set by RaceManager every frame: 0 is an empty tank, 1 a full one.
     public float FuelFraction { get; set; } = 1f;
     public float Throttle => throttle;
+    public float MaxCorneringAcceleration => maxCorneringAcceleration;
     public event Action Respawned;
-    // Set by an AI driver: the car then takes its pedals and steering from SetInput
-    // instead of the keyboard and gamepad, and hides the on-screen controls box.
+    // When true, input comes from SetInput (AI) instead of keyboard/gamepad.
     public bool ExternalInput { get; set; }
+
+    private bool HasVehicleContact => Time.fixedTime - lastVehicleContact < Time.fixedDeltaTime * 2.5f;
 
     public void ConfigureWheels(Wheel[] bindings) => wheels = bindings;
 
@@ -121,8 +148,6 @@ public class CarDriver : MonoBehaviour
 
     internal void RequestReset() => resetRequested = true;
 
-    // Used by an AI driver in place of the player's keys: throttle -1 to 1 (negative reverses),
-    // steering -1 (left) to 1 (right). The throttle still eases in, exactly as for the player.
     public void SetInput(float throttleAmount, float steeringAmount, bool brake)
     {
         if (!CanDrive)
@@ -166,7 +191,7 @@ public class CarDriver : MonoBehaviour
         }
     }
 
-    // Disable driving immediately, then slow down before holding the car in place.
+    // Stops driving immediately; FixedUpdate then slows the car down and parks it.
     public void StopDriving()
     {
         IsStopped = true;
@@ -180,7 +205,6 @@ public class CarDriver : MonoBehaviour
             if (wheel?.collider == null)
                 continue;
             wheel.collider.motorTorque = 0;
-            // Decelerate the body below instead of adding the normal hard wheel brake.
             wheel.collider.brakeTorque = 0;
             wheel.collider.steerAngle = 0;
         }
@@ -212,8 +236,7 @@ public class CarDriver : MonoBehaviour
         }
     }
 
-    // Gives this car exactly the handling of another (an AI copying the player's car): engine,
-    // brakes, steering, grip, stability and throttle. Wheels and their set-up stay this car's own.
+    // Copies all handling settings (not wheels) from another car.
     public void CopyHandlingFrom(CarDriver other)
     {
         if (other == null || other == this)
@@ -241,31 +264,31 @@ public class CarDriver : MonoBehaviour
         cornerAssistDecel = other.cornerAssistDecel;
         cornerAssistDelay = other.cornerAssistDelay;
         cornerAssistRamp = other.cornerAssistRamp;
+        cornerAssistReadsTrack = other.cornerAssistReadsTrack;
+        cornerAssistBendMargin = other.cornerAssistBendMargin;
+        cornerAssistLookAheadSeconds = other.cornerAssistLookAheadSeconds;
+        highSpeedSteerRate = other.highSpeedSteerRate;
+        steerReturnRate = other.steerReturnRate;
+        antiRollForce = other.antiRollForce;
+        rearBrakeShare = other.rearBrakeShare;
+        topSpeedTaper = other.topSpeedTaper;
+        steerSlipAllowance = other.steerSlipAllowance;
+        sideSlipDamping = other.sideSlipDamping;
+        bounceOnContact = other.bounceOnContact;
+        carBounce = other.carBounce;
+        wallBounce = other.wallBounce;
+        minSeparationSpeed = other.minSeparationSpeed;
+        maxBounceSpeed = other.maxBounceSpeed;
+        bounceCooldown = other.bounceCooldown;
     }
 
-    // Lets an AI driver give its car its own handling without editing the scene.
-    // So the AI can give a car its normal handling back when the player takes it over.
-    public float TopSpeedKmh => topSpeedKmh;
-    public float MotorTorque => motorTorque;
-    public float ThrottleRise => throttleRise;
-    public float MaxCorneringAcceleration => maxCorneringAcceleration;
-
-    public void Tune(float topSpeed, float torque, float rise, float cornering)
-    {
-        topSpeedKmh = Mathf.Max(1, topSpeed);
-        motorTorque = Mathf.Max(0, torque);
-        throttleRise = Mathf.Max(0.1f, rise);
-        maxCorneringAcceleration = Mathf.Max(1, cornering);
-    }
-
-    // Lets other systems on the car list their keys in the on-screen controls box.
-    public void AddControlsHint(string line) => extraControls += "\n" + line;
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ClearRegistry() => all.Clear();
 
     private void Awake()
     {
         body = GetComponent<Rigidbody>();
         body.centerOfMass = centerOfMass;
-        // Resolve contacts more accurately on cars without increasing the cost of all world physics.
         body.solverIterations = Mathf.Max(body.solverIterations, 12);
         body.solverVelocityIterations = Mathf.Max(body.solverVelocityIterations, 4);
         body.maxDepenetrationVelocity = 3f;
@@ -285,7 +308,7 @@ public class CarDriver : MonoBehaviour
                 enabled = false;
                 return;
             }
-            // Preserve the imported mesh orientation and any off-center mesh pivot.
+            // Keep the imported mesh rotation and any off-centre pivot.
             Transform axle = wheel.collider.transform;
             wheel.rotationOffset = Quaternion.Inverse(axle.rotation) * wheel.mesh.rotation;
             Vector3 restCenter = axle.TransformPoint(wheel.collider.center)
@@ -302,17 +325,16 @@ public class CarDriver : MonoBehaviour
         }
         if (frontCount > 0 && rearCount > 0)
             wheelbase = Mathf.Max(0.1f, Mathf.Abs(frontZ / frontCount - rearZ / rearCount));
+        BuildAxles();
         baseSidewaysStiffness = Array.ConvertAll(wheels, wheel => wheel.collider.sidewaysFriction.stiffness);
         baseForwardStiffness = Array.ConvertAll(wheels, wheel => wheel.collider.forwardFriction.stiffness);
+        int barrierLayer = LayerMask.NameToLayer("TrackBarrier");
         foreach (Wheel wheel in wheels)
         {
-            // A barrier is a chassis obstacle, never a road surface. A suspension
-            // ray hitting its top edge can suddenly compress the spring and launch us.
-            int barrierLayer = LayerMask.NameToLayer("TrackBarrier");
+            // Suspension rays must not land on wall tops, or the spring launches the car.
             if (barrierLayer >= 0)
                 wheel.collider.excludeLayers |= 1 << barrierLayer;
             wheel.collider.ConfigureVehicleSubsteps(5f, 8, 12);
-            // Apply suspension forces near the centre of mass to reduce jacking during turns.
             wheel.collider.forceAppPointDistance = 0.1f;
         }
         ConfigureChassisContacts();
@@ -326,26 +348,33 @@ public class CarDriver : MonoBehaviour
         }
     }
 
+    private void OnEnable()
+    {
+        if (!all.Contains(this))
+            all.Add(this);
+    }
+
+    // Front and rear axles as (left, right) wheel indices.
+    private void BuildAxles()
+    {
+        axles.Clear();
+        var front = new List<int>();
+        var rear = new List<int>();
+        for (int i = 0; i < wheels.Length; i++)
+            (wheels[i].steering ? front : rear).Add(i);
+        foreach (var pair in new[] { front, rear })
+        {
+            if (pair.Count != 2)
+                continue;
+            float x0 = transform.InverseTransformPoint(wheels[pair[0]].collider.transform.position).x;
+            float x1 = transform.InverseTransformPoint(wheels[pair[1]].collider.transform.position).x;
+            axles.Add(x0 <= x1 ? new Vector2Int(pair[0], pair[1]) : new Vector2Int(pair[1], pair[0]));
+        }
+    }
+
     private void Update()
     {
-        if (!CanDrive)
-            return;
-        // Old fuel/speed system: instant, keyboard-only throttle.
-        // Keyboard keyboard = Keyboard.current;
-        // throttle = 0;
-        // steering = 0;
-        // braking = false;
-        // if (keyboard == null || !Application.isFocused)
-        //     return;
-        // throttle = (keyboard.wKey.isPressed || keyboard.upArrowKey.isPressed ? 1 : 0)
-        //     - (keyboard.sKey.isPressed || keyboard.downArrowKey.isPressed ? 1 : 0);
-        // steering = (keyboard.dKey.isPressed || keyboard.rightArrowKey.isPressed ? 1 : 0)
-        //     - (keyboard.aKey.isPressed || keyboard.leftArrowKey.isPressed ? 1 : 0);
-        // braking = keyboard.spaceKey.isPressed;
-        // resetRequested |= keyboard.rKey.wasPressedThisFrame;
-
-        // An AI-driven car keeps whatever SetInput gave it and ignores the keys (R included).
-        if (ExternalInput)
+        if (!CanDrive || ExternalInput)
             return;
 
         throttleInput = 0;
@@ -363,7 +392,6 @@ public class CarDriver : MonoBehaviour
             braking = keyboard.spaceKey.isPressed;
             resetRequested |= keyboard.rKey.wasPressedThisFrame;
         }
-        // Triggers give analog throttle and reverse, the left stick steers, A brakes and Start resets.
         Gamepad pad = Gamepad.current;
         if (pad != null)
         {
@@ -387,78 +415,60 @@ public class CarDriver : MonoBehaviour
             return;
         if (resetRequested)
         {
-            // A reset abandons this attempt, including any paid but unused jump.
-            ShortcutTracker.Exit(body);
-            IsBraking = false;
-            body.position = spawnPosition + Vector3.up * 0.5f;
-            body.rotation = spawnRotation;
-            body.linearVelocity = Vector3.zero;
-            body.angularVelocity = Vector3.zero;
-            currentSteering = steeringInputSmoothed = 0;
-            lastVehicleContact = float.NegativeInfinity;
-            throttle = 0;
-            resetRequested = false;
-            foreach (Wheel wheel in wheels)
-            {
-                wheel.collider.motorTorque = 0;
-                wheel.collider.brakeTorque = brakeTorque;
-                wheel.collider.steerAngle = 0;
-            }
-            Respawned?.Invoke();
+            Respawn();
             return;
         }
 
-        // Ease the throttle toward the input: it rises gently and drops quickly.
         float throttleRate = Mathf.Abs(throttleInput) > Mathf.Abs(throttle) ? throttleRise : throttleFall;
         throttle = Mathf.MoveTowards(throttle, throttleInput, throttleRate * Time.fixedDeltaTime);
-        // A low tank weakens the engine, and near empty it sputters.
         float power = powerByFuel.Evaluate(FuelFraction);
         if (FuelFraction < sputterBelowFuel && Mathf.PerlinNoise(Time.time * 4f, 0) < 0.35f)
             power = 0;
 
         float forwardSpeed = Vector3.Dot(body.linearVelocity, transform.forward);
-        // Old fuel/speed system:
-        // bool changingDirection = throttle * forwardSpeed < -0.5f;
-        // Use the raw input so pressing the other way still brakes instantly.
-        bool changingDirection = throttleInput * forwardSpeed < -0.5f;
-        bool applyBrake = braking || changingDirection;
-        // Coast drag and reverse motor torque are not brake-light triggers.
+        // Pressing against the direction of travel brakes.
+        bool applyBrake = braking || throttleInput * forwardSpeed < -0.5f;
         IsBraking = applyBrake;
-        // Old fuel/speed system: fixed top speed and full torque whatever the fuel level.
-        // float limit = (throttle >= 0 ? topSpeedKmh : reverseSpeedKmh) / 3.6f;
-        // float torque = applyBrake || !EngineRunning || Mathf.Abs(forwardSpeed) >= limit ? 0 : throttle * motorTorque;
-        // float idleBrake = !EngineRunning ? engineOffDrag : Mathf.Abs(throttle) < 0.01f ? 40f : 0;
+
         float limit = (throttle >= 0 ? topSpeedKmh * power : reverseSpeedKmh) / 3.6f;
-        float torque = applyBrake || !EngineRunning || Mathf.Abs(forwardSpeed) >= limit ? 0 : throttle * motorTorque * power;
+        float taper = topSpeedTaper > 0f
+            ? Mathf.Clamp01((limit - Mathf.Abs(forwardSpeed)) / Mathf.Max(limit * topSpeedTaper, 0.01f))
+            : (Mathf.Abs(forwardSpeed) >= limit ? 0f : 1f);
+        float torque = applyBrake || !EngineRunning ? 0 : throttle * motorTorque * power * taper;
         float idleBrake = !EngineRunning ? engineOffDrag : Mathf.Abs(throttleInput) < 0.01f ? 40f : 0;
-        torque = ApplyCornerAssist(forwardSpeed, power, applyBrake) ? 0 : torque;
+        if (ApplyCornerAssist(forwardSpeed, power, applyBrake))
+            torque = 0;
+
         float speedFraction = Mathf.Clamp01(SpeedKmh / topSpeedKmh);
-        float steeringLimit = Mathf.Lerp(steeringAngle, steeringAngle * 0.4f, speedFraction);
-        // Bicycle-model estimate: lateral acceleration = speed^2 * tan(angle) / wheelbase.
-        // Use planar speed, including sideways motion, so a skid cannot unlock
-        // sharp low-speed steering just because forward velocity has dropped.
         float planarSpeedSquared = Vector3.ProjectOnPlane(body.linearVelocity, transform.up).sqrMagnitude;
-        // Keep the top-speed turning radius during moderate boosts. Cap the extra
-        // cornering and grip so extreme boost speeds still demand wider turns.
         float topSpeed = topSpeedKmh / 3.6f;
-        float overspeed = holdTurnRadiusAboveTopSpeed ? Mathf.Clamp(planarSpeedSquared / (topSpeed * topSpeed), 1f, maxBoostGrip) : 1f;
+        float overspeed = holdTurnRadiusAboveTopSpeed
+            ? Mathf.Clamp(planarSpeedSquared / (topSpeed * topSpeed), 1f, maxBoostGrip) : 1f;
+        // Bicycle model: lateral accel = v² · tan(angle) / wheelbase.
         float safeAngle = Mathf.Atan(wheelbase * maxCorneringAcceleration * overspeed /
             Mathf.Max(planarSpeedSquared, 0.01f)) * Mathf.Rad2Deg;
-        steeringLimit = Mathf.Min(steeringLimit, safeAngle);
-        // Smooth the pedal-like steering input, not degrees: the response time must not
-        // collapse as the allowed wheel angle gets smaller at speed. Use the existing
-        // degrees/second setting so scene tuning still controls lock-to-lock response.
+        float steeringLimit = Mathf.Min(Mathf.Lerp(steeringAngle, steeringAngle * 0.4f, speedFraction),
+            safeAngle * steerSlipAllowance);
+
         float inputRate = steeringResponse / Mathf.Max(steeringAngle, 1f);
-        steeringInputSmoothed = Mathf.MoveTowards(steeringInputSmoothed, steering,
-            inputRate * Time.fixedDeltaTime);
+        if (!ExternalInput)
+        {
+            inputRate *= Mathf.Lerp(1f, highSpeedSteerRate, speedFraction);
+            bool returning = steering * steeringInputSmoothed < 0f
+                || Mathf.Abs(steering) < Mathf.Abs(steeringInputSmoothed);
+            if (returning)
+                inputRate *= steerReturnRate;
+        }
+        steeringInputSmoothed = Mathf.MoveTowards(steeringInputSmoothed, steering, inputRate * Time.fixedDeltaTime);
         currentSteering = steeringInputSmoothed * steeringLimit;
+
         GroundedWheelCount = 0;
         for (int i = 0; i < wheels.Length; i++)
         {
             Wheel wheel = wheels[i];
             wheel.collider.steerAngle = wheel.steering ? currentSteering : 0;
             wheel.collider.motorTorque = torque;
-            wheel.collider.brakeTorque = applyBrake ? brakeTorque : idleBrake;
+            wheel.collider.brakeTorque = applyBrake ? brakeTorque * (wheel.steering ? 1f : rearBrakeShare) : idleBrake;
             WheelFrictionCurve sideways = wheel.collider.sidewaysFriction;
             sideways.stiffness = baseSidewaysStiffness[i] * tireGrip * overspeed;
             wheel.collider.sidewaysFriction = sideways;
@@ -471,18 +481,64 @@ public class CarDriver : MonoBehaviour
         VehicleBarrierContacts.UpdateCar(barrierBodyId, body.worldCenterOfMass.y,
             GroundedWheelCount >= 2 && Vector3.Dot(transform.up, Vector3.up) > 0.7f);
         ApplyGroundedStability(forwardSpeed, planarSpeedSquared, topSpeed);
+        ApplyAntiRoll();
     }
 
-    // Players tend to hold throttle and steer together through corners instead of braking.
-    // While a turn is held, cap speed at what the car can corner at on a tight radius
-    // (speed = sqrt(cornering x radius)), easing off the power and slowing it gently.
-    // Returns true while it is holding the car back, so the engine gives no drive.
+    private void Respawn()
+    {
+        ShortcutTracker.Exit(body);
+        IsBraking = false;
+        body.position = spawnPosition + Vector3.up * 0.5f;
+        body.rotation = spawnRotation;
+        body.linearVelocity = Vector3.zero;
+        body.angularVelocity = Vector3.zero;
+        currentSteering = steeringInputSmoothed = 0;
+        lastVehicleContact = float.NegativeInfinity;
+        throttle = 0;
+        resetRequested = false;
+        foreach (Wheel wheel in wheels)
+        {
+            wheel.collider.motorTorque = 0;
+            wheel.collider.brakeTorque = brakeTorque;
+            wheel.collider.steerAngle = 0;
+        }
+        Respawned?.Invoke();
+    }
+
+    private void ApplyAntiRoll()
+    {
+        if (antiRollForce <= 0f)
+            return;
+        foreach (Vector2Int axle in axles)
+        {
+            WheelCollider left = wheels[axle.x].collider;
+            WheelCollider right = wheels[axle.y].collider;
+            bool leftGrounded = left.GetGroundHit(out WheelHit leftHit);
+            bool rightGrounded = right.GetGroundHit(out WheelHit rightHit);
+            float leftTravel = leftGrounded ? SuspensionTravel(left, leftHit) : 1f;
+            float rightTravel = rightGrounded ? SuspensionTravel(right, rightHit) : 1f;
+            float force = (leftTravel - rightTravel) * antiRollForce;
+            if (leftGrounded)
+                body.AddForceAtPosition(left.transform.up * -force, left.transform.position);
+            if (rightGrounded)
+                body.AddForceAtPosition(right.transform.up * force, right.transform.position);
+        }
+    }
+
+    // 0 = fully compressed, 1 = fully extended.
+    private static float SuspensionTravel(WheelCollider wheel, WheelHit hit)
+    {
+        float hitY = wheel.transform.InverseTransformPoint(hit.point).y;
+        return Mathf.Clamp01((wheel.center.y - hitY - wheel.radius) / Mathf.Max(wheel.suspensionDistance, 0.01f));
+    }
+
+    // While throttle and steering are held together, slow to a speed the bend ahead allows.
+    // Returns true while slowing, so the engine gives no drive.
     private bool ApplyCornerAssist(float forwardSpeed, float power, bool applyBrake)
     {
         float sign = Mathf.Abs(steering) > 0.5f ? Mathf.Sign(steering) : 0f;
         steerHeldSeconds = sign != 0f && sign == steerHeldSign ? steerHeldSeconds + Time.fixedDeltaTime : 0f;
         steerHeldSign = sign;
-        IsCornerAssisting = false;
         if (!cornerAssist || ExternalInput || applyBrake || throttleInput <= 0f || forwardSpeed <= 0f
             || GroundedWheelCount < 2)
             return false;
@@ -490,14 +546,94 @@ public class CarDriver : MonoBehaviour
             * Mathf.Abs(steeringInputSmoothed);
         if (strength <= 0f)
             return false;
-        float cornerSpeed = Mathf.Sqrt(maxCorneringAcceleration * cornerAssistRadius);
-        float cap = Mathf.Lerp(topSpeedKmh * power / 3.6f, cornerSpeed, strength);
+        float cornerSpeed = Mathf.Sqrt(maxCorneringAcceleration * AssistBendRadius(forwardSpeed, Mathf.Sign(steering)));
+        if (forwardSpeed <= cornerSpeed)
+            return false;
+        float cap = Mathf.Lerp(Mathf.Max(topSpeedKmh * power / 3.6f, forwardSpeed), cornerSpeed, strength);
         if (forwardSpeed <= cap)
             return false;
         float slow = Mathf.Min(cornerAssistDecel, (forwardSpeed - cap) / Time.fixedDeltaTime);
         body.AddForce(-transform.forward * slow, ForceMode.Acceleration);
-        IsCornerAssisting = true;
         return true;
+    }
+
+    // Tightest bend radius ahead in the steering direction, on the car's own line.
+    // Infinity if there is no bend that way; cornerAssistRadius if the track can't be used.
+    private float AssistBendRadius(float forwardSpeed, float steerSign)
+    {
+        if (!cornerAssistReadsTrack || ShortcutTracker.IsOnBranch(body))
+            return cornerAssistRadius;
+        if (!searchedAssistTrack)
+        {
+            searchedAssistTrack = true;
+            assistTrack = FindFirstObjectByType<LoopTrackGenerator>();
+        }
+        if (assistTrack == null || assistTrack.centerline.Count < 4)
+            return cornerAssistRadius;
+
+        int count = assistTrack.centerline.Count;
+        int near = NearestTrackPoint(assistTrack, count);
+        Vector3 along = assistTrack.GetForward(near);
+        along.y = 0f;
+        Vector3 offset = body.position - assistTrack.GetPoint(near);
+        offset.y = 0f;
+        float lateral = Vector3.Dot(offset, new Vector3(-along.z, 0f, along.x));
+        bool onRoad = Mathf.Abs(lateral) <= assistTrack.roadWidth * 0.5f + assistTrack.curbWidth + 2f;
+        bool rightWay = Vector3.Dot(transform.forward, along.normalized) > 0.3f;
+        if (!onRoad || !rightWay)
+            return cornerAssistRadius;
+
+        float lookAhead = Mathf.Max(15f, forwardSpeed * cornerAssistLookAheadSeconds);
+        float tightest = float.PositiveInfinity;
+        float travelled = 0f;
+        int index = near;
+        for (int step = 0; step < count && travelled < lookAhead; step++)
+        {
+            int next = index + 1;
+            travelled += Vector3.Distance(assistTrack.GetPoint(index), assistTrack.GetPoint(next));
+            Vector3 before = assistTrack.GetForward(next - 1);
+            Vector3 after = assistTrack.GetForward(next + 1);
+            before.y = 0f;
+            after.y = 0f;
+            float angle = Vector3.Angle(before, after) * Mathf.Deg2Rad;
+            float turn = Mathf.Sign(Vector3.Cross(before, after).y); // +1 = right-hand bend
+            if (angle > 0.001f && turn == steerSign)
+            {
+                float bend = Vector3.Distance(assistTrack.GetPoint(next - 1), assistTrack.GetPoint(next + 1)) / angle;
+                tightest = Mathf.Min(tightest, Mathf.Max((bend + lateral * turn) * cornerAssistBendMargin, 3f));
+            }
+            index = next;
+        }
+        return tightest;
+    }
+
+    // Local search around the last point; full search if the car has jumped far away.
+    private int NearestTrackPoint(LoopTrackGenerator track, int count)
+    {
+        int best = FindNearestTrackPoint(track, count, assistTrackIndex < 0 ? 0 : assistTrackIndex - 5,
+            assistTrackIndex < 0 ? count : Mathf.Min(26, count), out float distance);
+        if (assistTrackIndex >= 0 && distance > 15f * 15f)
+            best = FindNearestTrackPoint(track, count, 0, count, out distance);
+        assistTrackIndex = best;
+        return best;
+    }
+
+    private int FindNearestTrackPoint(LoopTrackGenerator track, int count, int from, int span, out float bestDistance)
+    {
+        bestDistance = float.MaxValue;
+        int best = 0;
+        for (int i = 0; i < span; i++)
+        {
+            int index = ((from + i) % count + count) % count;
+            Vector3 difference = track.GetPoint(index) - body.position;
+            difference.y = 0f;
+            if (difference.sqrMagnitude < bestDistance)
+            {
+                bestDistance = difference.sqrMagnitude;
+                best = index;
+            }
+        }
+        return best;
     }
 
     private void ApplyGroundedStability(float forwardSpeed, float speedSquared, float topSpeed)
@@ -508,12 +644,18 @@ public class CarDriver : MonoBehaviour
         float aero = Mathf.Clamp(speedSquared / (topSpeed * topSpeed), 0f, maxBoostGrip);
         body.AddForce(-transform.up * (downforceAcceleration * aero * contactFraction), ForceMode.Acceleration);
 
-        // Only damp excess yaw in the requested turn direction. Never steer the body
-        // directly, erase collision velocity, or fight a turn the tyres haven't begun.
+        // Damp only yaw beyond what the current steering asks for.
         float desiredYaw = forwardSpeed * Mathf.Tan(currentSteering * Mathf.Deg2Rad) / wheelbase;
         float yaw = Vector3.Dot(body.angularVelocity, transform.up);
         float excessYaw = yaw - Mathf.Clamp(desiredYaw, Mathf.Min(0f, yaw), Mathf.Max(0f, yaw));
         body.AddTorque(-transform.up * (excessYaw * yawStability * contactFraction), ForceMode.Acceleration);
+
+        // Skipped right after a hit so bounces still carry.
+        if (sideSlipDamping > 0f && !HasVehicleContact && Time.fixedTime - lastBounceTime > 0.4f)
+        {
+            Vector3 sideways = Vector3.Project(body.linearVelocity, transform.right);
+            body.AddForce(-sideways * (sideSlipDamping * contactFraction), ForceMode.Acceleration);
+        }
     }
 
     private void ConfigureChassisContacts()
@@ -537,8 +679,71 @@ public class CarDriver : MonoBehaviour
         }
     }
 
-    private void OnCollisionEnter(Collision collision) => TrackVehicleContact(collision);
-    private void OnCollisionStay(Collision collision) => TrackVehicleContact(collision);
+    private void OnCollisionEnter(Collision collision)
+    {
+        TrackVehicleContact(collision);
+        BounceOffContact(collision, true);
+    }
+
+    private void OnCollisionStay(Collision collision)
+    {
+        TrackVehicleContact(collision);
+        BounceOffContact(collision, false);
+    }
+
+    // Pushes the car away from a wall or car it hit sideways. Each car in a car-car
+    // contact takes half the push.
+    private void BounceOffContact(Collision collision, bool firstTouch)
+    {
+        if (!bounceOnContact || body == null || body.isKinematic || IsCountdownHeld || IsStopped)
+            return;
+        if (!firstTouch && Time.fixedTime - lastBounceTime < bounceCooldown)
+            return;
+        int contactCount = collision.contactCount;
+        if (contactCount == 0)
+            return;
+
+        Rigidbody other = collision.rigidbody;
+        CarDriver otherCar = other != null ? other.GetComponent<CarDriver>() : null;
+        bool hitCar = otherCar != null;
+        if (!hitCar && other != null && !other.isKinematic)
+            return;
+
+        Vector3 normal = Vector3.zero;
+        Vector3 point = Vector3.zero;
+        for (int i = 0; i < contactCount; i++)
+        {
+            ContactPoint contact = collision.GetContact(i);
+            normal += contact.normal;
+            point += contact.point;
+        }
+        point /= contactCount;
+        if (normal.sqrMagnitude < 0.0001f)
+            return;
+        normal.Normalize();
+        if (Mathf.Abs(normal.y) > (hitCar ? 0.6f : 0.35f))
+            return;
+        normal.y = 0f;
+        if (normal.sqrMagnitude < 0.0001f)
+            return;
+        normal.Normalize();
+        Vector3 toSelf = body.worldCenterOfMass - point;
+        toSelf.y = 0f;
+        if (Vector3.Dot(normal, toSelf) < 0f)
+            normal = -normal;
+
+        Vector3 relative = body.GetPointVelocity(point) - (other != null ? other.GetPointVelocity(point) : Vector3.zero);
+        float separating = Vector3.Dot(relative, normal);
+        float impact = firstTouch ? Mathf.Abs(Vector3.Dot(collision.relativeVelocity, normal)) : 0f;
+        float wanted = Mathf.Min(Mathf.Max(impact * (hitCar ? carBounce : wallBounce), minSeparationSpeed), maxBounceSpeed);
+        float needed = wanted - separating;
+        if (needed <= 0f)
+            return;
+        bool otherPushes = hitCar && otherCar.bounceOnContact && otherCar.body != null && !otherCar.body.isKinematic
+            && !otherCar.IsCountdownHeld && !otherCar.IsStopped;
+        body.AddForce(normal * needed * (otherPushes ? 0.5f : 1f), ForceMode.VelocityChange);
+        lastBounceTime = Time.fixedTime;
+    }
 
     private void TrackVehicleContact(Collision collision)
     {
@@ -576,6 +781,7 @@ public class CarDriver : MonoBehaviour
 
     private void OnDisable()
     {
+        all.Remove(this);
         VehicleBarrierContacts.RemoveCar(barrierBodyId);
         IsBraking = false;
         foreach (Wheel wheel in wheels)
@@ -589,14 +795,8 @@ public class CarDriver : MonoBehaviour
 
     private void OnGUI()
     {
-        // if (!showControls)
-        //     return;
         if (!showControls || ExternalInput)
             return;
-        // GUI.Box(new Rect(16, 16, 310, 76),
-        //     $"{SpeedKmh:0} km/h\nWASD / Arrows: drive and steer\nSpace: brake    R: reset");
-        string controls = "WASD / Arrows: drive and steer\nSpace: brake    R: reset" + extraControls;
-        int lines = controls.Split('\n').Length;
-        GUI.Box(new Rect(16, 16, 310, 20 + 20 * lines), controls);
+        GUI.Box(new Rect(16, 16, 310, 60), "WASD / Arrows: drive and steer\nSpace: brake    R: reset");
     }
 }

@@ -7,98 +7,118 @@ public class AICarWaypointDriver : MonoBehaviour
 {
     [Header("Track")]
     public LoopTrackGenerator track;
-    [Tooltip("The racing line, in metres to the side of the centre.")]
+    [Tooltip("Racing line offset from the centre (m).")]
     public float laneOffset = 1.5f;
 
     [Header("AI Driving")]
-    [Tooltip("Target speed on straights, in km/h. Keep it a little under the car's top speed so catch-up has room.")]
+    [Tooltip("Target speed on straights (km/h).")]
     public float speedKph = 80f;
-    [Tooltip("Share of the car's cornering limit the AI uses in corners. Below 1 leaves a safety margin.")]
+    [Tooltip("Fraction of the car's cornering limit used in corners.")]
     [Range(0.5f, 1f)] public float cornerSpeedMargin = 0.9f;
-    [Tooltip("Braking the AI plans on before a corner, in metres per second squared.")]
+    [Tooltip("Planned braking before corners (m/s²).")]
     public float cornerBrakeDecel = 7f;
-    [Tooltip("How far ahead the AI aims when standing still, in metres.")]
+    [Tooltip("Aim distance at standstill (m).")]
     public float lookAheadMinMetres = 10f;
-    [Tooltip("Extra aim distance for every m/s of speed, in seconds. Further ahead at speed keeps the line smooth; closer in slow corners stops it cutting them.")]
+    [Tooltip("Extra aim distance per m/s of speed (s).")]
     public float lookAheadSeconds = 0.9f;
-    [Tooltip("How far past the aim point it reads the road for corners, per m/s of speed, in seconds, so it slows down before the bend instead of in it.")]
+    [Tooltip("Corner preview distance per m/s of speed (s).")]
     public float cornerPreviewSeconds = 1.6f;
-    [Tooltip("Angle to the aim point, in degrees, at which the AI turns the wheel all the way. Higher is gentler.")]
+    [Tooltip("Aim angle for full steering lock (degrees).")]
     public float fullSteerAtDegrees = 30f;
-    [Tooltip("Steering damping against how fast the car is already turning, in seconds. Higher stops weaving; too high makes it turn in late.")]
+    [Tooltip("Steering damping against yaw rate (s).")]
     public float steerDamping = 0.12f;
-    [Tooltip("How fast the target speed may change, in km/h per second, so it eases into and out of corners.")]
+    [Tooltip("Max change in target speed (km/h per second).")]
     public float speedRampKph = 40f;
-    [Tooltip("Throttle that holds a steady speed. More is added the further below target it is.")]
+    [Tooltip("Throttle that holds a steady speed.")]
     public float cruiseThrottle = 0.35f;
-    [Tooltip("How far below target, in km/h, it goes before using full throttle.")]
+    [Tooltip("Speed deficit (km/h) for full throttle.")]
     public float throttleBandKph = 8f;
-    [Tooltip("How far over its target speed, in km/h, the AI goes before braking instead of just lifting off.")]
+    [Tooltip("Overspeed (km/h) before braking instead of lifting off.")]
     public float brakeOverKph = 10f;
 
     [Header("Colour cubes")]
-    [Tooltip("Drives through cubes: its own colour while it leads, the leader's colour while it is 2nd or 3rd.")]
+    [Tooltip("Own colour while leading, leader's colour while 2nd or 3rd.")]
     public bool huntCubes = true;
-    [Tooltip("How far ahead along the road, in metres, it looks for a cube to go for.")]
+    [Tooltip("Search distance for cubes (m).")]
     public float cubeSearchMetres = 120f;
-    [Tooltip("Cubes closer than this, in metres, are too late to start moving across for.")]
+    [Tooltip("Ignore cubes closer than this (m).")]
     public float cubeMinAheadMetres = 12f;
-    [Tooltip("Slowest it moves across the road, in metres per second: back to its racing line, and toward cubes that are far away.")]
+    [Tooltip("Minimum lane-change speed (m/s).")]
     public float laneChangeSpeed = 4f;
-    [Tooltip("Fastest it moves across toward a cube, in metres per second. Cubes it can't reach in time at this speed are skipped.")]
+    [Tooltip("Maximum lane-change speed (m/s).")]
     public float maxLaneChangeSpeed = 8f;
-    [Tooltip("It aims to be lined up with the cube this many seconds before reaching it, so it goes through it straight.")]
+    [Tooltip("Be lined up this many seconds before the cube.")]
     public float laneSettleSeconds = 0.5f;
-    [Tooltip("When the cube is within its aim distance, it aims along the road through the cube to this many metres past it, following the curve on bends.")]
+    [Tooltip("Aim this far past the cube (m).")]
     public float aimPastCubeMetres = 4f;
+    [Tooltip("Aim distance while lining up for a cube (s of travel).")]
+    public float cubeLookAheadSeconds = 0.45f;
+    [Tooltip("Lateral acceleration used to reach a cube (m/s²).")]
+    public float cubeLateralAccel = 6f;
+    [Tooltip("Max offset from the cube centre that still collects it (m).")]
+    public float cubeHitTolerance = 1f;
+
+    [Header("Other cars")]
+    [Tooltip("Avoid cutting across, ramming or sticking to other cars.")]
+    public bool avoidOtherCars = true;
+    [Tooltip("Centre-to-centre side gap kept from a car alongside (m).")]
+    public float sideGapMetres = 2.8f;
+    [Tooltip("Along-track distance within which a car counts as alongside (m).")]
+    public float alongsideMetres = 5.5f;
+    [Tooltip("Along-track distance within which two cars count as level (m).")]
+    public float levelMetres = 1.5f;
+    [Tooltip("Speed fraction while letting another car cross ahead.")]
+    [Range(0.5f, 1f)] public float yieldSpeedShare = 0.85f;
+    [Tooltip("Time gap kept behind a slower car (s).")]
+    public float followSeconds = 0.6f;
 
     [Header("Start grid")]
-    [Tooltip("At the start, the car the player picked takes the middle of the grid and the other two start either side of it. Each AI car's lane follows its side.")]
+    [Tooltip("Player's car starts in the middle of the grid, AI cars either side.")]
     public bool playerStartsInMiddle = true;
-    [Tooltip("Lane, in metres from the centre, for the AI cars that start either side of the player.")]
+    [Tooltip("Lane offset for the AI cars beside the player at the start (m).")]
     public float sideLaneMetres = 3.5f;
 
     [Header("Keeping the race close")]
-    [Tooltip("Scales the AI's speeds by how long its lane is compared with the centre line, so an outside lane isn't slower over a lap and an inside lane isn't faster.")]
+    [Tooltip("Scale speed by lane length so inside and outside lanes are even over a lap.")]
     public bool equalizeLaneLength = true;
-    [Tooltip("Speeds the AI up a little when it is behind the player and eases it off when it is ahead.")]
+    [Tooltip("Speed up when behind the player, ease off when ahead.")]
     public bool catchUp = true;
-    [Tooltip("Gap to the player, in metres, inside which the catch-up does nothing.")]
+    [Tooltip("Catch-up dead zone (m).")]
     public float catchUpDeadZoneMetres = 10f;
-    [Tooltip("Gap to the player, in metres, at which the catch-up is at full strength.")]
+    [Tooltip("Gap at which catch-up is at full strength (m).")]
     public float catchUpFullAtMetres = 120f;
-    [Tooltip("Most the AI speeds up when behind the player, as a fraction of its target speed (0.07 = 7%).")]
+    [Tooltip("Max speed-up when behind (fraction).")]
     public float catchUpMaxBoost = 0.07f;
-    [Tooltip("Most the AI eases off when ahead of the player, as a fraction of its target speed.")]
+    [Tooltip("Max slow-down when ahead (fraction).")]
     public float catchUpMaxSlowdown = 0.07f;
 
     [Header("Looks")]
-    [Tooltip("The car body. Leave empty to use the car model's main mesh.")]
+    [Tooltip("Car body renderer. Empty = largest mesh on the car.")]
     public Renderer bodyRenderer;
     public int bodyMaterialSlot = 0;
-    [Tooltip("Paints the body to match the rival's car. Not used on the colour-switching grid, where each car keeps its own colour.")]
+    [Tooltip("Paint the body in the rival's fuel colour (not on the colour-switching grid).")]
     public bool paintWithFuelColour = true;
 
     [Header("Car (from the main menu, single-rival scenes only)")]
-    [Tooltip("Pick the rival's car from the car chosen in the main menu. Off: it keeps the Own Fuel set on AI Fuel Tank.")]
+    [Tooltip("Pick the rival's car from the main-menu choice.")]
     public bool pickCarFromMenu = true;
-    [Tooltip("Race the same car as the player instead of a different one.")]
+    [Tooltip("Use the same car as the player.")]
     public bool sameCarAsPlayer = false;
-    [Tooltip("With a different car: off picks one of the other two at random each race; on always takes the next one (Gasoline > Diesel > Ethanol > Gasoline).")]
+    [Tooltip("Off: random other car. On: next car in order.")]
     public bool alwaysNextCar = false;
 
     [Header("Respawn")]
-    [Tooltip("If the AI is flipped, pinned against something or off the track this long, it is put back on the road.")]
+    [Tooltip("Respawn after being flipped, pinned or off track this long (s).")]
     public float stuckSeconds = 2.5f;
-    [Tooltip("Height above the road the AI is put back at, in metres.")]
+    [Tooltip("Respawn height above the road (m).")]
     public float respawnHeight = 0.8f;
-    [Tooltip("After the wheels leave the ground (the jump, a bump) or the AI is put back, stuck checks wait this long, in seconds.")]
+    [Tooltip("Pause stuck checks this long after leaving the ground or respawning (s).")]
     public float stuckGraceSeconds = 1.5f;
-    [Tooltip("Logs each time the AI is put back on the road (for play-testing).")]
+    [Tooltip("Log respawns.")]
     public bool logRespawns = true;
 
     [Header("Shortcuts")]
-    [Tooltip("Lets the AI take a shortcut when it holds the mix the shortcut needs. Off: it always stays on the main road.")]
+    [Tooltip("Allow shortcuts when the AI holds the required mix.")]
     public bool useShortcuts = true;
 
     private Rigidbody rb;
@@ -118,9 +138,12 @@ public class AICarWaypointDriver : MonoBehaviour
     private float currentLane;
     private float nextCubeSearch;
     private readonly Dictionary<FuelPickup, Vector2> cubeSpots = new Dictionary<FuelPickup, Vector2>();
+    private readonly Dictionary<FuelPickup, Vector3> cubeGround = new Dictionary<FuelPickup, Vector3>();
+    private readonly Dictionary<FuelPickup, Vector3> cubeRoadForward = new Dictionary<FuelPickup, Vector3>();
     private float[] alongTrack;
     private float lapMetres;
     private float carAlong;
+    private float carLateral; // measured; currentLane is the target
     private float laneRate;
     private float targetSpeedKph = -1f;
     private float laneLengthFactor = 1f;
@@ -153,7 +176,7 @@ public class AICarWaypointDriver : MonoBehaviour
         driver.ExternalInput = true;
         driver.enabled = true;
 
-        // Practice cars participate in control handoffs and stay parked when uncontrolled.
+        // Practice cars stay parked until the player takes them over.
         if (RaceManager.Instance != null && RaceManager.Instance.IsSwapPractice)
         {
             paintWithFuelColour = false;
@@ -296,14 +319,25 @@ public class AICarWaypointDriver : MonoBehaviour
         tank.UpdateStanding(rb);
         laneRate = laneChangeSpeed;
         float lane = FindCubeLane(track.centerline.Count, speedMs, out float cubeLane) ? cubeLane : laneOffset;
+
+        float speedShare = 1f;
+        float followCapKph = float.MaxValue;
+        bool givingWay = false;
+        if (avoidOtherCars)
+            lane = AvoidOtherCars(lane, speedMs, out speedShare, out followCapKph, out givingWay);
+
+        bool goingForCube = chasing != null && !givingWay;
+        float steerAim = goingForCube
+            ? Mathf.Clamp(speedMs * cubeLookAheadSeconds, lookAheadMinMetres * 0.6f, aimDistance)
+            : aimDistance;
         currentLane = Mathf.MoveTowards(currentLane, lane, laneRate * Time.fixedDeltaTime);
-        Vector3 target = PointAlongTrack(aimDistance, currentLane);
-        if (chasing != null)
+        Vector3 target = PointAlongTrack(steerAim, currentLane);
+        if (goingForCube)
         {
             float cubeAhead = MetresAhead(chasing);
             if (cubeAhead <= aimDistance)
             {
-                target = PointAlongTrack(cubeAhead + aimPastCubeMetres, cubeLane);
+                target = CubeAimPoint(chasing);
                 currentLane = Mathf.MoveTowards(currentLane, cubeLane, maxLaneChangeSpeed * Time.fixedDeltaTime);
             }
         }
@@ -313,7 +347,8 @@ public class AICarWaypointDriver : MonoBehaviour
             return;
 
         float cornerLimit = CornerLimitKph(aimDistance + speedMs * cornerPreviewSeconds, lane);
-        float wantedSpeed = Mathf.Min(speedKph, cornerLimit) * LaneLengthFactor() * CatchUpFactor();
+        float wantedSpeed = Mathf.Min(Mathf.Min(speedKph, cornerLimit) * LaneLengthFactor() * CatchUpFactor() * speedShare,
+            followCapKph);
         targetSpeedKph = targetSpeedKph < 0f
             ? wantedSpeed
             : Mathf.MoveTowards(targetSpeedKph, wantedSpeed, speedRampKph * Time.fixedDeltaTime);
@@ -323,7 +358,9 @@ public class AICarWaypointDriver : MonoBehaviour
         float aimAngle = Vector3.SignedAngle(forward, toTarget, Vector3.up);
         float steer = Mathf.Clamp((aimAngle - yawRate * steerDamping) / fullSteerAtDegrees, -1f, 1f);
         Pedals(desiredSpeed, speed, out float throttle, out bool brake);
-        if (tank.Fart != null && tank.Fart.IsFarting && cornerLimit >= speedKph)
+        // No boost while giving way or following, or it rams the other car.
+        if (tank.Fart != null && tank.Fart.IsFarting && cornerLimit >= speedKph
+            && speedShare >= 1f && followCapKph == float.MaxValue)
         {
             throttle = 1f;
             brake = false;
@@ -367,7 +404,11 @@ public class AICarWaypointDriver : MonoBehaviour
                 continue;
             float cubeLane = cubeSpots[cube].y;
             float secondsToLineUp = ahead / Mathf.Max(speedMs, 5f) - laneSettleSeconds;
-            if (Mathf.Abs(cubeLane - currentLane) > maxLaneChangeSpeed * Mathf.Max(secondsToLineUp, 0f))
+            float shift = Mathf.Max(Mathf.Abs(cubeLane - carLateral) - cubeHitTolerance, 0f);
+            float time = Mathf.Max(secondsToLineUp, 0f);
+            // Max sideways shift: accelerate half the time, decelerate the other half.
+            float reachable = Mathf.Min(maxLaneChangeSpeed * time, 0.25f * cubeLateralAccel * time * time);
+            if (shift > reachable)
                 continue;
             nearest = ahead;
             nearestLane = cubeLane;
@@ -375,6 +416,7 @@ public class AICarWaypointDriver : MonoBehaviour
         }
         if (chasing == null)
             return false;
+        currentLane = carLateral;
         if (tank.logFuelDecisions)
             Debug.Log($"[AI] {name} ({tank.ownFuel}, P{tank.RacePosition}) going for the {chasing.type} cube {nearest:0} m ahead, {nearestLane:0.0} m from the centre.", this);
         lane = nearestLane;
@@ -422,7 +464,7 @@ public class AICarWaypointDriver : MonoBehaviour
         return Mathf.Repeat(cubeSpots[cube].x - carAlong, lapMetres);
     }
 
-    void RefreshCubes(int count)
+    void EnsureTrackLengths(int count)
     {
         if (alongTrack == null || alongTrack.Length != count + 1)
         {
@@ -435,7 +477,12 @@ public class AICarWaypointDriver : MonoBehaviour
             }
             lapMetres = Mathf.Max(alongTrack[count], 1f);
         }
-        ProjectOnTrack(rb.position, currentWaypoint, out carAlong, out _);
+    }
+
+    void RefreshCubes(int count)
+    {
+        EnsureTrackLengths(count);
+        ProjectOnTrack(rb.position, currentWaypoint, out carAlong, out carLateral);
         if (cubes.Count > 0 || Time.time < nextCubeSearch)
             return;
         nextCubeSearch = Time.time + 1f;
@@ -445,10 +492,106 @@ public class AICarWaypointDriver : MonoBehaviour
             ProjectOnTrack(cube.transform.position, near, out float along, out float lateral);
             cubes.Add(cube);
             cubeSpots[cube] = new Vector2(along, lateral);
+            Vector3 ground = cube.transform.position;
+            ground.y = rb.position.y;
+            cubeGround[cube] = ground;
+            cubeRoadForward[cube] = track.GetForward(near);
         }
     }
 
-    // OnTriggerEnter still fires on a disabled script, hence the enabled check.
+    // A point just past the cube, along the road.
+    Vector3 CubeAimPoint(FuelPickup cube)
+    {
+        Vector3 roadForward = cubeRoadForward[cube];
+        roadForward.y = 0f;
+        return cubeGround[cube] + roadForward.normalized * aimPastCubeMetres;
+    }
+
+    // Adjusts the wanted lane around nearby cars. Also returns a speed fraction (when
+    // yielding) and a speed cap (when following a slower car).
+    float AvoidOtherCars(float wantedLane, float speedMs, out float speedShare, out float followCapKph, out bool givingWay)
+    {
+        speedShare = 1f;
+        followCapKph = float.MaxValue;
+        givingWay = false;
+        int count = track.centerline.Count;
+        EnsureTrackLengths(count);
+        ProjectOnTrack(rb.position, currentWaypoint, out float myAlong, out float myLateral);
+        float laneLimit = Mathf.Max(track.roadWidth * 0.5f - 1.2f, 0.5f);
+        float requested = wantedLane;
+        float followMetres = 4.5f + speedMs * followSeconds;
+
+        foreach (CarDriver other in CarDriver.All)
+        {
+            if (other == null || other == driver || other.Body == null)
+                continue;
+            Rigidbody otherBody = other.Body;
+            Vector3 offset = otherBody.position - rb.position;
+            // Ignore cars on a different level (bridge).
+            if (Mathf.Abs(offset.y) > 2.5f)
+                continue;
+            offset.y = 0f;
+            if (offset.sqrMagnitude > 35f * 35f || ShortcutTracker.IsOnBranch(otherBody))
+                continue;
+
+            int near = NearestPoint(otherBody.position, currentWaypoint - 8, 21);
+            ProjectOnTrack(otherBody.position, near, out float otherAlong, out float otherLateral);
+            float ahead = Mathf.Repeat(otherAlong - myAlong + lapMetres * 0.5f, lapMetres) - lapMetres * 0.5f;
+            float gap = otherLateral - myLateral;
+            bool inLine = Mathf.Abs(gap) < sideGapMetres * 0.7f;
+            if (inLine && ahead <= 0f)
+                continue;
+
+            // Close behind in the same line: match its speed.
+            if (ahead > 0f && ahead < followMetres && Mathf.Abs(gap) < sideGapMetres * 0.8f)
+            {
+                float theirSpeed = Mathf.Max(Vector3.Dot(otherBody.linearVelocity, track.GetForward(near)), 0f);
+                float tooClose = followMetres - ahead;
+                followCapKph = Mathf.Min(followCapKph, Mathf.Max(theirSpeed - tooClose * 0.5f, 0f) * 3.6f);
+            }
+
+            if (Mathf.Abs(ahead) < alongsideMetres)
+            {
+                // Alongside: don't steer across it.
+                float theirSide = Mathf.Abs(gap) > 0.5f ? Mathf.Sign(gap) : (requested >= otherLateral ? -1f : 1f);
+                float before = wantedLane;
+                wantedLane = theirSide > 0f
+                    ? Mathf.Min(wantedLane, otherLateral - sideGapMetres)
+                    : Mathf.Max(wantedLane, otherLateral + sideGapMetres);
+                if (!Mathf.Approximately(before, wantedLane))
+                {
+                    givingWay = true;
+                    // The car behind yields; if level, tie-break on instance ID.
+                    bool theyGoFirst = ahead > levelMetres
+                        || (Mathf.Abs(ahead) <= levelMetres && other.GetInstanceID() < driver.GetInstanceID());
+                    if (theyGoFirst)
+                        speedShare = Mathf.Min(speedShare, yieldSpeedShare);
+                }
+            }
+            else if (ahead > 0f && ahead < followMetres + 10f && Mathf.Abs(gap) < sideGapMetres)
+            {
+                // Car ahead in our line: pass on the side closer to the wanted lane.
+                if (Mathf.Abs(wantedLane - otherLateral) < sideGapMetres)
+                {
+                    float left = otherLateral + sideGapMetres;
+                    float right = otherLateral - sideGapMetres;
+                    bool leftFits = left <= laneLimit;
+                    bool rightFits = right >= -laneLimit;
+                    if (leftFits || rightFits)
+                    {
+                        wantedLane = leftFits && (!rightFits || Mathf.Abs(left - requested) <= Mathf.Abs(right - requested))
+                            ? left : right;
+                        givingWay = true;
+                    }
+                }
+            }
+        }
+        if (givingWay)
+            wantedLane = Mathf.Clamp(wantedLane, -laneLimit, laneLimit);
+        return wantedLane;
+    }
+
+    // Triggers fire on disabled scripts too.
     void OnTriggerEnter(Collider other)
     {
         if (!enabled || !huntCubes || tank == null)
@@ -712,7 +855,7 @@ public class AICarWaypointDriver : MonoBehaviour
         graceUntil = Time.time + stuckGraceSeconds;
     }
 
-    // Search only near the last point: parts of the loop pass close to each other.
+    // Local search: parts of the loop pass close to each other.
     void UpdateWaypoint(int count)
     {
         currentWaypoint = currentWaypoint < 0
