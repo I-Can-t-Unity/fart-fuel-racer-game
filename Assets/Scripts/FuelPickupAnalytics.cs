@@ -26,9 +26,12 @@ public class FuelPickupAnalytics : MonoBehaviour
     string sessionId;
     bool raceOver;
     readonly HashSet<int> rowsCollected = new HashSet<int>();
+    readonly Dictionary<int, string> rowsChoice = new Dictionary<int, string>();
+    readonly Dictionary<int, int> rowsPlace = new Dictionary<int, int>();
     int switches;
     string playerID;
     string swapDirection;
+    int placeBefore;
 
     public static string LocalFolder =>
 #if UNITY_EDITOR
@@ -44,6 +47,7 @@ public class FuelPickupAnalytics : MonoBehaviour
         sessionId = "r-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)
             + "-" + UnityEngine.Random.Range(1000, 10000);
         playerID = PlayerPrefs.GetString("analytics_player_id", "");
+        //if no playerid, randomly generate one
         if (playerID == "")
         {
             playerID = "p-" + Guid.NewGuid().ToString("N");
@@ -82,13 +86,38 @@ public class FuelPickupAnalytics : MonoBehaviour
             return;
         if (collected)
             rowsCollected.Add(pickup.row);
+        string result = inventory.LastResult;
+        string choice = "";
+        string rowChoice = "";
+        int place = Place(inventory.CurrentCar);
+        if (result == "boost")
+        {
+            choice = "own";
+        }
+        else if(result == "switch")
+        {
+            choice = swapDirection;
+            place = placeBefore;
+        }
+        else if(result == "shielded")
+        {
+            choice = "blocked";
+        }
+        if(choice != "" && !rowsChoice.ContainsKey(pickup.row))
+        {
+            rowsChoice[pickup.row] = choice;
+            rowsPlace[pickup.row] = place;
+            rowChoice = choice;
+        }
         Record("block_hit", new Dictionary<string, string>
         {
             ["row"] = pickup.row.ToString(CultureInfo.InvariantCulture),
             ["lane"] = pickup.lane.ToString(CultureInfo.InvariantCulture),
             ["block_color"] = ColorName(pickup.type),
             ["own_color"] = ColorName(inventory.carFuel),
-            ["result"] = inventory.LastResult
+            ["result"] = inventory.LastResult,
+            ["place"] = place.ToString(),
+            ["choice"] = rowChoice
         });
     }
 
@@ -97,11 +126,27 @@ public class FuelPickupAnalytics : MonoBehaviour
         if (raceOver)
             return;
         bool hit = rowsCollected.Remove(gate.row);
+        if(rowsChoice.TryGetValue(gate.row, out string choice))
+        {
+            choice = "";
+        }
+        else
+        {
+            choice = "dodge";
+        }
+        if(!rowsPlace.TryGetValue(gate.row, out int place))
+        {
+            place = Place(inventory.CurrentCar);
+        }
         Record("row_passed", new Dictionary<string, string>
         {
             ["row"] = gate.row.ToString(CultureInfo.InvariantCulture),
             ["hit_in_row"] = hit ? "1" : "0",
+            ["choice"] = choice,
+            ["place"] = place.ToString()
         });
+        rowsChoice.Remove(gate.row);
+        rowsPlace.Remove(gate.row);
     }
 
     void OnSwitched(FuelType from, FuelType to)
@@ -110,11 +155,14 @@ public class FuelPickupAnalytics : MonoBehaviour
         {
             return;
         }
+        rowsChoice.Clear();
+        rowsPlace.Clear();
+        rowsCollected.Clear();
         switches++;
         RaceManager race = RaceManager.Instance;
         CarDriver carBefore = race.Racers[race.RacerIndexForColor(from)];
         CarDriver carAfter = inventory.CurrentCar;
-        int placeBefore = Place(carBefore);
+        placeBefore = Place(carBefore);
         int placeAfter = Place(carAfter);
         if(placeAfter < placeBefore)
         {
@@ -220,6 +268,7 @@ public class FuelPickupAnalytics : MonoBehaviour
             return 0;
         }
         place = 1;
+        //compare the distance the car has passed to get place
         for(int i = 0; i < race.Racers.Count; i++)
         {
             if(hud.TryGetMetres(race.Racers[i].GetComponent<Rigidbody>(), out float other) && other > meters)
