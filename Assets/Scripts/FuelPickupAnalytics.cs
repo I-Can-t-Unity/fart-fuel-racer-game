@@ -5,6 +5,7 @@ using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 [RequireComponent(typeof(FuelInventory))]
 public class FuelPickupAnalytics : MonoBehaviour
@@ -16,7 +17,7 @@ public class FuelPickupAnalytics : MonoBehaviour
 
     static readonly string[] Columns =
     {
-        "session_id", "timestamp_utc", "platform", "event", "race_time_s", "row", "lane", "block_color", "own_color", "result", "from_color", "to_color", "hit_in_row", "race_result", "won", "final_color", "switches",
+        "session_id", "timestamp_utc", "platform", "event", "race_time_s", "row", "lane", "block_color", "own_color", "result", "from_color", "to_color", "hit_in_row", "race_result", "won", "final_color", "switches", "level", "player_id", "place", "place_before", "place_after", "cause", "choice", "shield_owner"
     };
 
     FuelInventory inventory;
@@ -26,6 +27,7 @@ public class FuelPickupAnalytics : MonoBehaviour
     bool raceOver;
     readonly HashSet<int> rowsCollected = new HashSet<int>();
     int switches;
+    string playerID;
 
     public static string LocalFolder =>
 #if UNITY_EDITOR
@@ -40,6 +42,13 @@ public class FuelPickupAnalytics : MonoBehaviour
         // The "r-" prefix keeps spreadsheets from reading the id as a date or number.
         sessionId = "r-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)
             + "-" + UnityEngine.Random.Range(1000, 10000);
+        playerID = PlayerPrefs.GetString("analytics_player_id", "");
+        if (playerID == "")
+        {
+            playerID = "p-" + Guid.NewGuid().ToString("N");
+            PlayerPrefs.SetString("analytics_player_id", playerID);
+            PlayerPrefs.Save();
+        }
     }
 
     void Start()
@@ -96,7 +105,7 @@ public class FuelPickupAnalytics : MonoBehaviour
 
     void OnSwitched(FuelType from, FuelType to)
     {
-        if(raceOver)
+        if (raceOver)
         {
             return;
         }
@@ -141,6 +150,8 @@ public class FuelPickupAnalytics : MonoBehaviour
         fields["platform"] = Application.platform.ToString();
         fields["event"] = eventName;
         fields["race_time_s"] = Time.timeSinceLevelLoad.ToString("0.00", CultureInfo.InvariantCulture);
+        fields["level"] = gameObject.scene.name;
+        fields["player_id"] = playerID;
 
         if (!string.IsNullOrWhiteSpace(endpointUrl))
             AnalyticsUploader.Send(endpointUrl.Trim(), ToJson(fields));
@@ -172,5 +183,29 @@ public class FuelPickupAnalytics : MonoBehaviour
         for (int i = 0; i < Columns.Length; i++)
             values[i] = fields.TryGetValue(Columns[i], out string value) ? value : "";
         File.AppendAllText(path, string.Join(",", values) + "\n");
+    }
+
+    int Place(CarDriver car)
+    {
+        int place = 0;
+        RaceManager race = RaceManager.Instance;
+        RacePositionHUD hud = RacePositionHUD.Instance;
+        if (!race || !hud || !car)
+        {
+            return place;
+        }
+        if(!hud.TryGetMetres(car.GetComponent<Rigidbody>(), out float meters))
+        {
+            return 0;
+        }
+        place = 1;
+        for(int i = 0; i < race.Racers.Count; i++)
+        {
+            if(hud.TryGetMetres(race.Racers[i].GetComponent<Rigidbody>(), out float other) && other > meters)
+            {
+                place++;
+            }
+        }
+        return place;
     }
 }
