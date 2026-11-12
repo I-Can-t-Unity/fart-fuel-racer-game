@@ -163,6 +163,10 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
     FartBoost fart;
     private string cause;
     public string Cause => cause;
+    public event Action<bool> ShieldStarted;
+    public event Action<bool> ShieldBlocked;
+    public event Action TurboUsed;
+
 
     void Awake()
     {
@@ -245,6 +249,7 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
             lastResult = "turbo";
             Announce("TURBO!");
             Changed?.Invoke();
+            TurboUsed?.Invoke();
         }
     }
 
@@ -269,6 +274,7 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
         Announce(car == currentCar
             ? $"{Paint(car, "SHIELD ON!")}  {shieldSeconds:0}s"
             : $"{Paint(car, NameOfCar(car) + " HAS A SHIELD!")}");
+        ShieldStarted?.Invoke(car == currentCar);
         Changed?.Invoke();
     }
 
@@ -461,6 +467,7 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
             immunityEndingTime = Time.time + 1f;
             Announce(Paint(mine, "SHIELD SAID NO!"));
             Changed?.Invoke();
+            ShieldBlocked?.Invoke(true);
             return true;
         }
         if (IsShieldedCar(theirs))
@@ -468,6 +475,7 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
             immunityEndingTime = Time.time + 1f;
             Announce(Paint(theirs, $"{NameOf(theirColor)}'S SHIELD BLOCKED YOU!"));
             Changed?.Invoke();
+            ShieldBlocked?.Invoke(false);
             return true;
         }
         return false;

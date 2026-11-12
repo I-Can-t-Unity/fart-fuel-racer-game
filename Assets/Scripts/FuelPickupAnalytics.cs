@@ -63,6 +63,9 @@ public class FuelPickupAnalytics : MonoBehaviour
         FuelPickup.PlayerTouched += OnPickupTouched;
         FuelRowGate.PlayerPassed += OnRowPassed;
         inventory.Switched += OnSwitched;
+        inventory.ShieldStarted += OnShieldStarted;
+        inventory.ShieldBlocked += OnShieldBlocked;
+        inventory.TurboUsed += OnTurboUsed;
         if (race != null)
             race.RaceEnded += OnRaceEnded;
         Record("race_start", new Dictionary<string, string>());
@@ -75,6 +78,9 @@ public class FuelPickupAnalytics : MonoBehaviour
             OnRaceEnded(false, "ABANDONED");
         FuelPickup.PlayerTouched -= OnPickupTouched;
         FuelRowGate.PlayerPassed -= OnRowPassed;
+        inventory.ShieldStarted -= OnShieldStarted;
+        inventory.ShieldBlocked -= OnShieldBlocked;
+        inventory.TurboUsed -= OnTurboUsed;
         inventory.Switched -= OnSwitched;
         if (race != null)
             race.RaceEnded -= OnRaceEnded;
@@ -277,5 +283,45 @@ public class FuelPickupAnalytics : MonoBehaviour
             }
         }
         return place;
+    }
+
+    void OnShieldStarted(bool isPlayer)
+    {
+        if(raceOver)
+        {
+            return;
+        }
+        Record("shield_on", new Dictionary<string, string>
+        {
+            ["shield_owner"] = isPlayer ? "player" : "rival",
+            ["own_color"] = ColorName(inventory.carFuel),
+            ["place"] = Place(inventory.CurrentCar).ToString()
+        });
+    }
+
+    void OnShieldBlocked(bool isPlayerShield)
+    {
+        if (raceOver)
+        {
+            return;
+        }
+        Record("shield_block", new Dictionary<string, string>
+        {
+            ["shield_owner"] = isPlayerShield ? "player" : "rival",
+            ["cause"] = inventory.Cause,
+            ["place"] = Place(inventory.CurrentCar).ToString()
+        });
+    }
+
+    void OnTurboUsed()
+    {
+        if (raceOver)
+        {
+            return;
+        }
+        Record("turbo", new Dictionary<string, string>
+        {
+            ["place"] = Place(inventory.CurrentCar).ToString()
+        });
     }
 }
