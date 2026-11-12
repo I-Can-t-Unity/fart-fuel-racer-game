@@ -28,6 +28,7 @@ public class FuelPickupAnalytics : MonoBehaviour
     readonly HashSet<int> rowsCollected = new HashSet<int>();
     int switches;
     string playerID;
+    string swapDirection;
 
     public static string LocalFolder =>
 #if UNITY_EDITOR
@@ -109,11 +110,31 @@ public class FuelPickupAnalytics : MonoBehaviour
         {
             return;
         }
-        switches += 1;
+        switches++;
+        RaceManager race = RaceManager.Instance;
+        CarDriver carBefore = race.Racers[race.RacerIndexForColor(from)];
+        CarDriver carAfter = inventory.CurrentCar;
+        int placeBefore = Place(carBefore);
+        int placeAfter = Place(carAfter);
+        if(placeAfter < placeBefore)
+        {
+            swapDirection = "swap_up";
+        }
+        else if(placeAfter > placeBefore)
+        {
+            swapDirection = "swap_down";
+        }
+        else
+        {
+            swapDirection = "swap_same";
+        }
         Record("switch", new Dictionary<string, string>
         {
             ["from_color"] = ColorName(from),
             ["to_color"] = ColorName(to),
+            ["place_before"] = placeBefore.ToString(),
+            ["place_after"] = placeAfter.ToString(),
+            ["cause"] = inventory.Cause
         });
     }
 

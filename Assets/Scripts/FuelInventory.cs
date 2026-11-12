@@ -161,6 +161,8 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
         new Dictionary<FuelType, Material>();
 
     FartBoost fart;
+    private string cause;
+    public string Cause => cause;
 
     void Awake()
     {
@@ -436,6 +438,7 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
     // player ends up in the AI's. Goes through the normal switch, so the protection time works too.
     public bool ForceSwitchTo(CarDriver aiCar)
     {
+        cause = "stolen";
         int index = cars != null ? Array.IndexOf(cars, aiCar) : -1;
         if (index < 0 || IsImmune || aiCar == currentCar)
             return false;
@@ -512,6 +515,7 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
         // Rule 2: a rival's colour = you swap cars with that rival (unless a shield blocks it).
         else
         {
+            cause = "player";
             int index = race != null ? race.RacerIndexForColor(type) : (int)type;
             CarDriver target = cars != null && index < cars.Length ? cars[index] : null;
             if (BlockedByShield(currentCar, target, type))
