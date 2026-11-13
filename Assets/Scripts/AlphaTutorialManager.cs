@@ -529,6 +529,7 @@ public class AlphaTutorialManager : MonoBehaviour
             PlayerPrefs.SetInt(CompletedLessonsKey, updatedLessons);
             PlayerPrefs.Save();
         }
+        if (HasCompletedAllTutorials) LevelSelectionMenu.CompleteLevel(0); // all 4 lessons done unlocks Level 1
 
         if (!UsesPracticeRace)
             playerCar.StopDriving();
@@ -557,7 +558,7 @@ public class AlphaTutorialManager : MonoBehaviour
         nextLabel.text = next.name;
         nextLabel.fontSize = 27f;
         if (finalLesson)
-            next.onClick.AddListener(ReturnToMenu);
+            next.onClick.AddListener(LevelSelectionMenu.ReturnFromGameplay);
         else
             next.onClick.AddListener(() => LoadLesson(lesson + 1));
 

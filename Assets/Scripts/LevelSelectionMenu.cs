@@ -11,7 +11,7 @@ public class LevelSelectionMenu : MonoBehaviour
     const int NoDestination = -2;
     const int LevelPicker = -1;
     static readonly string[] RaceScenes = { "TutorialRace", "Level1", "Level2", "Level3", "Level4", "Level5" };
-    static readonly Color LockedColor = new Color(.35f, .35f, .35f);
+    static readonly Color LockedColor = new Color(.086f, .102f, .125f); // #161A20, dark card like the reference
 
     public GameObject selectionPanel;
     public CarSelectionMenu colorSelection;
@@ -40,7 +40,7 @@ public class LevelSelectionMenu : MonoBehaviour
         if (!IsUnlocked(level)) return;
         Time.timeScale = 1f;
         if (level == 0)
-            TutorialRace.Open();
+            AlphaTutorialManager.StartTutorial(); // tutorial is the AlphaRaceScene lessons
         else
             SceneManager.LoadScene(RaceScenes[level]);
     }
@@ -105,11 +105,18 @@ public class LevelSelectionMenu : MonoBehaviour
             TMP_Text label = button.GetComponentInChildren<TMP_Text>(true);
             if (label != null)
                 label.alpha = button.interactable ? 1f : .55f;
+            // Locked cards show the padlock instead of the level number.
+            Transform lockIcon = button.transform.Find("Lock");
+            if (lockIcon != null) lockIcon.gameObject.SetActive(!button.interactable);
+            Transform number = button.transform.Find("Number");
+            if (number != null) number.gameObject.SetActive(button.interactable);
+            // Cards sit in a row, so arrow keys move left/right and Down goes to Back.
             button.navigation = new Navigation
             {
                 mode = Navigation.Mode.Explicit,
-                selectOnUp = i > 0 ? levelButtons[i - 1] : null,
-                selectOnDown = i < highest ? levelButtons[i + 1] : backButton
+                selectOnLeft = i > 0 ? levelButtons[i - 1] : null,
+                selectOnRight = i < highest ? levelButtons[i + 1] : null,
+                selectOnDown = backButton
             };
         }
 
