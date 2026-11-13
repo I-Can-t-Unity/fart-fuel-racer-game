@@ -11,7 +11,7 @@ docs/analytics/index.html  ◀──────GET─────────�
 
 | File | Role |
 |---|---|
-| `Assets/Scripts/FuelPickupAnalytics.cs` | Records events during a race (on PlayerCar in LoopRaceScene) |
+| `Assets/Scripts/FuelPickupAnalytics.cs` | Records events during a race (on PlayerCar in Level1 through Level5) |
 | `Assets/Scripts/AnalyticsUploader.cs` | Sends events to the web app in the background |
 | `Assets/Scripts/FuelRowGate.cs` | Invisible line after each row of cubes that marks the row as passed |
 | `Analytics/google-apps-script/Code.gs` | Stores events in a Google Sheet and serves them back as JSON |
@@ -23,7 +23,7 @@ docs/analytics/index.html  ◀──────GET─────────�
 2. In the sheet, open **Extensions > Apps Script**. Replace the contents of `Code.gs` with `Analytics/google-apps-script/Code.gs` from this repo, and save.
 3. Click **Deploy > New deployment**, choose the type **Web app**, set **Execute as: Me** and **Who has access: Anyone**, then **Deploy**. Authorise it when asked. Google warns that the app isn't verified; choose **Advanced > Go to (project name)**.
 4. Copy the **Web app URL** (it ends in `/exec`) and paste it in two places:
-   - Unity: LoopRaceScene > **PlayerCar** > **Fuel Pickup Analytics** > **Endpoint Url**. Save the scene.
+   - Unity: In each scene from Level1 through Level5, open **PlayerCar** > **Fuel Pickup Analytics** > **Endpoint Url**. Save each scene.
    - `docs/analytics/index.html`: the `ENDPOINT` line near the bottom of the file.
 5. Make a new WebGL build into `docs/` and push, so that plays on GitHub Pages send data.
 6. The analytics page is at `https://<github-user>.github.io/<repo>/analytics/`, for this repo `https://altitudedrawer.github.io/fart-fuel-racer-game/analytics/`. This assumes GitHub Pages serves the `docs` folder, as it does for the WebGL build.

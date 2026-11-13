@@ -4,12 +4,12 @@ The player and opponent share `CarDriver` wheel physics. The opponent retains it
 
 ## Controls and grip
 
-- Steering now smooths normalized input before calculating wheel angles. Full steering takes the same time at low and high speed. The saved response of 180 degrees/second gives the LoopRaceScene cars roughly 0.21 seconds from centre to full input and 0.42 seconds for a complete reversal.
+- Steering now smooths normalized input before calculating wheel angles. Full steering takes the same time at low and high speed. A response of 180 degrees/second gives roughly 0.21 seconds from centre to full input and 0.42 seconds for a complete reversal.
 - Tire Grip defaults to 1.2 times the scene's existing forward and sideways stiffness. This multiplication uses the initial stiffness, so it does not accumulate each physics step.
 - Downforce Acceleration defaults to 5 m/s² at the configured top speed. It increases with speed squared, is capped, and requires two grounded wheels. It does not pull airborne jump vehicles down.
 - Yaw Stability defaults to 2.5. It damps rotation beyond the requested cornering rate, without setting the car's heading or deleting sideways collision velocity.
 - Max Boost Grip defaults to 1.6. Cars with Hold Turn Radius Above Top Speed retain their normal radius through moderate boosts; beyond the grip cap they need wider turns.
-- The existing race and sample scenes use a lower, less rearward centre of mass and a 15 m/s² cornering limit. Existing engine, fuel, brake and boost tuning remains in place.
+- The race cars use a lower, less rearward centre of mass and a 15 m/s² cornering limit. Existing engine, fuel, brake and boost tuning remains in place.
 
 ## Contact handling
 
@@ -25,7 +25,7 @@ Both cars receive the same grounded stability. The AI suspends recovery assistan
 
 ## Verification
 
-`Assets/Editor/CarHandlingRegression.cs` runs actual WheelCollider and rigidbody simulation on a large flat road using a copy of the LoopRaceScene player car. It checks 50, 70 and 100 km/h turns and reversals, sideswipes, sustained inward steering against another car, rear impacts, airborne gravity and rotation, and the AI recovery contact guard.
+`Assets/Editor/CarHandlingRegression.cs` runs actual WheelCollider and rigidbody simulation on a large flat road using a copy of the Level1 player car. It checks 50, 70 and 100 km/h turns and reversals, sideswipes, sustained inward steering against another car, rear impacts, airborne gravity and rotation, and the AI recovery contact guard.
 
 Run in a disposable project copy with Unity 6000.3.23f1:
 

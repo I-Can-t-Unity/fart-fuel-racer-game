@@ -30,7 +30,7 @@ public static class CarHandlingRegression
         try
         {
             Physics.simulationMode = SimulationMode.Script;
-            EditorSceneManager.OpenScene("Assets/Scenes/LoopRaceScene.unity");
+            EditorSceneManager.OpenScene("Assets/Scenes/Level1.unity");
             template = UnityEngine.Object.FindObjectsByType<CarDriver>(FindObjectsSortMode.None)
                 .First(car => car.name == "PlayerCar").gameObject;
             template = UnityEngine.Object.Instantiate(template);

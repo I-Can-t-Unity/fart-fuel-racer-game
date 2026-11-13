@@ -24,18 +24,21 @@ public static class ShortcutResetRegression
         SuperFartGateBridge bridge = null;
         try
         {
-            EditorSceneManager.OpenScene("Assets/Scenes/LoopRaceScene.unity");
-            var bag = UnityEngine.Object.FindFirstObjectByType<FuelInventory>();
-            var driver = bag.GetComponent<CarDriver>();
-            var body = bag.GetComponent<Rigidbody>();
-            var collider = bag.GetComponent<BoxCollider>();
-            var rival = UnityEngine.Object.FindFirstObjectByType<AICarWaypointDriver>().GetComponent<Rigidbody>();
-            bridge = UnityEngine.Object.FindFirstObjectByType<SuperFartGateBridge>();
+            EditorSceneManager.OpenScene("Assets/Scenes/Level1.unity");
+            var player = GameObject.Find("PlayerCar");
+            var bag = player.GetComponent<FuelInventory>();
+            var driver = player.GetComponent<CarDriver>();
+            var body = player.GetComponent<Rigidbody>();
+            var collider = player.GetComponent<BoxCollider>();
+            var rival = bag.cars[1].GetComponent<Rigidbody>();
+            // The legacy bridge is disabled in Level1. Exercise its reset behavior without editing the scene.
+            bridge = UnityEngine.Object.FindFirstObjectByType<SuperFartGateBridge>(FindObjectsInactive.Include);
             var gate = bridge.GetComponent<SuperFartJumpGate>();
-            var pad = UnityEngine.Object.FindFirstObjectByType<ShortcutLaunchPad>();
+            var pad = bridge.branch.GetComponentInChildren<ShortcutLaunchPad>(true);
             Invoke(driver, "Awake");
             Invoke(bag.GetComponent<FartBoost>(), "Awake");
             Invoke(bag, "Awake");
+            Invoke(bag, "OnControlledCarChanged", null, player.transform);
             Invoke(gate, "Awake");
             Invoke(bridge, "Awake");
             Invoke(bridge, "OnEnable");
@@ -44,9 +47,9 @@ public static class ShortcutResetRegression
             foreach (FuelType own in Enum.GetValues(typeof(FuelType)))
             {
                 bag.carFuel = own;
-                CollectSuperFart(bag);
+                CollectShield(bag);
                 Invoke(gate, "OnTriggerEnter", collider);
-                Check(bag.HeldMix == FuelMix.None && ShortcutTracker.HasBoost(body), own + ": gate spends mix and grants launch");
+                Check(!bag.IsShielded && ShortcutTracker.HasBoost(body), own + ": gate spends shield and grants launch");
                 ShortcutTracker.Enter(rival, bridge.branch, true);
 
                 bool cleanAtRespawn = false;
@@ -59,7 +62,7 @@ public static class ShortcutResetRegression
                 Check(ShortcutTracker.HasBoost(rival), own + ": resetting player preserves rival permission");
 
                 Invoke(gate, "OnTriggerEnter", collider);
-                Check(ShortcutTracker.IsOnBranch(body) && !ShortcutTracker.HasBoost(body), own + ": empty bag is denied after reset");
+                Check(ShortcutTracker.IsOnBranch(body) && !ShortcutTracker.HasBoost(body), own + ": unshielded car is denied after reset");
                 Check(!Launch(pad, body, collider), own + ": denied car receives no assisted launch");
 
                 // A denial must also revoke stale payment from any earlier entry.
@@ -67,9 +70,9 @@ public static class ShortcutResetRegression
                 Invoke(gate, "OnTriggerEnter", collider);
                 Check(!ShortcutTracker.HasBoost(body), own + ": denial revokes stale permission");
 
-                CollectSuperFart(bag);
+                CollectShield(bag);
                 Invoke(gate, "OnTriggerEnter", collider);
-                Check(Launch(pad, body, collider) && !ShortcutTracker.HasBoost(body), own + ": fresh mix enables exactly one launch");
+                Check(Launch(pad, body, collider) && !ShortcutTracker.HasBoost(body), own + ": fresh shield enables exactly one launch");
                 Check(!Launch(pad, body, collider), own + ": spent launch cannot be reused");
                 ShortcutTracker.Exit(body);
                 ShortcutTracker.Exit(rival);
@@ -83,8 +86,8 @@ public static class ShortcutResetRegression
                 foreach (var text in UnityEngine.Object.FindObjectsByType<TMP_Text>(FindObjectsInactive.Include, FindObjectsSortMode.None))
                     if (text.name == "InstructionsFuelRules") { rules = text.gameObject; break; }
             var instructions = rules.GetComponent<TMP_Text>();
-            Check(instructions.text.Contains("2 PURPLE (Ethanol)") && instructions.text.Contains("2 BROWN (Gasoline)")
-                && instructions.text.Contains("2 GREEN (Diesel)") && instructions.text.Contains("3 sec choke"), "Menu describes all three recipes and other wrong-fuel pairs");
+            Check(instructions.text.Contains("Your colour") && instructions.text.Contains("Rival's colour")
+                && instructions.text.Contains("3 charges") && instructions.text.Contains("Auto shield"), "Menu describes charges, swaps, and shields");
             instructions.ForceMeshUpdate(true);
             Check(instructions.preferredHeight <= instructions.rectTransform.rect.height, "Updated instructions fit the text panel");
         }
@@ -98,10 +101,11 @@ public static class ShortcutResetRegression
         }
     }
 
-    static void CollectSuperFart(FuelInventory bag)
+    static void CollectShield(FuelInventory bag)
     {
-        Check(bag.TryCollect(bag.SuperFartFuel) && bag.TryCollect(bag.SuperFartFuel)
-            && bag.HeldMix == FuelMix.SuperFart, bag.carFuel + ": craft fresh Super Fart");
+        for (int i = 0; i < bag.maxCharges; i++)
+            Check(bag.TryCollect(bag.carFuel), bag.carFuel + ": collect a matching pickup");
+        Check(bag.IsShielded && bag.Charges == 0, bag.carFuel + ": activate shield and reset charges");
     }
 
     static bool Launch(ShortcutLaunchPad pad, Rigidbody body, Collider collider)
