@@ -1,14 +1,13 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 /// <summary>
 /// Put on BOTH cars (PlayerCar and AICar). Holds the car's colour, its charges
 /// (0-3, a full set = shield), and does the boosts. The colour belongs to the
 /// car's current paint: when a swap happens the SwapManager repaints the cars.
 /// </summary>
-[RequireComponent(typeof(Rigidbody))]
+[RequireComponent(typeof(Rigidbody), typeof(FartBoost))]
 public class SwapCar : MonoBehaviour
 {
     [Header("Identity")]
@@ -18,22 +17,13 @@ public class SwapCar : MonoBehaviour
 
     [Header("Charges")]
     public int maxCharges = 3;
-    [Tooltip("Fart boost length when you grab your own colour (seconds).")]
-    public float pickupBoostSeconds = 0.7f;
-
-    [Header("Turbo (spend a full set)")]
-    public Key turboKey = Key.Q;
-    [Tooltip("Fart boost length of the turbo (seconds).")]
-    public float turboSeconds = 2.5f;
-    [Tooltip("Only used if the car has no FartBoost script: speed added (m/s).")]
-    public float fallbackBoostSpeed = 8f;
 
     [Header("Paint")]
     [Tooltip("Body parts to recolour. Leave empty = every mesh on the car except wheels/glass/lights.")]
     public Renderer[] paintRenderers;
 
     public int Charges { get; private set; }
-    public bool Shielded => Charges >= maxCharges;
+    public bool Shielded => Time.time < shieldUntil;
     public float ImmuneUntil { get; set; }
     public bool Immune => Time.time < ImmuneUntil;
     public Rigidbody Body { get; private set; }
@@ -42,6 +32,7 @@ public class SwapCar : MonoBehaviour
     public static event System.Action<SwapCar> Changed;
 
     GameObject shieldBubble;
+    float shieldUntil;
     FartBoost fart;
     MaterialPropertyBlock block;
     static readonly string[] skipWords = { "wheel", "tire", "tyre", "glass", "window", "light", "shadow", "shield", "puff", "poof" };
@@ -49,6 +40,10 @@ public class SwapCar : MonoBehaviour
     void Awake()
     {
         Body = GetComponent<Rigidbody>();
+        fart = GetComponent<FartBoost>();
+        // RequireComponent applies to newly added components; older scenes may lack it.
+        if (fart == null)
+            fart = gameObject.AddComponent<FartBoost>();
         block = new MaterialPropertyBlock();
         BuildShieldBubble();
     }
@@ -59,7 +54,6 @@ public class SwapCar : MonoBehaviour
         // so wait a moment, then find the body parts and paint over them.
         yield return null;
         yield return new WaitForSeconds(0.1f);
-        fart = GetComponent<FartBoost>();
         if (paintRenderers == null || paintRenderers.Length == 0) paintRenderers = FindBodyRenderers();
         Paint();
         Changed?.Invoke(this);
@@ -67,20 +61,19 @@ public class SwapCar : MonoBehaviour
 
     void Update()
     {
-        if (isPlayer && Keyboard.current != null && Keyboard.current[turboKey].wasPressedThisFrame && Shielded)
-            Turbo();
+        if (shieldBubble.activeSelf && !Shielded)
+            Refresh();
     }
 
     // ── Charges ───────────────────────────────────────────────────────────────
     public void AddCharge()
     {
-        Charges = Mathf.Min(maxCharges, Charges + 1);
-        Refresh();
-    }
-
-    public void ClearCharges()
-    {
-        Charges = 0;
+        Charges++;
+        if (Charges >= maxCharges)
+        {
+            Charges = 0;
+            shieldUntil = Time.time + FuelInventory.ShieldSeconds;
+        }
         Refresh();
     }
 
@@ -91,45 +84,7 @@ public class SwapCar : MonoBehaviour
         Refresh();
     }
 
-    /// Spends a full set. Returns false if the car doesn't have one (e.g. bridge gate check).
-    public bool TrySpendFullSet()
-    {
-        if (!Shielded) return false;
-        ClearCharges();
-        return true;
-    }
-
-    public void Turbo()
-    {
-        if (!TrySpendFullSet()) return;
-        Boost(turboSeconds);
-        SwapHUD.Banner(this, "TURBO!", 0.9f);
-    }
-
-    /// Fart-boosts the car for this many seconds (uses the team's FartBoost: puffs + speed).
-    public void Boost(float seconds)
-    {
-        if (fart == null) fart = GetComponent<FartBoost>();
-        if (fart != null) fart.Fart(seconds);
-        else StartCoroutine(HoldBoost(fallbackBoostSpeed, seconds));
-    }
-
-    // Keeps the car above (current speed + boost) for a while, so the engine's top-speed cap doesn't eat it.
-    IEnumerator HoldBoost(float add, float seconds)
-    {
-        float target = Vector3.Dot(Body.linearVelocity, transform.forward) + add;
-        float end = Time.time + seconds;
-        while (Time.time < end)
-        {
-            if (!Body.isKinematic)
-            {
-                Vector3 fwd = transform.forward;
-                float cur = Vector3.Dot(Body.linearVelocity, fwd);
-                if (cur < target && cur > 2f) Body.linearVelocity += fwd * Mathf.Min(target - cur, 40f * Time.fixedDeltaTime);
-            }
-            yield return new WaitForFixedUpdate();
-        }
-    }
+    public void Boost() => fart.Fart(FuelInventory.PickupBoostSeconds);
 
     // ── Paint + visuals ───────────────────────────────────────────────────────
     public void SetColor(CarColor c)

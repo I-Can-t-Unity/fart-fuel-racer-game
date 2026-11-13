@@ -29,6 +29,7 @@ public class FuelInventoryUI : MonoBehaviour
     Image messagePlate;
     RectTransform chargeBar;
     bool showChargeBar = true;
+    internal bool ShowPickupMessages { get; set; } = true;
 
     internal void SetChargeBarVisible(bool visible)
     {
@@ -44,7 +45,8 @@ public class FuelInventoryUI : MonoBehaviour
             return;
         }
 
-        RectTransform bag = NewRect("ColorStreakHUD", transform, bottomOffset, new Vector2(620, 200));
+        Transform hud = DrivingControlsHUD.ContentOf(transform);
+        RectTransform bag = NewRect("ColorStreakHUD", hud, bottomOffset, new Vector2(620, 200));
         chargeBar = bag;
         bag.anchorMin = bag.anchorMax = new Vector2(.5f, 0);
         bag.pivot = new Vector2(.5f, 0);
@@ -84,13 +86,13 @@ public class FuelInventoryUI : MonoBehaviour
         // message = NewText("Message", bag, new Vector2(0, -95), new Vector2(500, 32), 26, TextAlignmentOptions.Center);
         // At the top centre of the screen, with an outline so they read over sky and road alike.
         // Dark plate behind the message so it pops over bright sky or grey road.
-        messagePlate = NewRect("MessagePlate", transform, messageTopOffset + new Vector2(0, 12), new Vector2(600, messageFontSize * 2f)).gameObject.AddComponent<Image>();
+        messagePlate = NewRect("MessagePlate", hud, messageTopOffset + new Vector2(0, 12), new Vector2(600, messageFontSize * 2f)).gameObject.AddComponent<Image>();
         messagePlate.rectTransform.anchorMin = messagePlate.rectTransform.anchorMax = new Vector2(.5f, 1);
         messagePlate.rectTransform.pivot = new Vector2(.5f, 1);
         messagePlate.color = new Color(0, 0, 0, .65f);
         messagePlate.raycastTarget = false;
         messagePlate.enabled = false;
-        message = NewText("Message", transform, messageTopOffset, new Vector2(1000, messageFontSize * 1.6f), messageFontSize, TextAlignmentOptions.Center);
+        message = NewText("Message", hud, messageTopOffset, new Vector2(1000, messageFontSize * 1.6f), messageFontSize, TextAlignmentOptions.Center);
         message.rectTransform.anchorMin = message.rectTransform.anchorMax = new Vector2(.5f, 1);
         message.rectTransform.pivot = new Vector2(.5f, 1);
         message.fontStyle = FontStyles.Bold;
@@ -149,18 +151,17 @@ public class FuelInventoryUI : MonoBehaviour
         if (inventory.IsShielded)
             UpdateShieldHint();
         else
-            hint.text = $"{inventory.NameOf(inventory.carFuel)} = CHARGE   ·   OTHERS = SWAP";
+            hint.text = $"{inventory.NameOf(inventory.carFuel)} = BOOST + CHARGE   ·   OTHERS = SWAP";
     }
 
     void UpdateShieldHint()
     {
         hint.text = $"SHIELD ON  {Mathf.CeilToInt(inventory.ShieldTimeLeft)}s";
-        if (inventory.TurboKeyEnabled)
-            hint.text += $"  ·  {inventory.turboKey} = TURBO";
     }
 
     void ShowMessage(string text)
     {
+        if (!ShowPickupMessages) return;
         message.text = text;
         messageUntil = Time.time + messageSeconds;
         messageShownAt = Time.time;

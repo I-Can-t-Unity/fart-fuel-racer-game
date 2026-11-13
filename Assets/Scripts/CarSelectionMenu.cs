@@ -39,12 +39,18 @@ public class CarSelectionMenu : MonoBehaviour
     public void SelectCar(int colorIndex)
     {
         if (colorIndex < 0 || colorIndex > 2 || !LevelSelectionMenu.IsUnlocked(selectedLevel)) return;
+        SaveSelectedColor((FuelType)colorIndex);
+        int level = selectedLevel;
+        CloseSelection();
+        LevelSelectionMenu.StartRace(level);
+    }
+
+    internal static void SaveSelectedColor(FuelType color)
+    {
+        int colorIndex = (int)color;
         PlayerPrefs.SetInt("SelectedCarColor", colorIndex);
         // Compatibility only; Jason's color system should read SelectedCarColor.
         PlayerPrefs.SetInt("SelectedCarFuel", colorIndex);
         PlayerPrefs.Save();
-        int level = selectedLevel;
-        CloseSelection();
-        LevelSelectionMenu.StartRace(level);
     }
 }

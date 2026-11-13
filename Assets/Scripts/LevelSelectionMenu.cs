@@ -8,8 +8,6 @@ public class LevelSelectionMenu : MonoBehaviour
 {
     const string MenuScene = "MainMenuCanvas";
     const string ProgressKey = "HighestUnlockedRaceLevel";
-    const int NoDestination = -2;
-    const int LevelPicker = -1;
     static readonly string[] RaceScenes = { "TutorialRace", "Level1", "Level2", "Level3", "Level4", "Level5" };
     static readonly Color LockedColor = new Color(.086f, .102f, .125f); // #161A20, dark card like the reference
 
@@ -19,7 +17,7 @@ public class LevelSelectionMenu : MonoBehaviour
     [SerializeField] Button playButton;
     public Button backButton;
 
-    static int menuDestination = NoDestination;
+    static bool openLevelPickerOnStart;
     Color[] unlockedColors;
 
     static int HighestUnlocked => Mathf.Clamp(PlayerPrefs.GetInt(ProgressKey), 0, RaceScenes.Length - 1);
@@ -38,24 +36,28 @@ public class LevelSelectionMenu : MonoBehaviour
     internal static void StartRace(int level)
     {
         if (!IsUnlocked(level)) return;
-        Time.timeScale = 1f;
         if (level == 0)
-            AlphaTutorialManager.StartTutorial(); // tutorial is the AlphaRaceScene lessons
-        else
-            SceneManager.LoadScene(RaceScenes[level]);
+        {
+            TutorialRace.Open();
+            return;
+        }
+
+        Time.timeScale = 1f;
+        SceneManager.LoadScene(RaceScenes[level]);
     }
 
-    public static void ReturnFromGameplay() => LoadMenu(LevelPicker);
+    internal static bool CanContinue(int level) => level >= 0 && IsUnlocked(level + 1);
 
-    internal static void ContinueFromGameplay(int level)
+    internal static void ContinueFromGameplay(int level, FuelType color)
     {
-        int nextLevel = level + 1;
-        LoadMenu(IsUnlocked(nextLevel) ? nextLevel : LevelPicker);
+        if (!CanContinue(level)) return;
+        CarSelectionMenu.SaveSelectedColor(color);
+        StartRace(level + 1);
     }
 
-    static void LoadMenu(int destination)
+    public static void ReturnFromGameplay()
     {
-        menuDestination = destination;
+        openLevelPickerOnStart = true;
         Time.timeScale = 1f;
         SceneManager.LoadScene(MenuScene);
     }
@@ -79,13 +81,9 @@ public class LevelSelectionMenu : MonoBehaviour
 
     void Start()
     {
-        int destination = menuDestination;
-        menuDestination = NoDestination;
-        if (destination == NoDestination) return;
-        if (destination == LevelPicker)
-            Open();
-        else
-            SelectLevel(destination);
+        if (!openLevelPickerOnStart) return;
+        openLevelPickerOnStart = false;
+        Open();
     }
 
     public void Open()

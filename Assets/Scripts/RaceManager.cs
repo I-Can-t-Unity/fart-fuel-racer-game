@@ -29,6 +29,7 @@ public class RaceManager : MonoBehaviour
     int rivalsFinished;
     int raceLevel = -1;
     Button nextButton;
+    DrivingControlsHUD drivingControls;
     internal bool IsProgressionRace => raceLevel >= 0;
     System.Func<bool> tutorialReady;
     int firstRacerColor;
@@ -36,25 +37,11 @@ public class RaceManager : MonoBehaviour
     internal FuelType ColorForRacerIndex(int index) => (FuelType)((index + firstRacerColor) % 3);
     internal int RacerIndexForColor(FuelType color) => ((int)color - firstRacerColor + 3) % 3;
 
-    // The tutorial owns the start panel and results. The race still owns car identity and swapping.
-    internal void ConfigureSwapPractice(CarDriver[] practiceCars)
-    {
-        SetPracticeRoster(practiceCars);
-        requireCheckpoint = false;
-        timerText = speedText = fuelText = resultText = null;
-        restartButton = mainMenuButton = null;
-    }
-
-    void SetPracticeRoster(CarDriver[] practiceCars)
+    internal void ConfigureTutorial(CarDriver[] practiceCars, FuelType startingColor, System.Func<bool> ready)
     {
         IsSwapPractice = true;
         colorSwitchingMode = true;
         racers = practiceCars;
-    }
-
-    internal void ConfigureTutorial(CarDriver[] practiceCars, FuelType startingColor, System.Func<bool> ready)
-    {
-        SetPracticeRoster(practiceCars);
         firstRacerColor = (int)startingColor;
         IsTutorialRace = true;
         requireCheckpoint = true;
@@ -135,9 +122,60 @@ public class RaceManager : MonoBehaviour
             yield return StartCountdown();
         }
         else if (IsSwapPractice)
+        {
+            ShowDrivingControls();
             IsCountingDown = false; // The tutorial releases the cars when its intro closes.
+        }
         else
-            StartCoroutine(StartCountdown());
+        {
+            if (raceLevel > 0)
+                yield return WaitForRaceStart();
+            yield return StartCountdown();
+        }
+    }
+
+    IEnumerator WaitForRaceStart()
+    {
+        var panel = new GameObject("Level Start", typeof(RectTransform), typeof(Image));
+        var panelRect = (RectTransform)panel.transform;
+        panelRect.SetParent(resultText.transform.parent, false);
+        panelRect.anchorMin = panelRect.anchorMax = new Vector2(.5f, .5f);
+        panelRect.sizeDelta = new Vector2(580f, 320f);
+        panel.GetComponent<Image>().color = new Color(.06f, .09f, .15f, .94f);
+
+        var heading = new GameObject("Level Title", typeof(RectTransform)).AddComponent<TextMeshProUGUI>();
+        heading.rectTransform.SetParent(panelRect, false);
+        heading.rectTransform.anchorMin = heading.rectTransform.anchorMax = new Vector2(.5f, .5f);
+        heading.rectTransform.sizeDelta = new Vector2(540f, 156f);
+        heading.rectTransform.anchoredPosition = new Vector2(0f, 49f);
+        heading.font = resultText.font;
+        heading.fontSize = 60f;
+        heading.alignment = TextAlignmentOptions.Center;
+        heading.color = Color.white;
+        heading.raycastTarget = false;
+        heading.text = $"<b>Level {raceLevel}</b>\n<size=38>Get Ready...</size>";
+
+        Button raceButton = Instantiate(restartButton, panelRect, false);
+        raceButton.name = "Race Button";
+        LayoutResultButton(raceButton, "Race", 0f);
+        ((RectTransform)raceButton.transform).anchoredPosition = new Vector2(0f, -88f);
+        raceButton.navigation = new Navigation { mode = Navigation.Mode.None };
+        raceButton.onClick = new Button.ButtonClickedEvent();
+        raceButton.onClick.AddListener(() => panel.SetActive(false));
+        raceButton.gameObject.SetActive(true);
+        if (EventSystem.current != null)
+            EventSystem.current.SetSelectedGameObject(raceButton.gameObject);
+
+        yield return new WaitUntil(() => !panel.activeSelf);
+        Destroy(panel);
+    }
+
+    void ShowDrivingControls()
+    {
+        if (drivingControls != null || resultText == null) return;
+        var canvas = resultText.GetComponentInParent<Canvas>();
+        if (canvas != null)
+            drivingControls = DrivingControlsHUD.Create((RectTransform)canvas.transform, resultText.font);
     }
 
     void ConfigureResultButtons()
@@ -149,7 +187,7 @@ public class RaceManager : MonoBehaviour
             LayoutResultButton(restartButton, "Retry", -330f);
             LayoutResultButton(mainMenuButton, "Exit", 0f);
             LayoutResultButton(nextButton, "Next", 330f);
-            nextButton.onClick.AddListener(() => LevelSelectionMenu.ContinueFromGameplay(raceLevel));
+            nextButton.onClick.AddListener(ContinueToNextRace);
             nextButton.gameObject.SetActive(false);
         }
 
@@ -177,6 +215,7 @@ public class RaceManager : MonoBehaviour
 
     IEnumerator StartCountdown()
     {
+        ShowDrivingControls();
         CarDriver[] vehicles = FindObjectsByType<CarDriver>(FindObjectsSortMode.None);
         foreach (CarDriver vehicle in vehicles)
             vehicle.SetCountdownHold(true);
@@ -489,6 +528,7 @@ public class RaceManager : MonoBehaviour
         if (finished)
             return;
         finished = true;
+        if (drivingControls != null) drivingControls.SetVisible(false);
         if (IsProgressionRace && playerFinished)
             LevelSelectionMenu.CompleteLevel(raceLevel);
 
@@ -509,7 +549,7 @@ public class RaceManager : MonoBehaviour
 
         if (nextButton != null)
         {
-            nextButton.interactable = playerFinished && LevelSelectionMenu.IsUnlocked(raceLevel);
+            nextButton.interactable = playerFinished && LevelSelectionMenu.CanContinue(raceLevel);
             nextButton.gameObject.SetActive(true);
             restartButton.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnRight = mainMenuButton };
             mainMenuButton.navigation = new Navigation
@@ -525,6 +565,14 @@ public class RaceManager : MonoBehaviour
 
         Debug.Log(message);
         RaceEnded?.Invoke(won, message);
+    }
+
+    void ContinueToNextRace()
+    {
+        if (!nextButton.interactable) return;
+        int index = System.Array.IndexOf(racers, driver);
+        if (index >= 0)
+            LevelSelectionMenu.ContinueFromGameplay(raceLevel, ColorForRacerIndex(index));
     }
 
     public void RestartRace()

@@ -23,14 +23,6 @@ public class FuelPickupSpawner : MonoBehaviour
     public float cubeSize = 1.2f;
     [Tooltip("Keeps the cubes above the wheels (about 1 m) so they never touch the suspension, while still hitting the car body.")]
     public float hoverHeight = 1.7f;
-    [Tooltip("Size of the fuel name above each cube; the effect line is a bit smaller.")]
-    public float labelFontSize = 8f;
-    [Tooltip("Gap between the top of a cube and its label, in metres.")]
-    public float labelGap = .4f;
-    [Tooltip("Beyond this distance from the camera labels grow, so they stay readable from further away.")]
-    public float labelReadableDistance = 30f;
-    [Tooltip("Largest a label grows to. Above about 2.2, long names in neighbouring lanes start to overlap.")]
-    public float labelMaxScale = 1.4f;
 
     // The lane spacing this race actually uses (picked from the A/B list if there is one).
     public float LaneSpacingUsed { get; private set; }
@@ -67,7 +59,6 @@ public class FuelPickupSpawner : MonoBehaviour
         }
     }
 
-    // Every other lane gets a raised label, so neighbouring labels never overlap.
     FuelPickup Spawn(FuelType type, Vector3 position, Vector3 forward, int row, int lane)
     {
         GameObject can = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -81,11 +72,6 @@ public class FuelPickupSpawner : MonoBehaviour
         FuelPickup pickup = can.AddComponent<FuelPickup>();
         pickup.type = type;
         pickup.inventory = inventory;
-        pickup.labelFontSize = labelFontSize;
-        pickup.labelGap = labelGap;
-        pickup.labelReadableDistance = labelReadableDistance;
-        pickup.labelMaxScale = labelMaxScale;
-        pickup.raiseLabel = lane % 2 == 1;
         pickup.row = row;
         pickup.lane = lane;
         return pickup;

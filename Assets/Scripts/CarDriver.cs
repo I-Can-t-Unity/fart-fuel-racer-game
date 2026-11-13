@@ -354,6 +354,12 @@ public class CarDriver : MonoBehaviour
             all.Add(this);
     }
 
+    private void Start()
+    {
+        if (showControls && !ExternalInput && RaceManager.Instance == null)
+            DrivingControlsHUD.CreateStandalone(transform);
+    }
+
     // Front and rear axles as (left, right) wheel indices.
     private void BuildAxles()
     {
@@ -793,10 +799,4 @@ public class CarDriver : MonoBehaviour
         }
     }
 
-    private void OnGUI()
-    {
-        if (!showControls || ExternalInput)
-            return;
-        GUI.Box(new Rect(16, 16, 310, 60), "WASD / Arrows: drive and steer\nSpace: brake    R: reset");
-    }
 }

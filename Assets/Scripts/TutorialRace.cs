@@ -12,11 +12,13 @@ public sealed class TutorialRace : MonoBehaviour
     const float RedLane = 1.8f;
     const float BlueLane = -2.8f;
     const float ThirdLane = 5.2f;
-    const float SwapStart = 100f;
-    const float ChargeStart = 200f;
-    const float ShieldTestDistance = 326f;
-    const float RowsStart = 375f;
-    static readonly Color PanelColor = new Color(0f, 0f, 0f, .65f);
+    const float SwapCueDistance = 54f;
+    const float ChargeStart = 205f;
+    const float FirstMatchDistance = 258f;
+    const float SecondMatchDistance = 332f;
+    const float ThirdMatchDistance = 380f;
+    const float ShieldTestDistance = 446f;
+    const float RowsStart = 495f;
 
     [SerializeField] CarDriver redCar;
     [SerializeField] RaceManager race;
@@ -33,10 +35,11 @@ public sealed class TutorialRace : MonoBehaviour
     readonly List<float> metres = new List<float>();
     readonly List<FuelPickup> swapBlocks = new List<FuelPickup>();
     readonly List<FuelPickup> chargeBlocks = new List<FuelPickup>();
-    FuelPickup shieldBlock;
-    TMP_Text controls, cue;
+    FuelPickup shieldBlock, activeGuideBlock;
+    TMP_Text cue;
+    RectTransform keyboardControls, gamepadControls;
     bool ready, chargeSection, rowsStarted;
-    float overturnedFor, turboCueUntil, shieldCueUntil;
+    float overturnedFor, swapCueUntil, shieldCueUntil;
 
     internal static void Open()
     {
@@ -72,8 +75,6 @@ public sealed class TutorialRace : MonoBehaviour
         inventory = redCar.GetComponent<FuelInventory>();
         inventory.cars = new[] { redCar, rival, thirdRacer };
         inventory.shieldVisual = shieldVisual;
-        inventory.pickupFartSeconds = 2f;
-        inventory.TurboKeyEnabled = false;
         inventory.enabled = true;
 
         foreach (CarDriver car in inventory.cars)
@@ -94,6 +95,7 @@ public sealed class TutorialRace : MonoBehaviour
         swapBlocks.Add(AddBlock(164f, RedLane, rivalColor, 4f));
         AddPracticeRows();
         fuelHUD.SetChargeBarVisible(false);
+        fuelHUD.ShowPickupMessages = false;
         BuildUI();
         standings.track = track;
         race.ConfigureTutorial(inventory.cars, startingColor, () => ready);
@@ -118,6 +120,8 @@ public sealed class TutorialRace : MonoBehaviour
         track.layout = LoopTrackGenerator.Layout.Tutorial;
         track.startIndex = 0;
         track.roadWidth = 14f;
+        track.curbWidth = 0f;
+        track.wallGap = 0f;
         track.groundToFit = ground;
         track.Generate();
 
@@ -160,9 +164,8 @@ public sealed class TutorialRace : MonoBehaviour
         return center + side * lane + Vector3.up * height;
     }
 
-    float Progress(CarDriver car)
+    float Progress(Vector3 position)
     {
-        Vector3 position = car.transform.position;
         float closest = float.PositiveInfinity;
         float progress = 0f;
         for (int i = 0; i < metres.Count - 1; i++)
@@ -250,7 +253,11 @@ public sealed class TutorialRace : MonoBehaviour
     void OnSwap(FuelType previous, FuelType next)
     {
         if (rowsStarted) SetPracticeRespawn();
-        else BeginChargeSection();
+        else
+        {
+            BeginChargeSection();
+            swapCueUntil = Time.time + 1.8f;
+        }
     }
 
     void BeginChargeSection()
@@ -260,8 +267,9 @@ public sealed class TutorialRace : MonoBehaviour
         foreach (FuelPickup block in swapBlocks) block.HideForTutorial();
         CarDriver player = inventory.CurrentCar;
         float lane = PlayerLane();
-        for (int i = 0; i < 3; i++)
-            chargeBlocks.Add(AddBlock(232f + i * 27f, lane, inventory.carFuel, 4f));
+        chargeBlocks.Add(AddBlock(FirstMatchDistance, lane, inventory.carFuel, 4f));
+        chargeBlocks.Add(AddBlock(SecondMatchDistance, lane, inventory.carFuel, 4f));
+        chargeBlocks.Add(AddBlock(ThirdMatchDistance, lane, inventory.carFuel, 4f));
         int otherIndex = player == redCar ? 1 : 0;
         shieldBlock = AddBlock(ShieldTestDistance, lane, race.ColorForRacerIndex(otherIndex), 4f);
         shieldBlock.RequiresShield = true;
@@ -284,6 +292,7 @@ public sealed class TutorialRace : MonoBehaviour
     void OnPickup(FuelPickup pickup, bool collected)
     {
         if (!collected || rowsStarted) return;
+        if (pickup == activeGuideBlock) SetGuideBlock(null);
         if (pickup == shieldBlock)
         {
             shieldCueUntil = Time.time + 2.5f;
@@ -293,10 +302,7 @@ public sealed class TutorialRace : MonoBehaviour
             if (inventory.IsShielded)
                 shieldBlock.RestoreForTutorial();
             else if (inventory.Charges == 1)
-            {
                 fuelHUD.SetChargeBarVisible(true);
-                turboCueUntil = Time.time + 1.4f;
-            }
         }
     }
 
@@ -304,6 +310,7 @@ public sealed class TutorialRace : MonoBehaviour
     {
         overturnedFor = 0;
         if (rowsStarted) return;
+        SetGuideBlock(null);
         if (!chargeSection)
         {
             foreach (FuelPickup block in swapBlocks) block.RestoreForTutorial();
@@ -316,17 +323,17 @@ public sealed class TutorialRace : MonoBehaviour
         foreach (FuelPickup block in chargeBlocks) block.RestoreForTutorial();
         shieldBlock.HideForTutorial();
         fuelHUD.SetChargeBarVisible(false);
-        turboCueUntil = shieldCueUntil = 0f;
+        swapCueUntil = shieldCueUntil = 0f;
     }
 
     void Update()
     {
         if (inventory == null || race.IsFinished) return;
-        if (!ready && controls != null)
+        if (!ready && keyboardControls != null)
         {
-            controls.text = Gamepad.current != null
-                ? "Left stick  Steer     RT  Accelerate     A  Brake"
-                : "A / D  Steer     W  Accelerate     Space  Brake";
+            bool gamepad = Gamepad.current != null;
+            keyboardControls.gameObject.SetActive(!gamepad);
+            gamepadControls.gameObject.SetActive(gamepad);
         }
         if (!race.IsRacing || inventory.CurrentCar == null) return;
 
@@ -336,7 +343,7 @@ public sealed class TutorialRace : MonoBehaviour
         if (player.transform.position.y < -4f || overturnedFor >= 1f)
             player.RequestReset();
 
-        float progress = Progress(player);
+        float progress = Progress(player.transform.position);
         if (!chargeSection && progress >= ChargeStart && progress < ChargeStart + 35f)
             BeginChargeSection();
 
@@ -344,6 +351,7 @@ public sealed class TutorialRace : MonoBehaviour
         {
             rowsStarted = true;
             fuelHUD.SetChargeBarVisible(true);
+            fuelHUD.ShowPickupMessages = true;
             SetPracticeRespawn();
             foreach (AICarWaypointDriver driver in drivers) driver.huntCubes = true;
         }
@@ -352,7 +360,7 @@ public sealed class TutorialRace : MonoBehaviour
         {
             CarDriver rival = inventory.cars[i];
             if (rival == player || rival.IsStopped) continue;
-            float gap = Progress(rival) - progress;
+            float gap = Progress(rival.transform.position) - progress;
             drivers[i].speedKph = Mathf.Lerp(57f, 24f, Mathf.InverseLerp(10f, 37f, gap));
         }
 
@@ -361,25 +369,45 @@ public sealed class TutorialRace : MonoBehaviour
 
         if (Time.time < shieldCueUntil)
             SetCue("Swap blocked! You stay in your car");
-        else if (!chargeSection && progress < 70f)
-            SetCue(Gamepad.current != null ? "Steer with the left stick" : "Use A / D to steer");
-        else if (!chargeSection && progress >= SwapStart && progress < 182f)
-            SetCue("Grab the rival’s block to swap");
-        else if (Time.time < turboCueUntil)
-            SetCue("Turbo! That block also filled one slot below");
-        else if (shieldBlock != null && shieldBlock.IsAvailable)
-            SetCue($"Shield on! Grab the {inventory.NameOf(shieldBlock.type).ToLowerInvariant()} block to test it");
+        else if (!chargeSection && progress >= SwapCueDistance && progress < 182f)
+            SetCue("Grab the rival’s block to swap", NextGuideBlock(swapBlocks, progress));
+        else if (Time.time < swapCueUntil)
+            SetCue($"Swapped! You’re in the {inventory.NameOf(inventory.carFuel).ToLowerInvariant()} car");
+        else if (!rowsStarted && shieldBlock != null && shieldBlock.IsAvailable)
+            SetCue("Shield on! Try a different color", GuideBlockAhead(shieldBlock, progress) ? shieldBlock : null);
         else if (!rowsStarted && chargeSection && progress >= ChargeStart && progress < ShieldTestDistance)
-            SetCue(inventory.Charges > 0
-                ? "Fill the bar with matching blocks to get a shield"
-                : "Grab a block matching your car for turbo");
+            SetCue(inventory.Charges switch
+            {
+                1 => "Turbo! Match twice more to fill the bar",
+                2 => "One more match activates your shield",
+                _ => "Match your car’s color for turbo"
+            }, NextGuideBlock(chargeBlocks, progress));
         else
             SetCue("");
     }
 
-    void SetCue(string text)
+    FuelPickup NextGuideBlock(List<FuelPickup> blocks, float progress)
     {
-        cue.text = text;
+        foreach (FuelPickup block in blocks)
+            if (GuideBlockAhead(block, progress)) return block;
+        return null;
+    }
+
+    bool GuideBlockAhead(FuelPickup block, float progress)
+        => block.IsAvailable && Progress(block.transform.position) >= progress;
+
+    void SetGuideBlock(FuelPickup block)
+    {
+        if (activeGuideBlock == block) return;
+        if (activeGuideBlock != null) activeGuideBlock.SetGuideBlink(false);
+        activeGuideBlock = block;
+        if (activeGuideBlock != null) activeGuideBlock.SetGuideBlink(true);
+    }
+
+    void SetCue(string text, FuelPickup guideBlock = null)
+    {
+        SetGuideBlock(guideBlock);
+        if (cue.text != text) cue.text = text;
         cue.transform.parent.gameObject.SetActive(text.Length > 0);
     }
 
@@ -391,13 +419,33 @@ public sealed class TutorialRace : MonoBehaviour
 
         if (ready) return;
 
-        var intro = Panel("Starting Grid", new Vector2(.5f, .5f), Vector2.zero, new Vector2(920, 300));
-        Label("Title", intro, new Vector2(0, 92), new Vector2(880, 64), 56).text = "TUTORIAL RACE";
-        controls = Label("Controls", intro, new Vector2(0, 16), new Vector2(880, 54), 34);
+        var intro = Panel("Starting Grid", new Vector2(.5f, .5f), Vector2.zero, new Vector2(920, 344), opacity: .88f);
+        Label("Get Ready...", intro, new Vector2(0, 116), new Vector2(880, 64), 56);
+        keyboardControls = ControlGroup("Keyboard Controls", intro, new Vector2(0, 23));
+        var wasd = ControlGroup("WASD", keyboardControls, new Vector2(-155, 0));
+        AddKeycap(wasd, "W", new Vector2(0, 34), 44);
+        AddKeycap(wasd, "A", new Vector2(-52, -15), 44);
+        AddKeycap(wasd, "S", new Vector2(0, -15), 44);
+        AddKeycap(wasd, "D", new Vector2(52, -15), 44);
+        Label("Accelerate", wasd, new Vector2(101, 34), new Vector2(144, 32), 25);
+        Label("Steer left", wasd, new Vector2(-152, -15), new Vector2(144, 32), 25);
+        Label("Steer right", wasd, new Vector2(152, -15), new Vector2(144, 32), 25);
+        Label("Reverse", wasd, new Vector2(0, -54), new Vector2(144, 32), 25);
+        ControlHint(keyboardControls, "Brake", 250, ("Space", 96)).anchoredPosition += Vector2.up * 26f;
+        ControlHint(keyboardControls, "Reset", 250, ("R", 44)).anchoredPosition += Vector2.down * 26f;
+        gamepadControls = ControlGroup("Gamepad Controls", intro, Vector2.zero);
+        ControlHint(gamepadControls, "Steer", -285, ("Left Stick", 146));
+        ControlHint(gamepadControls, "Accelerate", 0, ("RT", 52));
+        ControlHint(gamepadControls, "Reverse", 285, ("LT", 52));
+        ControlHint(gamepadControls, "Brake", -145, ("A", 44)).anchoredPosition += Vector2.down * 60f;
+        ControlHint(gamepadControls, "Reset", 145, ("Start", 92)).anchoredPosition += Vector2.down * 60f;
+        gamepadControls.anchoredPosition = new Vector2(0, 45);
+        keyboardControls.gameObject.SetActive(Gamepad.current == null);
+        gamepadControls.gameObject.SetActive(Gamepad.current != null);
 
         Button raceButton = Instantiate(race.restartButton, intro, false);
         raceButton.name = "Race Button";
-        ((RectTransform)raceButton.transform).anchoredPosition = new Vector2(0, -82);
+        ((RectTransform)raceButton.transform).anchoredPosition = new Vector2(0, -108);
         raceButton.GetComponentInChildren<TMP_Text>(true).text = "Race";
         raceButton.navigation = new Navigation { mode = Navigation.Mode.None };
         raceButton.onClick.AddListener(() =>
@@ -409,6 +457,40 @@ public sealed class TutorialRace : MonoBehaviour
         Focus(raceButton);
     }
 
+    static RectTransform ControlGroup(string label, Transform parent, Vector2 position)
+        => Rect(label, parent, new Vector2(.5f, .5f), position, Vector2.zero);
+
+    RectTransform ControlHint(Transform parent, string action, float x, params (string label, float width)[] keys)
+    {
+        var hint = ControlGroup(action, parent, new Vector2(x, 0));
+        const float gap = 8f;
+        const float captionWidth = 144f;
+        float width = captionWidth;
+        foreach (var key in keys) width += key.width + gap;
+        float left = -width * .5f;
+        foreach (var key in keys)
+        {
+            AddKeycap(hint, key.label, new Vector2(left + key.width * .5f, 0), key.width);
+            left += key.width + gap;
+        }
+        var caption = Label(action, hint, new Vector2(left + captionWidth * .5f, 0), new Vector2(captionWidth, 40), 25);
+        caption.alignment = TextAlignmentOptions.MidlineLeft;
+        caption.textWrappingMode = TextWrappingModes.NoWrap;
+        return hint;
+    }
+
+    void AddKeycap(Transform parent, string key, Vector2 position, float width)
+    {
+        var cap = Rect(key + " Keycap", parent, new Vector2(.5f, .5f), position, new Vector2(width, 40));
+        var face = cap.gameObject.AddComponent<Image>();
+        face.color = new Color(.92f, .94f, .98f);
+        face.raycastTarget = false;
+        var edge = cap.gameObject.AddComponent<Shadow>();
+        edge.effectColor = new Color(.28f, .36f, .48f);
+        edge.effectDistance = new Vector2(0, -4);
+        Label(key, cap, Vector2.zero, cap.sizeDelta, 24).color = new Color(.10f, .15f, .23f);
+    }
+
     void ShowResults(bool won, string message)
     {
         SetCue("");
@@ -417,11 +499,11 @@ public sealed class TutorialRace : MonoBehaviour
         race.resultText.gameObject.SetActive(true);
     }
 
-    RectTransform Panel(string label, Vector2 anchor, Vector2 position, Vector2 size)
+    RectTransform Panel(string label, Vector2 anchor, Vector2 position, Vector2 size, float opacity = .65f)
     {
         RectTransform rect = Rect(label, race.resultText.transform.parent, anchor, position, size);
         Image image = rect.gameObject.AddComponent<Image>();
-        image.color = PanelColor;
+        image.color = new Color(0f, 0f, 0f, opacity);
         image.raycastTarget = false;
         return rect;
     }
@@ -445,6 +527,7 @@ public sealed class TutorialRace : MonoBehaviour
         text.fontSize = fontSize;
         text.color = Color.white;
         text.raycastTarget = false;
+        text.text = label;
         return text;
     }
 

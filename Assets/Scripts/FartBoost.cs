@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 
 // Fuel side effects on the car. A fart pushes it forward past its normal top
-// speed; a choke drags it down to a crawl. Both leave a trail of puffs.
+// speed; a choke drags it down to a crawl. Turbo uses a pulsing exhaust light.
 // Runs after CarDriver so it can override the wheel torques CarDriver sets.
 [DefaultExecutionOrder(100)]
 [RequireComponent(typeof(Rigidbody))]
@@ -12,6 +12,9 @@ public class FartBoost : MonoBehaviour
     public float acceleration = 12f;
     public float maxBoostKph = 100f;
     public float chokeMaxKph = 25f;
+
+    [Header("Boost exhaust")]
+    [SerializeField] Vector3 boostExhaustOffset = new Vector3(0f, .86f, -1.6f);
 
     [Header("Puffs")]
     public Vector3 exhaustOffset = new Vector3(0, .5f, -2.4f);
@@ -26,22 +29,32 @@ public class FartBoost : MonoBehaviour
     Rigidbody body;
     CarDriver driver;
     WheelCollider[] wheels;
-    float fartUntil, chokeUntil, nextPuff;
-    Material fartMaterial, chokeMaterial;
+    float fartUntil, chokeUntil, nextPuff, boostStarted;
+    Material chokeMaterial, exhaustMaterial;
+    Light exhaustLight;
+    LineRenderer exhaustBeam;
     readonly List<Puff> puffs = new List<Puff>();
 
     public bool IsFarting => Time.time < fartUntil;
     public bool IsChoking => Time.time < chokeUntil;
+    public bool IsBoosting => isActiveAndEnabled && IsFarting
+        && (driver == null || driver.CanDrive);
 
-    internal void ClearBoost() => fartUntil = 0f;
+    internal void ClearBoost()
+    {
+        fartUntil = 0f;
+        if (exhaustLight != null)
+            exhaustLight.gameObject.SetActive(false);
+    }
 
     void Awake()
     {
         body = GetComponent<Rigidbody>();
         driver = GetComponent<CarDriver>();
         wheels = GetComponentsInChildren<WheelCollider>();
-        fartMaterial = MakeMaterial(new Color(.55f, .7f, .2f));
         chokeMaterial = MakeMaterial(new Color(.15f, .15f, .15f));
+        if (driver != null)
+            driver.Respawned += ClearBoost;
     }
 
     // Farts stack, and a fart clears a choked engine (and the other way round).
@@ -49,6 +62,8 @@ public class FartBoost : MonoBehaviour
     {
         if (driver != null && !driver.CanDrive)
             return;
+        if (!IsFarting)
+            boostStarted = Time.time;
         fartUntil = Mathf.Max(fartUntil, Time.time) + seconds;
         chokeUntil = 0;
     }
@@ -58,7 +73,7 @@ public class FartBoost : MonoBehaviour
         if (driver != null && !driver.CanDrive)
             return;
         chokeUntil = Mathf.Max(chokeUntil, Time.time) + seconds;
-        fartUntil = 0;
+        ClearBoost();
     }
 
     void FixedUpdate()
@@ -91,10 +106,15 @@ public class FartBoost : MonoBehaviour
 
     void Update()
     {
-        if ((driver == null || driver.CanDrive) && (IsFarting || IsChoking) && Time.time >= nextPuff)
+        if (IsBoosting)
+            UpdateExhaust();
+        else if (exhaustLight != null && exhaustLight.gameObject.activeSelf)
+            exhaustLight.gameObject.SetActive(false);
+
+        if ((driver == null || driver.CanDrive) && IsChoking && Time.time >= nextPuff)
         {
-            nextPuff = Time.time + (IsFarting ? .04f : .12f);
-            SpawnPuff(IsFarting ? fartMaterial : chokeMaterial, IsFarting ? 1.4f : .8f);
+            nextPuff = Time.time + .12f;
+            SpawnPuff(chokeMaterial, .8f);
         }
 
         for (int i = puffs.Count - 1; i >= 0; i--)
@@ -111,6 +131,58 @@ public class FartBoost : MonoBehaviour
             puff.transform.localScale = Vector3.one * puff.size * Mathf.Sin(Mathf.PI * Mathf.Sqrt(t));
             puff.transform.position += Vector3.up * .8f * Time.deltaTime;
         }
+    }
+
+    void UpdateExhaust()
+    {
+        if (exhaustLight == null)
+        {
+            var exhaust = new GameObject("Boost Exhaust Light");
+            exhaust.transform.SetParent(transform, false);
+            exhaust.transform.localPosition = boostExhaustOffset;
+            exhaust.transform.localRotation = Quaternion.LookRotation(new Vector3(0f, -.09f, -1f));
+
+            exhaustLight = exhaust.AddComponent<Light>();
+            exhaustLight.type = LightType.Spot;
+            exhaustLight.color = new Color(.65f, .14f, 1f);
+            exhaustLight.range = 7f;
+            exhaustLight.spotAngle = 36f;
+            exhaustLight.innerSpotAngle = 17f;
+            exhaustLight.shadows = LightShadows.None;
+
+            exhaustMaterial = new Material(Resources.Load<Shader>("BoostExhaust"));
+            exhaustBeam = exhaust.AddComponent<LineRenderer>();
+            exhaustBeam.sharedMaterial = exhaustMaterial;
+            exhaustBeam.shadowCastingMode = ShadowCastingMode.Off;
+            exhaustBeam.textureMode = LineTextureMode.Stretch;
+            exhaustBeam.useWorldSpace = false;
+            exhaustBeam.positionCount = 2;
+            exhaustBeam.SetPosition(0, Vector3.zero);
+            exhaustBeam.startWidth = .30f;
+            exhaustBeam.endWidth = 3.1f;
+        }
+
+        // The central outlet stays bright as the purple cone flashes behind it.
+        float wave = .5f + .5f * Mathf.Cos((Time.time - boostStarted) * 2.5f * 2f * Mathf.PI);
+        float flash = wave * wave * wave;
+        exhaustLight.intensity = Mathf.Lerp(.8f, 4f, flash);
+        exhaustMaterial.SetFloat("_Pulse", flash);
+        exhaustBeam.SetPosition(1, Vector3.forward * Mathf.Lerp(3.8f, 5.8f, flash));
+        exhaustLight.gameObject.SetActive(true);
+    }
+
+    void OnDisable() => ClearBoost();
+
+    void OnDestroy()
+    {
+        if (driver != null)
+            driver.Respawned -= ClearBoost;
+        if (exhaustLight != null)
+            Destroy(exhaustLight.gameObject);
+        Destroy(exhaustMaterial);
+        Destroy(chokeMaterial);
+        foreach (Puff puff in puffs)
+            Destroy(puff.transform.gameObject);
     }
 
     void SpawnPuff(Material material, float size)

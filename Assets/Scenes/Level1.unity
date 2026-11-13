@@ -26609,7 +26609,6 @@ MonoBehaviour:
   bodyMaterialSlot: 0
   labelBackground: {r: 0, g: 0, b: 0, a: 0.55}
   pickupRefuel: 25
-  pickupFartSeconds: 0.7
   premiumRefuel: 50
   hybridRefuel: 20
   superFartSeconds: 2.5
@@ -26617,9 +26616,6 @@ MonoBehaviour:
   cars: []
   switchImmunityTime: 4
   maxCharges: 3
-  turboKey: 31
-  turboSeconds: 2.5
-  shieldSeconds: 8
   shieldVisual: {fileID: 0}
   shieldBlinkSeconds: 2
 --- !u!114 &408367770
@@ -102398,7 +102394,6 @@ MonoBehaviour:
   bodyMaterialSlot: 0
   labelBackground: {r: 0, g: 0, b: 0, a: 0.55}
   pickupRefuel: 25
-  pickupFartSeconds: 0.7
   premiumRefuel: 50
   hybridRefuel: 20
   superFartSeconds: 2.5
@@ -102409,9 +102404,6 @@ MonoBehaviour:
   - {fileID: 408367763}
   switchImmunityTime: 4
   maxCharges: 3
-  turboKey: 31
-  turboSeconds: 2.5
-  shieldSeconds: 8
   shieldVisual: {fileID: 8856322269017009276, guid: c52e56625cefa4ecc80ff55b7df8684e, type: 3}
   shieldBlinkSeconds: 2
 --- !u!114 &1501234022

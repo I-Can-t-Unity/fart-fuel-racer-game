@@ -67,9 +67,14 @@ public class SwapManager : MonoBehaviour
         if (!carA || !carB) { Debug.LogWarning("SwapManager: assign Car A and Car B.", this); return false; }
         SwapCar other = instigator == carA ? carB : carA;
         if (instigator.Immune || other.Immune) return false;
+        if (instigator.Shielded || other.Shielded)
+        {
+            SwapHUD.ShowBlockedSwap(instigator.isPlayer ? instigator : other, "SHIELD SAID NO", 1f);
+            return false;
+        }
         if (CrossesBarrier(instigator.Body.position, other.Body.position))
         {
-            SwapHUD.Banner(instigator, "NO SWAP ACROSS THE LINE", 0.8f);
+            SwapHUD.ShowBlockedSwap(instigator, "NO SWAP ACROSS THE LINE", 0.8f);
             return false;
         }
 

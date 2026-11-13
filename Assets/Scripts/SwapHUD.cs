@@ -41,12 +41,21 @@ public class SwapHUD : MonoBehaviour
         instance.bannerRoutine = instance.StartCoroutine(instance.ShowBanner(text, seconds, Switcheroo.ToColor(car.color)));
     }
 
+    internal static void ShowBlockedSwap(SwapCar playerCar, string text, float seconds)
+    {
+        if (!playerCar.isPlayer) return;
+        Camera camera = Camera.main;
+        if (camera != null && camera.TryGetComponent(out CarFollowCamera followCamera))
+            followCamera.ShakeForBlockedSwap();
+        Banner(playerCar, text, seconds);
+    }
+
     void OnChanged(SwapCar car)
     {
         if (car != player || !badge) return;
         string hex = ColorUtility.ToHtmlStringRGB(Switcheroo.ToColor(car.color));
         badge.text = $"YOU: <color=#{hex}>{Switcheroo.Name(car.color)}</color>   CHARGES {car.Charges}/{car.maxCharges}" +
-                     (car.Shielded ? "   <color=#FFFFFF><size=75%>SHIELD ON - {car.turboKey} = TURBO</size></color>" : "");
+                     (car.Shielded ? "   <color=#FFFFFF><size=75%>SHIELD ON</size></color>" : "");
         if (rules) rules.text = RulesText(car.color);
     }
 

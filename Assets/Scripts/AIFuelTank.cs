@@ -35,8 +35,6 @@ public class AIFuelTank : MonoBehaviour, IFuelMixHolder
     }
 
     [Header("Colour cubes")]
-    [Tooltip("Boost from its own colour, in seconds. Copied from the player's at the start.")]
-    public float cubeBoostSeconds = .7f;
     [Tooltip("A car has to be this many metres ahead to count as ahead, so cars side by side don't keep swapping places.")]
     public float positionMarginMetres = 2f;
 
@@ -45,21 +43,12 @@ public class AIFuelTank : MonoBehaviour, IFuelMixHolder
     public FuelType CubeColour => RacePosition <= 1 ? ownFuel : LeaderColour;
 
     Rigidbody[] racerBodies;
-    bool boostCopied;
     FuelType lastCubeColour;
     bool cubeColourLogged;
 
     // Called by the driver every physics step. Figures out our place and who's leading.
     public void UpdateStanding(Rigidbody body)
     {
-        if (!boostCopied)
-        {
-            boostCopied = true;
-            FuelInventory switching = SwitchingInventory();
-            if (switching != null)
-                cubeBoostSeconds = switching.pickupFartSeconds;
-        }
-
         RacePosition = 1;
         LeaderColour = ownFuel;
         RaceManager race = RaceManager.Instance;
@@ -112,8 +101,12 @@ public class AIFuelTank : MonoBehaviour, IFuelMixHolder
 
     public void TakeCube(FuelType type)
     {
-        if (type == ownFuel && fart != null)
-            fart.Fart(cubeBoostSeconds);
+        if (type == ownFuel)
+        {
+            if (fart != null)
+                fart.Fart(FuelInventory.PickupBoostSeconds);
+            SwitchingInventory()?.AIPickedUp(GetComponent<CarDriver>(), type);
+        }
         if (logFuelDecisions)
             Debug.Log(type == ownFuel
                 ? $"[AI] {name} took its own {type} cube: boost."

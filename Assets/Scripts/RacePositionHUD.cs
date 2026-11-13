@@ -252,7 +252,7 @@ public class RacePositionHUD : MonoBehaviour
     void BuildPanel()
     {
         RectTransform panel = new GameObject("RacePosition", typeof(RectTransform)).GetComponent<RectTransform>();
-        panel.SetParent(transform, false);
+        panel.SetParent(DrivingControlsHUD.ContentOf(transform), false);
         panel.anchorMin = panel.anchorMax = new Vector2(1, 1);
         panel.pivot = new Vector2(.5f, 1);
         panel.anchoredPosition = topRightOffset;

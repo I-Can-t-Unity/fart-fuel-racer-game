@@ -1,21 +1,14 @@
-using TMPro;
 using UnityEngine;
 
 public class FuelPickup : MonoBehaviour
 {
+    const float GuideBlinkPeriod = 1f;
+    static readonly int EmissionColor = Shader.PropertyToID("_EmissionColor");
+
     public FuelType type;
     public FuelInventory inventory;
     public float respawnSeconds = 10f;
     public float spinSpeed = 90f;
-    [Tooltip("Gap between the top of the can and the bottom of its label, in metres.")]
-    public float labelGap = .4f;
-    public float labelFontSize = 8f;
-    [Tooltip("Beyond this distance from the camera the label grows, so it stays readable from further away.")]
-    public float labelReadableDistance = 30f;
-    [Tooltip("Largest the label grows to. Above about 2.2, long names in neighbouring lanes start to overlap.")]
-    public float labelMaxScale = 1.4f;
-    [Tooltip("Lift this label above its neighbours' so labels in the same row never overlap.")]
-    public bool raiseLabel;
     // Which row of cubes this is in and which lane, counted from 0 (set by the spawner).
     public int row = -1, lane = -1;
 
@@ -26,11 +19,12 @@ public class FuelPickup : MonoBehaviour
     Vector3 basePosition;
     Renderer pickupRenderer;
     Collider trigger;
-    TextMeshPro label;
-    float labelLift;
     float respawnAt = -1;
+    Material emissiveMaterial;
+    Color peakEmission;
+    float blinkStartedAt;
+    bool guideBlinkActive;
 
-    static Sprite plateSprite;
     static Mesh jerryCanMesh;
 
     // Looked up in Awake, not Start: a car can touch a cube in the same frame it is
@@ -77,48 +71,27 @@ public class FuelPickup : MonoBehaviour
     void Start()
     {
         basePosition = transform.position;
-        if (inventory != null)
-        {
-            label = CreateLabel();
-            label.gameObject.SetActive(IsAvailable);
-        }
     }
 
-    TextMeshPro CreateLabel()
+    internal void SetGuideBlink(bool active)
     {
-        // A sibling rather than a child, so the text doesn't spin with the cube.
-        var text = new GameObject(name + "_Label").AddComponent<TextMeshPro>();
-        text.transform.SetParent(transform.parent, false);
-        text.rectTransform.sizeDelta = new Vector2(6, 2);
-        text.rectTransform.pivot = new Vector2(.5f, 0);
-        text.alignment = TextAlignmentOptions.Bottom;
-        text.textWrappingMode = TextWrappingModes.NoWrap;
-        text.fontSize = labelFontSize;
-        text.fontStyle = FontStyles.Bold;
-        text.text = inventory.NameOf(type);
-        text.color = inventory.LabelColorOf(type);
-        text.outlineWidth = .25f;
-        text.outlineColor = Color.black;
+        if (guideBlinkActive == active) return;
+        guideBlinkActive = active;
+        if (emissiveMaterial == null)
+        {
+            emissiveMaterial = new Material(pickupRenderer.sharedMaterial);
+            peakEmission = Color.Lerp(emissiveMaterial.color, Color.white, .4f) * 4f;
+            emissiveMaterial.EnableKeyword("_EMISSION");
+            pickupRenderer.sharedMaterial = emissiveMaterial;
+        }
+        emissiveMaterial.SetColor(EmissionColor, Color.black);
+        blinkStartedAt = Time.time;
+    }
 
-        // A dark plate just behind the text keeps both colours readable against
-        // grass, road and sky alike.
-        text.ForceMeshUpdate();
-        Bounds bounds = text.textBounds;
-        Vector2 plateSize = new Vector2(bounds.size.x + .6f, bounds.size.y + .3f);
-        if (plateSprite == null)
-            plateSprite = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 4, 4), new Vector2(.5f, .5f), 4);
-        var plate = new GameObject("Plate").AddComponent<SpriteRenderer>();
-        plate.sprite = plateSprite;
-        plate.color = inventory.labelBackground;
-        plate.sortingOrder = -1;
-        plate.transform.SetParent(text.transform, false);
-        plate.transform.localPosition = new Vector3(bounds.center.x, bounds.center.y, .05f);
-        plate.transform.localScale = new Vector3(plateSize.x, plateSize.y, 1);
-
-        // A raised label sits one whole plate higher, clear of the labels beside it.
-        if (raiseLabel)
-            labelLift = plateSize.y + .2f;
-        return text;
+    void OnDestroy()
+    {
+        if (emissiveMaterial != null)
+            Destroy(emissiveMaterial);
     }
 
     void Update()
@@ -129,23 +102,15 @@ public class FuelPickup : MonoBehaviour
             SetAvailable(true);
         }
 
+        if (guideBlinkActive && IsAvailable)
+        {
+            float phase = Mathf.Repeat(Time.time - blinkStartedAt, GuideBlinkPeriod) / GuideBlinkPeriod;
+            float intensity = .5f - .5f * Mathf.Cos(phase * 2f * Mathf.PI);
+            emissiveMaterial.SetColor(EmissionColor, Color.Lerp(Color.black, peakEmission, intensity));
+        }
+
         transform.Rotate(0, spinSpeed * Time.deltaTime, 0, Space.World);
         transform.position = basePosition + Vector3.up * Mathf.Sin(Time.time * 2f + basePosition.x) * .15f;
-
-        if (label != null)
-        {
-            float scale = 1;
-            Camera view = Camera.main;
-            if (view != null)
-            {
-                label.transform.rotation = view.transform.rotation;
-                float distance = Vector3.Distance(view.transform.position, transform.position);
-                scale = Mathf.Clamp(distance / labelReadableDistance, 1, labelMaxScale);
-            }
-            label.transform.localScale = Vector3.one * scale;
-            label.transform.position = transform.position
-                + Vector3.up * (transform.localScale.y * .5f + labelGap + labelLift * scale);
-        }
     }
 
     // False while the cube has been taken and is waiting to respawn. The AI uses this to pick a lane.
@@ -200,9 +165,12 @@ public class FuelPickup : MonoBehaviour
 
     void SetAvailable(bool available)
     {
+        if (available && emissiveMaterial != null)
+        {
+            blinkStartedAt = Time.time;
+            emissiveMaterial.SetColor(EmissionColor, Color.black);
+        }
         pickupRenderer.enabled = available;
         trigger.enabled = available;
-        if (label != null)
-            label.gameObject.SetActive(available);
     }
 }

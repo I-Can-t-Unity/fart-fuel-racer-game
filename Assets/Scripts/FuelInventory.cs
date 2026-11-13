@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 public enum FuelType { Gasoline, Diesel, Ethanol }
 
@@ -79,6 +78,8 @@ public static class FuelMixConversion
 public class FuelInventory : MonoBehaviour, IFuelMixHolder
 {
     public const int Capacity = 2;
+    internal const float PickupBoostSeconds = 2f;
+    internal const float ShieldSeconds = 8f;
 
     [Tooltip("The fuel this car runs on. Every other fuel type counts as wrong fuel.")]
     public FuelType carFuel = FuelType.Gasoline;
@@ -88,13 +89,8 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
 
     public int bodyMaterialSlot;
 
-    [Header("Labels")]
-    [Tooltip("Dark plate behind the fuel-colored labels so they stand out against the ground.")]
-    public Color labelBackground = new Color(0, 0, 0, .55f);
-
     [Header("Pickups")]
     public float pickupRefuel = 25f;
-    public float pickupFartSeconds = .7f;
 
     [Header("Mixes")]
     public float premiumRefuel = 50f;
@@ -108,14 +104,8 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
 
     [Header("Charges (own colour = +1, max 3)")]
     public int maxCharges = 3;
-    [Tooltip("With a full set of charges, this key spends them on a turbo.")]
-    public Key turboKey = Key.Q;
-    public float turboSeconds = 2.5f;
-    internal bool TurboKeyEnabled { get; set; } = true;
 
     [Header("Shield (3 charges = shield for a few seconds)")]
-    [Tooltip("How long the shield lasts. Charges go back to 0 when it switches on.")]
-    [Range(3f, 15f)] public float shieldSeconds = 8f;
     [Tooltip("Your ShieldBubble prefab. It is put on the car and tinted to the car's colour.")]
     public GameObject shieldVisual;
     [Tooltip("The ring flashes for this many seconds before it runs out (faster and faster).")]
@@ -235,23 +225,7 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
         Changed?.Invoke();
     }
 
-    void Update()
-    {
-        UpdateShields();
-
-        // Q while shielded = trade the rest of the shield for a turbo.
-        if (!TurboKeyEnabled || currentCar == null || Keyboard.current == null) return;
-        if (RaceManager.Instance != null && !RaceManager.Instance.IsRacing) return;
-        if (Keyboard.current[turboKey].wasPressedThisFrame && IsShielded)
-        {
-            EndShield(currentCar, false);
-            if (fart != null) fart.Fart(turboSeconds);
-            lastResult = "turbo";
-            Announce("TURBO!");
-            Changed?.Invoke();
-            TurboUsed?.Invoke();
-        }
-    }
+    void Update() => UpdateShields();
 
     void SetCharges(CarDriver car, int value)
     {
@@ -269,10 +243,10 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
     void StartShield(CarDriver car)
     {
         SetCharges(car, 0);
-        shieldEnds[car] = Time.time + shieldSeconds;
+        shieldEnds[car] = Time.time + ShieldSeconds;
         ShowBubble(car, true);
         Announce(car == currentCar
-            ? $"{Paint(car, "SHIELD ON!")}  {shieldSeconds:0}s"
+            ? $"{Paint(car, "SHIELD ON!")}  {ShieldSeconds:0}s"
             : $"{Paint(car, NameOfCar(car) + " HAS A SHIELD!")}");
         ShieldStarted?.Invoke(car == currentCar);
         Changed?.Invoke();
@@ -462,23 +436,17 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
     // swaps are blocked. The shield keeps going until its time runs out.
     bool BlockedByShield(CarDriver mine, CarDriver theirs, FuelType theirColor)
     {
-        if (IsShieldedCar(mine))
-        {
-            immunityEndingTime = Time.time + 1f;
-            Announce(Paint(mine, "SHIELD SAID NO!"));
-            Changed?.Invoke();
-            ShieldBlocked?.Invoke(true);
-            return true;
-        }
-        if (IsShieldedCar(theirs))
-        {
-            immunityEndingTime = Time.time + 1f;
-            Announce(Paint(theirs, $"{NameOf(theirColor)}'S SHIELD BLOCKED YOU!"));
-            Changed?.Invoke();
-            ShieldBlocked?.Invoke(false);
-            return true;
-        }
-        return false;
+        bool playerShield = IsShieldedCar(mine);
+        if (!playerShield && !IsShieldedCar(theirs))
+            return false;
+
+        immunityEndingTime = Time.time + 1f;
+        if (followCamera != null) followCamera.ShakeForBlockedSwap();
+        Announce(playerShield ? Paint(mine, "SHIELD SAID NO!")
+            : Paint(theirs, $"{NameOf(theirColor)}'S SHIELD BLOCKED YOU!"));
+        Changed?.Invoke();
+        ShieldBlocked?.Invoke(playerShield);
+        return true;
     }
 
     bool SwitchCar(FuelType type)
@@ -509,10 +477,11 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
         // Rule 1: your colour = speed boost + 1 charge (max 3).
         if(type == carFuel)
         {
-            if (fart != null) fart.Fart(pickupFartSeconds);
+            if (fart != null) fart.Fart(PickupBoostSeconds);
             lastResult = "boost";
             if (Charges + 1 < maxCharges) Announce($"BOOST!  CHARGE {Charges + 1}/{maxCharges}");
             AddCharge(currentCar);   // the 3rd charge announces SHIELD ON itself
+            TurboUsed?.Invoke();
         }
         // 4 s after a swap nothing can swap you again; the block stays on the track.
         else if(IsImmune)
@@ -540,9 +509,7 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
         return true;
     }
 
-    // Spends the held mix on something other than its Q effect, such as unlocking
-    // a shortcut. False, with the bag left as it is, unless that exact mix is held.
-    // Q goes through HeldMix too, so a single mix can only ever be spent once.
+    // Spends the held mix at a shortcut if the requested mix is available.
     // Shortcut gates (e.g. the bridge jump) ask for "Super Fart": that now means a full set of charges.
     public bool TryConsumeMix(FuelMix mix)
     {
@@ -568,8 +535,6 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
     public Color ColorOf(FuelType type) => FuelPalette.ColorOf(type);
 
     public string NameOf(FuelType type) => SuperFartRecipe.ColorNameOf(type);
-
-    public Color LabelColorOf(FuelType type) => FuelPalette.ColorOf(type);
 
     public string PickupEffectOf(FuelType type) =>
         IsSuitable(type)

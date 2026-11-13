@@ -1442,8 +1442,6 @@ MonoBehaviour:
     <b>Space</b>   
     Brake
 
-    <b>Q</b>    Turbo (needs 3 charges)
-
     <b>R</b>    Reset your car'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -10346,7 +10344,7 @@ MonoBehaviour:
   m_text: '<b>SWITCHEROO RULES</b>
 
 
-    <b>Your colour</b>    1 s turbo + 1 charge
+    <b>Your colour</b>    2 s turbo + 1 charge
 
     <b>Rival''s
     colour</b>    Swap into their car
@@ -10354,7 +10352,7 @@ MonoBehaviour:
     <b>3 charges</b>    Auto shield: no swaps
     for 8 s
 
-    <b>Shield ends</b>    Charges reset, collect again
+    <b>Shield activates</b>    Charges reset
 
 
     <size=24>After

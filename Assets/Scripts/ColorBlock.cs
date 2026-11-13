@@ -5,7 +5,7 @@ using UnityEngine;
 /// A red or blue block on the road.
 ///   Same colour as the car  → +1 charge and a small boost.
 ///   Other colour            → SWITCHEROO (swap cars), unless the car is shielded,
-///                             in which case the block is smashed and the shield used up.
+///                             in which case the swap is blocked.
 /// Disappears when taken and comes back after a few seconds.
 /// </summary>
 [RequireComponent(typeof(BoxCollider))]
@@ -62,7 +62,7 @@ public class ColorBlock : MonoBehaviour
         if (car.color == color)
         {
             car.AddCharge();
-            car.Boost(car.pickupBoostSeconds);
+            car.Boost();
             SwapHUD.Banner(car, car.Shielded ? "SHIELD UP!" : "+1 CHARGE", 0.6f);
             Take();
             return;
@@ -70,9 +70,8 @@ public class ColorBlock : MonoBehaviour
 
         if (car.Shielded)
         {
-            car.ClearCharges();
             PoofCloud.Spawn(transform.position, Color.white, 8, 1.6f);
-            SwapHUD.Banner(car, "SHIELD SAID NO", 1f);
+            SwapHUD.ShowBlockedSwap(car, "SHIELD SAID NO", 1f);
             Take();
             return;
         }
