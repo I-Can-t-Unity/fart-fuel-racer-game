@@ -414,7 +414,7 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
         return true;
     }
 
-    // An AI grabbed two of the player's cubes in a row, so it takes the player's car and the
+    // An AI grabbed a cube of the player's colour, so it takes the player's car and the
     // player ends up in the AI's. Goes through the normal switch, so the protection time works too.
     public bool ForceSwitchTo(CarDriver aiCar)
     {

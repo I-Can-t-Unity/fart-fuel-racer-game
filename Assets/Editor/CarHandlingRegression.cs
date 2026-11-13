@@ -51,6 +51,8 @@ public static class CarHandlingRegression
                 TestTurn(50f);
                 TestTurn(70f);
                 TestTurn(100f);
+                TestPlayerSteeringReversal();
+                TestPlayerCornerAssist();
                 TestSideSwipe();
                 TestDoorContact();
                 TestRearImpact();
@@ -133,6 +135,85 @@ public static class CarHandlingRegression
         Check(body.linearVelocity.magnitude * 3.6f > speedKmh * 0.65f,
             $"Turn exit speed {body.linearVelocity.magnitude * 3.6f:F1} km/h");
         UnityEngine.Object.DestroyImmediate(car.gameObject);
+    }
+
+    private static void TestPlayerSteeringReversal()
+    {
+        CarDriver car = Spawn(new Vector3(0, 0.6f, 0));
+        car.ExternalInput = false;
+        var cars = new[] { car };
+        WheelCollider frontWheel = car.transform.Find("LeftFrontCollider").GetComponent<WheelCollider>();
+        Step(cars, 0f, 1f, 1);
+        float freshTurn = frontWheel.steerAngle;
+        Step(cars, 0f, -1f, 1);
+        float reversal = -frontWheel.steerAngle;
+        Check(reversal >= 0f && reversal < freshTurn * 0.4f,
+            $"Player reversal uses the normal turn-in rate after center: {reversal:F2}° vs. {freshTurn:F2}° from center");
+        UnityEngine.Object.DestroyImmediate(car.gameObject);
+    }
+
+    private static void TestPlayerCornerAssist()
+    {
+        var track = new GameObject("Player corner assist track").AddComponent<LoopTrackGenerator>();
+        for (int z = -60; z < 36; z += 2)
+            track.centerline.Add(new Vector3(0f, 0f, z));
+        for (int degrees = 0; degrees <= 180; degrees += 10)
+        {
+            float angle = degrees * Mathf.Deg2Rad;
+            track.centerline.Add(new Vector3(11f * (1f - Mathf.Cos(angle)), 0f, 36f + 11f * Mathf.Sin(angle)));
+        }
+        track.centerline.Add(new Vector3(22f, 0f, -60f));
+
+        CarDriver car = Spawn(new Vector3(0f, 0.6f, 0f));
+        var cars = new[] { car };
+        Rigidbody body = car.Body;
+        WheelCollider frontWheel = car.transform.Find("LeftFrontCollider").GetComponent<WheelCollider>();
+        Step(cars, 0f, 0f, 75);
+        float settledY = body.position.y;
+        car.ExternalInput = false;
+
+        float unassisted = SampleTorque(0f, 0f);
+        float distant = SampleTorque(0f, 1f);
+        float approaching = SampleTorque(9f, 1f);
+        float imminent = SampleTorque(30f, 1f);
+        float opposite = SampleTorque(30f, -1f);
+        Check(unassisted > 0f && Mathf.Abs(distant - unassisted) < 1f && Mathf.Abs(opposite - unassisted) < 1f,
+            $"Distant bends and steering away leave engine torque available: {unassisted:F0}/{distant:F0}/{opposite:F0} Nm");
+        Check(approaching > 1f && approaching < unassisted - 1f && imminent < approaching - 1f,
+            $"Corner assist backs off torque progressively as the bend approaches: {unassisted:F0}/{approaching:F0}/{imminent:F0} Nm");
+
+        FartBoost boost = car.GetComponent<FartBoost>();
+        boost.enabled = true;
+        boost.Fart(4f);
+        float boosted = SampleTorque(30f, 1f);
+        Check(boost.IsBoosting && Mathf.Abs(boosted - unassisted) < 1f,
+            $"Boost gets full engine torque in the same bend: {boosted:F0} Nm");
+
+        boost.enabled = false;
+        var branch = new GameObject("Player corner assist shortcut").AddComponent<ShortcutBranch>();
+        ShortcutTracker.Enter(body, branch, false);
+        float shortcut = SampleTorque(30f, 1f);
+        Check(Mathf.Abs(shortcut - unassisted) < 1f,
+            $"Shortcut entry gets full engine torque: {shortcut:F0} Nm");
+        ShortcutTracker.Exit(body);
+        UnityEngine.Object.DestroyImmediate(branch.gameObject);
+        UnityEngine.Object.DestroyImmediate(car.gameObject);
+        UnityEngine.Object.DestroyImmediate(track.gameObject);
+
+        float SampleTorque(float z, float steer)
+        {
+            // Hold the entry speed and position to isolate the assist's response.
+            for (int i = 0; i < 35; i++)
+            {
+                body.position = new Vector3(0f, settledY, z);
+                body.rotation = Quaternion.identity;
+                body.linearVelocity = Vector3.forward * 20f;
+                body.angularVelocity = Vector3.zero;
+                Physics.SyncTransforms();
+                Step(cars, 1f, steer, 1);
+            }
+            return frontWheel.motorTorque;
+        }
     }
 
     private static void TestSideSwipe()

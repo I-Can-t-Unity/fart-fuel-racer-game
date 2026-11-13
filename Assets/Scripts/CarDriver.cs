@@ -165,6 +165,7 @@ public class CarDriver : MonoBehaviour
             body = GetComponent<Rigidbody>();
 
         throttleInput = throttle = steering = currentSteering = steeringInputSmoothed = 0;
+        steerHeldSeconds = steerHeldSign = 0f;
         braking = resetRequested = false;
         IsBraking = hold;
         if (hold)
@@ -442,12 +443,9 @@ public class CarDriver : MonoBehaviour
             : (Mathf.Abs(forwardSpeed) >= limit ? 0f : 1f);
         float torque = applyBrake || !EngineRunning ? 0 : throttle * motorTorque * power * taper;
         float idleBrake = !EngineRunning ? engineOffDrag : Mathf.Abs(throttleInput) < 0.01f ? 40f : 0;
-        if (ApplyCornerAssist(forwardSpeed, power, applyBrake))
-            torque = 0;
-
-        float speedFraction = Mathf.Clamp01(SpeedKmh / topSpeedKmh);
         float planarSpeedSquared = Vector3.ProjectOnPlane(body.linearVelocity, transform.up).sqrMagnitude;
         float topSpeed = topSpeedKmh / 3.6f;
+        float speedFraction = Mathf.Clamp01(Mathf.Sqrt(planarSpeedSquared) / topSpeed);
         float overspeed = holdTurnRadiusAboveTopSpeed
             ? Mathf.Clamp(planarSpeedSquared / (topSpeed * topSpeed), 1f, maxBoostGrip) : 1f;
         // Bicycle model: lateral accel = v² · tan(angle) / wheelbase.
@@ -456,19 +454,28 @@ public class CarDriver : MonoBehaviour
         float steeringLimit = Mathf.Min(Mathf.Lerp(steeringAngle, steeringAngle * 0.4f, speedFraction),
             safeAngle * steerSlipAllowance);
 
-        float inputRate = steeringResponse / Mathf.Max(steeringAngle, 1f);
+        float steeringStep = steeringResponse / Mathf.Max(steeringAngle, 1f) * Time.fixedDeltaTime;
         if (!ExternalInput)
         {
-            inputRate *= Mathf.Lerp(1f, highSpeedSteerRate, speedFraction);
-            bool returning = steering * steeringInputSmoothed < 0f
-                || Mathf.Abs(steering) < Mathf.Abs(steeringInputSmoothed);
-            if (returning)
-                inputRate *= steerReturnRate;
+            steeringStep *= Mathf.Lerp(1f, highSpeedSteerRate, speedFraction);
+            if (steering * steeringInputSmoothed < 0f)
+            {
+                float stepToCenter = Mathf.Abs(steeringInputSmoothed) / steerReturnRate;
+                steeringInputSmoothed = Mathf.MoveTowards(steeringInputSmoothed, 0f, steeringStep * steerReturnRate);
+                steeringStep = Mathf.Max(0f, steeringStep - stepToCenter);
+            }
+            else if (Mathf.Abs(steering) < Mathf.Abs(steeringInputSmoothed))
+                steeringStep *= steerReturnRate;
         }
-        steeringInputSmoothed = Mathf.MoveTowards(steeringInputSmoothed, steering, inputRate * Time.fixedDeltaTime);
+        steeringInputSmoothed = Mathf.MoveTowards(steeringInputSmoothed, steering, steeringStep);
         currentSteering = steeringInputSmoothed * steeringLimit;
 
         GroundedWheelCount = 0;
+        foreach (Wheel wheel in wheels)
+            if (wheel.collider.isGrounded)
+                GroundedWheelCount++;
+        torque *= 1f - ApplyCornerAssist(forwardSpeed, applyBrake);
+
         for (int i = 0; i < wheels.Length; i++)
         {
             Wheel wheel = wheels[i];
@@ -481,8 +488,6 @@ public class CarDriver : MonoBehaviour
             WheelFrictionCurve forward = wheel.collider.forwardFriction;
             forward.stiffness = baseForwardStiffness[i] * tireGrip;
             wheel.collider.forwardFriction = forward;
-            if (wheel.collider.isGrounded)
-                GroundedWheelCount++;
         }
         VehicleBarrierContacts.UpdateCar(barrierBodyId, body.worldCenterOfMass.y,
             GroundedWheelCount >= 2 && Vector3.Dot(transform.up, Vector3.up) > 0.7f);
@@ -499,6 +504,8 @@ public class CarDriver : MonoBehaviour
         body.linearVelocity = Vector3.zero;
         body.angularVelocity = Vector3.zero;
         currentSteering = steeringInputSmoothed = 0;
+        steerHeldSeconds = steerHeldSign = 0f;
+        assistTrackIndex = -1;
         lastVehicleContact = float.NegativeInfinity;
         throttle = 0;
         resetRequested = false;
@@ -538,60 +545,62 @@ public class CarDriver : MonoBehaviour
         return Mathf.Clamp01((wheel.center.y - hitY - wheel.radius) / Mathf.Max(wheel.suspensionDistance, 0.01f));
     }
 
-    // While throttle and steering are held together, slow to a speed the bend ahead allows.
-    // Returns true while slowing, so the engine gives no drive.
-    private bool ApplyCornerAssist(float forwardSpeed, float power, bool applyBrake)
+    // Returns the fraction of engine torque to back off while slowing for a bend.
+    private float ApplyCornerAssist(float forwardSpeed, bool applyBrake)
     {
+        if (!cornerAssist || ExternalInput || applyBrake || throttleInput <= 0f || forwardSpeed <= 0f
+            || GroundedWheelCount < 2 || ShortcutTracker.IsOnBranch(body)
+            || (TryGetComponent(out FartBoost boost) && boost.IsBoosting))
+        {
+            steerHeldSeconds = steerHeldSign = 0f;
+            return 0f;
+        }
+
         float sign = Mathf.Abs(steering) > 0.5f ? Mathf.Sign(steering) : 0f;
         steerHeldSeconds = sign != 0f && sign == steerHeldSign ? steerHeldSeconds + Time.fixedDeltaTime : 0f;
         steerHeldSign = sign;
-        if (!cornerAssist || ExternalInput || applyBrake || throttleInput <= 0f || forwardSpeed <= 0f
-            || GroundedWheelCount < 2)
-            return false;
         float strength = Mathf.Clamp01((steerHeldSeconds - cornerAssistDelay) / cornerAssistRamp)
-            * Mathf.Abs(steeringInputSmoothed);
-        if (strength <= 0f)
-            return false;
-        float cornerSpeed = Mathf.Sqrt(maxCorneringAcceleration * AssistBendRadius(forwardSpeed, Mathf.Sign(steering)));
-        if (forwardSpeed <= cornerSpeed)
-            return false;
-        float cap = Mathf.Lerp(Mathf.Max(topSpeedKmh * power / 3.6f, forwardSpeed), cornerSpeed, strength);
-        if (forwardSpeed <= cap)
-            return false;
-        float slow = Mathf.Min(cornerAssistDecel, (forwardSpeed - cap) / Time.fixedDeltaTime);
-        body.AddForce(-transform.forward * slow, ForceMode.Acceleration);
-        return true;
+            * Mathf.Clamp01(steeringInputSmoothed * sign);
+        if (strength <= 0f || cornerAssistDecel <= 0f)
+            return 0f;
+        float excessSpeed = forwardSpeed - Mathf.Sqrt(AssistSpeedLimitSquared(forwardSpeed, sign));
+        // Build up braking over 2 m/s (7.2 km/h) of excess speed.
+        float assist = strength * Mathf.Clamp01(excessSpeed / 2f);
+        body.AddForce(-transform.forward * (cornerAssistDecel * assist), ForceMode.Acceleration);
+        return assist;
     }
 
-    // Tightest bend radius ahead in the steering direction, on the car's own line.
-    // Infinity if there is no bend that way; cornerAssistRadius if the track can't be used.
-    private float AssistBendRadius(float forwardSpeed, float steerSign)
+    // Speed the car can carry now while leaving room to slow for each bend ahead.
+    private float AssistSpeedLimitSquared(float forwardSpeed, float steerSign)
     {
-        if (!cornerAssistReadsTrack || ShortcutTracker.IsOnBranch(body))
-            return cornerAssistRadius;
+        float fallbackSpeedSquared = maxCorneringAcceleration * cornerAssistRadius;
+        if (!cornerAssistReadsTrack)
+            return fallbackSpeedSquared;
         if (!searchedAssistTrack)
         {
             searchedAssistTrack = true;
             assistTrack = FindFirstObjectByType<LoopTrackGenerator>();
         }
         if (assistTrack == null || assistTrack.centerline.Count < 4)
-            return cornerAssistRadius;
+            return fallbackSpeedSquared;
 
         int count = assistTrack.centerline.Count;
         int near = NearestTrackPoint(assistTrack, count);
         Vector3 along = assistTrack.GetForward(near);
-        along.y = 0f;
+        along = Vector3.ProjectOnPlane(along, Vector3.up).normalized;
         Vector3 offset = body.position - assistTrack.GetPoint(near);
-        offset.y = 0f;
         float lateral = Vector3.Dot(offset, new Vector3(-along.z, 0f, along.x));
-        bool onRoad = Mathf.Abs(lateral) <= assistTrack.roadWidth * 0.5f + assistTrack.curbWidth + 2f;
-        bool rightWay = Vector3.Dot(transform.forward, along.normalized) > 0.3f;
+        bool onRoad = Mathf.Abs(offset.y) < 3f
+            && Mathf.Abs(lateral) <= assistTrack.roadWidth * 0.5f + assistTrack.curbWidth + 2f;
+        bool rightWay = Vector3.Dot(transform.forward, along) > 0.3f;
         if (!onRoad || !rightWay)
-            return cornerAssistRadius;
+            return float.PositiveInfinity;
 
         float lookAhead = Mathf.Max(15f, forwardSpeed * cornerAssistLookAheadSeconds);
-        float tightest = float.PositiveInfinity;
-        float travelled = 0f;
+        float speedLimitSquared = float.PositiveInfinity;
+        float travelled = -Vector3.Dot(offset, along);
+        // Plan the approach using half of the maximum assist deceleration.
+        float approachDeceleration = cornerAssistDecel * 0.5f;
         int index = near;
         for (int step = 0; step < count && travelled < lookAhead; step++)
         {
@@ -606,11 +615,15 @@ public class CarDriver : MonoBehaviour
             if (angle > 0.001f && turn == steerSign)
             {
                 float bend = Vector3.Distance(assistTrack.GetPoint(next - 1), assistTrack.GetPoint(next + 1)) / angle;
-                tightest = Mathf.Min(tightest, Mathf.Max((bend + lateral * turn) * cornerAssistBendMargin, 3f));
+                float lineRadius = Mathf.Max((bend + lateral * turn) * cornerAssistBendMargin, 3f);
+                // v² = corner speed² + 2 × deceleration × distance remaining.
+                float approachSpeedSquared = maxCorneringAcceleration * lineRadius
+                    + 2f * approachDeceleration * Mathf.Max(0f, travelled);
+                speedLimitSquared = Mathf.Min(speedLimitSquared, approachSpeedSquared);
             }
             index = next;
         }
-        return tightest;
+        return speedLimitSquared;
     }
 
     // Local search around the last point; full search if the car has jumped far away.
@@ -632,7 +645,6 @@ public class CarDriver : MonoBehaviour
         {
             int index = ((from + i) % count + count) % count;
             Vector3 difference = track.GetPoint(index) - body.position;
-            difference.y = 0f;
             if (difference.sqrMagnitude < bestDistance)
             {
                 bestDistance = difference.sqrMagnitude;

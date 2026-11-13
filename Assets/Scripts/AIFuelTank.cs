@@ -4,7 +4,7 @@ using UnityEngine;
 // colour cube it goes for and what happens when it gets one.
 //
 // Leading: it grabs its own colour for a boost. 2nd or 3rd: it grabs the leader's colour so
-// the leader can't use them. Two of the player's colour in a row and it steals the player's car.
+// the leader can't use them. One cube of the player's colour triggers a swap with the player.
 //
 // AICarWaypointDriver adds this at runtime and does the steering. The fuel and mix bits below
 // are only here because RaceManager, the jump gate and the shortcut code still look for them.
@@ -111,52 +111,34 @@ public class AIFuelTank : MonoBehaviour, IFuelMixHolder
             Debug.Log(type == ownFuel
                 ? $"[AI] {name} took its own {type} cube: boost."
                 : $"[AI] {name} took the leader's {type} cube away.", this);
-        CountTowardPlayersCar(type);
+        TryTakeOverPlayersCar(type);
     }
 
     [Header("Stealing the player's car")]
-    [Tooltip("Two of the player's cubes in a row and this AI swaps cars with the player.")]
+    [Tooltip("Swap cars with the player after taking one cube of the player's colour.")]
     public bool takeOverPlayersCar = true;
-    public int cubesToTakeOver = 2;
     [Tooltip("Shortest gap between two steals by any AI car, in seconds.")]
     public float takeOverCooldownSeconds = 10f;
 
-    int playersCubesInARow;
     // Shared by both AI cars so the player doesn't get swapped twice back to back.
     static float lastTakeOver = -100f;
     static int lastTakeOverScene = -1;
 
-    // Same idea as the player's own switch: a cube of any other colour resets the count.
-    void CountTowardPlayersCar(FuelType type)
+    void TryTakeOverPlayersCar(FuelType type)
     {
         if (!takeOverPlayersCar || !PlayerColour(out FuelType playerColour) || type != playerColour || type == ownFuel)
-        {
-            playersCubesInARow = 0;
             return;
-        }
-        playersCubesInARow++;
         FuelInventory switching = SwitchingInventory();
         if (switching == null)
             return;
 
-        if (playersCubesInARow < cubesToTakeOver)
-        {
-            switching.Announce($"{switching.NameOf(ownFuel)} TOOK YOUR CUBE {playersCubesInARow}/{cubesToTakeOver}");
-            return;
-        }
-
         bool coolingDown = lastTakeOverScene == gameObject.scene.handle && Time.time - lastTakeOver < takeOverCooldownSeconds;
-        // Blocked for now: hold at one short, so the next cube finishes it.
         if (coolingDown || switching.IsImmune || !switching.ForceSwitchTo(GetComponent<CarDriver>()))
-        {
-            playersCubesInARow = cubesToTakeOver - 1;
             return;
-        }
         lastTakeOver = Time.time;
         lastTakeOverScene = gameObject.scene.handle;
-        playersCubesInARow = 0;
         if (logFuelDecisions)
-            Debug.Log($"[AI] {name} took {cubesToTakeOver} {playerColour} cubes in a row and stole the player's car.", this);
+            Debug.Log($"[AI] {name} took a {playerColour} cube and stole the player's car.", this);
     }
 
     static bool PlayerColour(out FuelType colour)
@@ -170,7 +152,7 @@ public class AIFuelTank : MonoBehaviour, IFuelMixHolder
         {
             if (race.Racers[i] == playerCar)
             {
-            colour = race.ColorForRacerIndex(i);
+                colour = race.ColorForRacerIndex(i);
                 return true;
             }
         }
