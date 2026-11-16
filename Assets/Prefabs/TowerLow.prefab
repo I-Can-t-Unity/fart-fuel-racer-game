@@ -8,6 +8,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 2840122757686881404, guid: 1e1dcf2437cdd4ad89099ea92eb0b44b, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 6719652a56f6f4e1fb43e048c9836a3a, type: 2}
     - target: {fileID: 2924064930181185010, guid: 1e1dcf2437cdd4ad89099ea92eb0b44b, type: 3}
       propertyPath: m_Name
       value: TowerLow

@@ -8,9 +8,17 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 1229034356924531245, guid: 65075640d707c45449d2bfdbf1913832, type: 3}
+      propertyPath: m_Name
+      value: MountainDesert
+      objectReference: {fileID: 0}
     - target: {fileID: 1264185365537024811, guid: 65075640d707c45449d2bfdbf1913832, type: 3}
       propertyPath: m_Name
       value: MountainDesert
+      objectReference: {fileID: 0}
+    - target: {fileID: 1700932729779766088, guid: 65075640d707c45449d2bfdbf1913832, type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 2463730694275494343, guid: 65075640d707c45449d2bfdbf1913832, type: 3}
       propertyPath: m_LocalPosition.x
@@ -52,10 +60,30 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 3474705960652527743, guid: 65075640d707c45449d2bfdbf1913832, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 83c00e20cc45a4aefbe87f619b1d86bf, type: 2}
     - target: {fileID: 4962827570977495668, guid: 65075640d707c45449d2bfdbf1913832, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
       objectReference: {fileID: 2100000, guid: 80b0870a8fe7141cf862b30e72213e69, type: 2}
+    - target: {fileID: 7477769858885364953, guid: 65075640d707c45449d2bfdbf1913832, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7735227950316484996, guid: 65075640d707c45449d2bfdbf1913832, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7894124262733108618, guid: 65075640d707c45449d2bfdbf1913832, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 83c00e20cc45a4aefbe87f619b1d86bf, type: 2}
+    - target: {fileID: 9009613099717244196, guid: 65075640d707c45449d2bfdbf1913832, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 83c00e20cc45a4aefbe87f619b1d86bf, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []

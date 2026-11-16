@@ -48,10 +48,38 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 1554187610517718800, guid: f3e12d73ea2fc4bb8a0a71478d7837a3, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 309ee29d545a3463f8dd254e30c30d96, type: 2}
+    - target: {fileID: 3617475180504505383, guid: f3e12d73ea2fc4bb8a0a71478d7837a3, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 3756703752657859652, guid: f3e12d73ea2fc4bb8a0a71478d7837a3, type: 3}
       propertyPath: m_Name
       value: MountainDusk
       objectReference: {fileID: 0}
+    - target: {fileID: 3794106697654754626, guid: f3e12d73ea2fc4bb8a0a71478d7837a3, type: 3}
+      propertyPath: m_Name
+      value: MountainDusk
+      objectReference: {fileID: 0}
+    - target: {fileID: 4787141538610459574, guid: f3e12d73ea2fc4bb8a0a71478d7837a3, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5198464578323172069, guid: f3e12d73ea2fc4bb8a0a71478d7837a3, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 309ee29d545a3463f8dd254e30c30d96, type: 2}
+    - target: {fileID: 5688111314905458411, guid: f3e12d73ea2fc4bb8a0a71478d7837a3, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6386566813563660875, guid: f3e12d73ea2fc4bb8a0a71478d7837a3, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 309ee29d545a3463f8dd254e30c30d96, type: 2}
     - target: {fileID: 7023001524506215707, guid: f3e12d73ea2fc4bb8a0a71478d7837a3, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
