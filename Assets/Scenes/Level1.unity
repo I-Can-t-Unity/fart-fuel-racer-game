@@ -32592,6 +32592,7 @@ MonoBehaviour:
   roadMaterial: {fileID: 2100000, guid: 033a3a802c92049caa3a818605084abb, type: 2}
   whiteMaterial: {fileID: 2100000, guid: c68d97afc98694971b3e5a4ede8efca7, type: 2}
   wallMaterial: {fileID: 2100000, guid: 37331fe7ed20248559dab76679703c7b, type: 2}
+  wallArrowMaterial: {fileID: 2100000, guid: 491cae6aa0e324b4ba1dc760314205c7, type: 2}
   centerline:
   - {x: -110, y: 0.12, z: -110}
   - {x: -103.05497, y: 0.12, z: -111.31279}

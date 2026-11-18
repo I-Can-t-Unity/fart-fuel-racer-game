@@ -28,6 +28,8 @@ public class LoopTrackGenerator : MonoBehaviour
     public Material roadMaterial;
     public Material whiteMaterial;
     public Material wallMaterial;
+    [Tooltip("Arrows on the road side of both walls, pointing the way the race goes. Use the WallArrows texture (with Alpha Clipping). Leave empty for no arrows.")]
+    public Material wallArrowMaterial;
 
     [Header("Generated points - read only")]
     public List<Vector3> centerline = new List<Vector3>();
@@ -268,6 +270,8 @@ public class LoopTrackGenerator : MonoBehaviour
                 bounciness = 0
             };
             float offset = roadWidth * .5f + curbWidth + wallGap + wallThickness * .5f;
+            float face = offset - wallThickness * .5f - 0.02f;   // just in front of the wall's road side
+            var arrowVerts = new List<Vector3>(); var arrowUVs = new List<Vector2>(); var arrowTris = new List<int>();
             for (int i = 0; i < n; i++)
             {
                 if (InGap(i)) continue;
@@ -275,8 +279,28 @@ public class LoopTrackGenerator : MonoBehaviour
                 Vector3 aL = centerline[i] - sides[i] * offset, bL = centerline[next] - sides[next] * offset;
                 Vector3 aR = centerline[i] + sides[i] * offset, bR = centerline[next] + sides[next] * offset;
                 // Shortcut entrances: leave out any wall piece covered by a WallOpening box.
-                if (!WallOpening.IsInsideAny((aL + bL) * 0.5f)) CreateWall("Wall_L_"+i, aL, bL, wall, slide);
-                if (!WallOpening.IsInsideAny((aR + bR) * 0.5f)) CreateWall("Wall_R_"+i, aR, bR, wall, slide);
+                if (!WallOpening.IsInsideAny((aL + bL) * 0.5f))
+                {
+                    CreateWall("Wall_L_"+i, aL, bL, wall, slide);
+                    AddArrowPanel(centerline[i] - sides[i] * face, centerline[next] - sides[next] * face, sides[i], arrowVerts, arrowUVs, arrowTris);
+                }
+                if (!WallOpening.IsInsideAny((aR + bR) * 0.5f))
+                {
+                    CreateWall("Wall_R_"+i, aR, bR, wall, slide);
+                    AddArrowPanel(centerline[i] + sides[i] * face, centerline[next] + sides[next] * face, -sides[i], arrowVerts, arrowUVs, arrowTris);
+                }
+            }
+            if (wallArrowMaterial != null && arrowVerts.Count > 0)
+            {
+                var arrows = new GameObject("WallArrows");
+                arrows.transform.SetParent(transform, false);
+                var mesh = new Mesh { name = "WallArrows", indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
+                mesh.SetVertices(arrowVerts); mesh.SetUVs(0, arrowUVs); mesh.SetTriangles(arrowTris, 0);
+                mesh.RecalculateNormals(); mesh.RecalculateBounds();
+                arrows.AddComponent<MeshFilter>().sharedMesh = mesh;
+                var mr = arrows.AddComponent<MeshRenderer>();
+                mr.sharedMaterial = wallArrowMaterial;
+                mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             }
         }
 
@@ -461,6 +485,24 @@ public class LoopTrackGenerator : MonoBehaviour
         go.transform.SetParent(transform,false);
         go.AddComponent<MeshFilter>().sharedMesh = MakeStrip(a,b,height);
         go.AddComponent<MeshRenderer>().sharedMaterial = material;
+    }
+
+    // One flat panel on the road side of a wall piece. The picture runs from the back of the
+    // piece (U = 0) to the front (U = 1), so arrows pointing right in the image point the way
+    // the race goes on BOTH walls. towardRoad = which way the panel faces.
+    void AddArrowPanel(Vector3 a, Vector3 b, Vector3 towardRoad, List<Vector3> verts, List<Vector2> uvs, List<int> tris)
+    {
+        if (wallArrowMaterial == null || wallHeight <= 0) return;
+        float bottom = 0.02f, top = Mathf.Max(0.1f, wallHeight - 0.02f);
+        int k = verts.Count;
+        Vector3 p0 = a + Vector3.up * bottom, p1 = b + Vector3.up * bottom, p2 = b + Vector3.up * top, p3 = a + Vector3.up * top;
+        verts.Add(p0); verts.Add(p1); verts.Add(p2); verts.Add(p3);
+        uvs.Add(new Vector2(0, 0)); uvs.Add(new Vector2(1, 0)); uvs.Add(new Vector2(1, 1)); uvs.Add(new Vector2(0, 1));
+        // Wind the triangles so the visible side faces the road.
+        if (Vector3.Dot(Vector3.Cross(p1 - p0, p2 - p0), towardRoad) > 0)
+        { tris.Add(k); tris.Add(k + 1); tris.Add(k + 2); tris.Add(k); tris.Add(k + 2); tris.Add(k + 3); }
+        else
+        { tris.Add(k); tris.Add(k + 2); tris.Add(k + 1); tris.Add(k); tris.Add(k + 3); tris.Add(k + 2); }
     }
 
     void CreateWall(string name, Vector3 a, Vector3 b, Material material, PhysicsMaterial physics)
