@@ -12,6 +12,8 @@ public class FartBoost : MonoBehaviour
     public float acceleration = 12f;
     public float maxBoostKph = 100f;
     public float chokeMaxKph = 25f;
+    [Tooltip("Longest a boost can be held back in bends; the held time is used after the bend.")]
+    public float maxHeldSeconds = 4f;
 
     [Header("Boost exhaust")]
     [SerializeField] Vector3 boostExhaustOffset = new Vector3(0f, .86f, -1.6f);
@@ -30,6 +32,7 @@ public class FartBoost : MonoBehaviour
     CarDriver driver;
     WheelCollider[] wheels;
     float fartUntil, chokeUntil, nextPuff, boostStarted;
+    float heldSeconds;
     Material chokeMaterial, exhaustMaterial;
     Light exhaustLight;
     LineRenderer exhaustBeam;
@@ -43,6 +46,7 @@ public class FartBoost : MonoBehaviour
     internal void ClearBoost()
     {
         fartUntil = 0f;
+        heldSeconds = 0f;
         if (exhaustLight != null)
             exhaustLight.gameObject.SetActive(false);
     }
@@ -63,7 +67,10 @@ public class FartBoost : MonoBehaviour
         if (driver != null && !driver.CanDrive)
             return;
         if (!IsFarting)
+        {
             boostStarted = Time.time;
+            heldSeconds = 0f;
+        }
         fartUntil = Mathf.Max(fartUntil, Time.time) + seconds;
         chokeUntil = 0;
     }
@@ -97,8 +104,17 @@ public class FartBoost : MonoBehaviour
                         wheel.motorTorque = 1;
                 }
             }
-            if (Vector3.Dot(velocity, forward) < maxBoostKph / 3.6f)
+            // Don't push past the corner's safe speed. Pause the timer while held back
+            // so the rest of the boost fires on the corner exit.
+            float boostLimit = maxBoostKph / 3.6f;
+            float cornerLimit = driver != null ? driver.CornerSafeSpeed() : float.PositiveInfinity;
+            if (Vector3.Dot(velocity, forward) < Mathf.Min(boostLimit, cornerLimit))
                 body.AddForce(forward * acceleration, ForceMode.Acceleration);
+            else if (cornerLimit < boostLimit && heldSeconds < maxHeldSeconds)
+            {
+                fartUntil += Time.fixedDeltaTime;
+                heldSeconds += Time.fixedDeltaTime;
+            }
         }
         else if (IsChoking && velocity.magnitude > chokeMaxKph / 3.6f)
             body.AddForce(-velocity.normalized * acceleration, ForceMode.Acceleration);

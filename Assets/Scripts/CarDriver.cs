@@ -64,7 +64,10 @@ public class CarDriver : MonoBehaviour
     [SerializeField] private bool cornerAssistReadsTrack = true;
     [Tooltip("Scales bend radius down so the assist slows a little early.")]
     [SerializeField, Range(0.5f, 1f)] private float cornerAssistBendMargin = 0.8f;
-    [SerializeField, Min(0.1f)] private float cornerAssistLookAheadSeconds = 2f;
+    [Tooltip("How far ahead (seconds of travel) a bend starts slowing the car.")]
+    [SerializeField, Min(0.1f)] private float cornerEntryLookAheadSeconds = 0.8f;
+    [Tooltip("Braking at the corner entry (m/s²).")]
+    [SerializeField, Min(0)] private float cornerEntryDecel = 12f;
 
     [Header("High-speed handling")]
     [Tooltip("Player steering speed at top speed, relative to low speed.")]
@@ -132,6 +135,15 @@ public class CarDriver : MonoBehaviour
     public float FuelFraction { get; set; } = 1f;
     public float Throttle => throttle;
     public float MaxCorneringAcceleration => maxCorneringAcceleration;
+
+    // Fastest safe speed (m/s) for the upcoming bend; infinity on straights and shortcuts.
+    public float CornerSafeSpeed()
+    {
+        if (body == null || !CanReadAssistTrack() || ShortcutTracker.IsOnBranch(body))
+            return float.PositiveInfinity;
+        float forwardSpeed = Mathf.Max(0f, Vector3.Dot(body.linearVelocity, transform.forward));
+        return Mathf.Sqrt(AssistSpeedLimitSquared(forwardSpeed));
+    }
     public event Action Respawned;
     // When true, input comes from SetInput (AI) instead of keyboard/gamepad.
     public bool ExternalInput { get; set; }
@@ -267,7 +279,8 @@ public class CarDriver : MonoBehaviour
         cornerAssistRamp = other.cornerAssistRamp;
         cornerAssistReadsTrack = other.cornerAssistReadsTrack;
         cornerAssistBendMargin = other.cornerAssistBendMargin;
-        cornerAssistLookAheadSeconds = other.cornerAssistLookAheadSeconds;
+        cornerEntryLookAheadSeconds = other.cornerEntryLookAheadSeconds;
+        cornerEntryDecel = other.cornerEntryDecel;
         highSpeedSteerRate = other.highSpeedSteerRate;
         steerReturnRate = other.steerReturnRate;
         antiRollForce = other.antiRollForce;
@@ -549,8 +562,7 @@ public class CarDriver : MonoBehaviour
     private float ApplyCornerAssist(float forwardSpeed, bool applyBrake)
     {
         if (!cornerAssist || ExternalInput || applyBrake || throttleInput <= 0f || forwardSpeed <= 0f
-            || GroundedWheelCount < 2 || ShortcutTracker.IsOnBranch(body)
-            || (TryGetComponent(out FartBoost boost) && boost.IsBoosting))
+            || GroundedWheelCount < 2 || ShortcutTracker.IsOnBranch(body))
         {
             steerHeldSeconds = steerHeldSign = 0f;
             return 0f;
@@ -559,31 +571,48 @@ public class CarDriver : MonoBehaviour
         float sign = Mathf.Abs(steering) > 0.5f ? Mathf.Sign(steering) : 0f;
         steerHeldSeconds = sign != 0f && sign == steerHeldSign ? steerHeldSeconds + Time.fixedDeltaTime : 0f;
         steerHeldSign = sign;
-        float strength = Mathf.Clamp01((steerHeldSeconds - cornerAssistDelay) / cornerAssistRamp)
-            * Mathf.Clamp01(steeringInputSmoothed * sign);
-        if (strength <= 0f || cornerAssistDecel <= 0f)
+        // With a track, slow for the upcoming bend without waiting for steering input.
+        // Without one, slow only while the player holds the steering.
+        float strength;
+        float limitSquared;
+        float decel;
+        if (CanReadAssistTrack())
+        {
+            strength = 1f;
+            decel = cornerEntryDecel;
+            limitSquared = AssistSpeedLimitSquared(forwardSpeed);
+        }
+        else
+        {
+            strength = Mathf.Clamp01((steerHeldSeconds - cornerAssistDelay) / cornerAssistRamp)
+                * Mathf.Clamp01(steeringInputSmoothed * sign);
+            decel = cornerAssistDecel;
+            limitSquared = maxCorneringAcceleration * cornerAssistRadius;
+        }
+        if (strength <= 0f || decel <= 0f)
             return 0f;
-        float excessSpeed = forwardSpeed - Mathf.Sqrt(AssistSpeedLimitSquared(forwardSpeed, sign));
+        float excessSpeed = forwardSpeed - Mathf.Sqrt(limitSquared);
         // Build up braking over 2 m/s (7.2 km/h) of excess speed.
         float assist = strength * Mathf.Clamp01(excessSpeed / 2f);
-        body.AddForce(-transform.forward * (cornerAssistDecel * assist), ForceMode.Acceleration);
+        body.AddForce(-transform.forward * (decel * assist), ForceMode.Acceleration);
         return assist;
     }
 
-    // Speed the car can carry now while leaving room to slow for each bend ahead.
-    private float AssistSpeedLimitSquared(float forwardSpeed, float steerSign)
+    private bool CanReadAssistTrack()
     {
-        float fallbackSpeedSquared = maxCorneringAcceleration * cornerAssistRadius;
         if (!cornerAssistReadsTrack)
-            return fallbackSpeedSquared;
+            return false;
         if (!searchedAssistTrack)
         {
             searchedAssistTrack = true;
             assistTrack = FindFirstObjectByType<LoopTrackGenerator>();
         }
-        if (assistTrack == null || assistTrack.centerline.Count < 4)
-            return fallbackSpeedSquared;
+        return assistTrack != null && assistTrack.centerline.Count >= 4;
+    }
 
+    // Squared speed the car can carry into the upcoming bend. Call only when CanReadAssistTrack() is true.
+    private float AssistSpeedLimitSquared(float forwardSpeed)
+    {
         int count = assistTrack.centerline.Count;
         int near = NearestTrackPoint(assistTrack, count);
         Vector3 along = assistTrack.GetForward(near);
@@ -596,11 +625,11 @@ public class CarDriver : MonoBehaviour
         if (!onRoad || !rightWay)
             return float.PositiveInfinity;
 
-        float lookAhead = Mathf.Max(15f, forwardSpeed * cornerAssistLookAheadSeconds);
+        // Short look-ahead so the car only slows at the bend itself, not on the straight before it.
+        float lookAhead = Mathf.Max(15f, forwardSpeed * cornerEntryLookAheadSeconds);
         float speedLimitSquared = float.PositiveInfinity;
         float travelled = -Vector3.Dot(offset, along);
-        // Plan the approach using half of the maximum assist deceleration.
-        float approachDeceleration = cornerAssistDecel * 0.5f;
+        float approachDeceleration = cornerEntryDecel;
         int index = near;
         for (int step = 0; step < count && travelled < lookAhead; step++)
         {
@@ -612,7 +641,7 @@ public class CarDriver : MonoBehaviour
             after.y = 0f;
             float angle = Vector3.Angle(before, after) * Mathf.Deg2Rad;
             float turn = Mathf.Sign(Vector3.Cross(before, after).y); // +1 = right-hand bend
-            if (angle > 0.001f && turn == steerSign)
+            if (angle > 0.001f)
             {
                 float bend = Vector3.Distance(assistTrack.GetPoint(next - 1), assistTrack.GetPoint(next + 1)) / angle;
                 float lineRadius = Mathf.Max((bend + lateral * turn) * cornerAssistBendMargin, 3f);
