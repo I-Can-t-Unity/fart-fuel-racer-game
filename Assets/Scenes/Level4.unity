@@ -34116,6 +34116,100 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 222498605}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &223431418
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 223431419}
+  - component: {fileID: 223431422}
+  - component: {fileID: 223431421}
+  - component: {fileID: 223431420}
+  m_Layer: 5
+  m_Name: DirectionArrow
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &223431419
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 223431418}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1471059849}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 80, y: 80}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &223431420
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 223431418}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8336ac691eda74351b68160143dc8005, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TrackDirectionArrow
+  track: {fileID: 0}
+  lookAhead: 25
+  turnSpeed: 8
+  normalColour: {r: 1, g: 1, b: 1, a: 1}
+  wrongWayColour: {r: 1, g: 0.24, b: 0.67, a: 1}
+  wrongWayAngle: 110
+--- !u!114 &223431421
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 223431418}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_RaycastTarget: 0
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: 2772910568344442904, guid: 8ec56c578b06a4bf3b62b90832295bb2, type: 3}
+  m_Type: 0
+  m_PreserveAspect: 0
+  m_FillCenter: 1
+  m_FillMethod: 4
+  m_FillAmount: 1
+  m_FillClockwise: 1
+  m_FillOrigin: 0
+  m_UseSpriteMesh: 0
+  m_PixelsPerUnitMultiplier: 1
+--- !u!222 &223431422
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 223431418}
+  m_CullTransparentMesh: 1
 --- !u!1 &224375034
 GameObject:
   m_ObjectHideFlags: 0
@@ -61544,7 +61638,8 @@ MonoBehaviour:
   cornerAssistRamp: 0.3
   cornerAssistReadsTrack: 1
   cornerAssistBendMargin: 0.8
-  cornerAssistLookAheadSeconds: 2
+  cornerEntryLookAheadSeconds: 0.8
+  cornerEntryDecel: 12
   highSpeedSteerRate: 0.85
   steerReturnRate: 1.5
   antiRollForce: 3500
@@ -61742,6 +61837,7 @@ MonoBehaviour:
   acceleration: 12
   maxBoostKph: 105
   chokeMaxKph: 25
+  maxHeldSeconds: 4
   boostExhaustOffset: {x: 0, y: 0.86, z: -1.6}
   exhaustOffset: {x: 0, y: 0.5, z: -2.4}
   puffLifetime: 0.8
@@ -82419,6 +82515,7 @@ RectTransform:
   - {fileID: 1268359205}
   - {fileID: 2200000001}
   - {fileID: 1865417704}
+  - {fileID: 1471059849}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -102941,7 +103038,8 @@ MonoBehaviour:
   cornerAssistRamp: 0.3
   cornerAssistReadsTrack: 1
   cornerAssistBendMargin: 0.8
-  cornerAssistLookAheadSeconds: 2
+  cornerEntryLookAheadSeconds: 0.8
+  cornerEntryDecel: 12
   highSpeedSteerRate: 0.85
   steerReturnRate: 1.5
   antiRollForce: 3500
@@ -122241,6 +122339,10 @@ PrefabInstance:
     - target: {fileID: 897701863691478860, guid: 6d013e940bb1b464582d3698ef2104b6, type: 3}
       propertyPath: m_Name
       value: RivalMixPanel
+      objectReference: {fileID: 0}
+    - target: {fileID: 897701863691478860, guid: 6d013e940bb1b464582d3698ef2104b6, type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3751552951494881141, guid: 6d013e940bb1b464582d3698ef2104b6, type: 3}
       propertyPath: m_Pivot.x
@@ -209822,6 +209924,7 @@ MonoBehaviour:
   acceleration: 12
   maxBoostKph: 105
   chokeMaxKph: 25
+  maxHeldSeconds: 4
   boostExhaustOffset: {x: 0, y: 0.86, z: -1.6}
   exhaustOffset: {x: 0, y: 0.5, z: -2.4}
   puffLifetime: 0.8
@@ -209989,7 +210092,8 @@ MonoBehaviour:
   cornerAssistRamp: 0.3
   cornerAssistReadsTrack: 1
   cornerAssistBendMargin: 0.8
-  cornerAssistLookAheadSeconds: 2
+  cornerEntryLookAheadSeconds: 0.8
+  cornerEntryDecel: 12
   highSpeedSteerRate: 0.85
   steerReturnRate: 1.5
   antiRollForce: 3500
@@ -210787,6 +210891,82 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1471008841}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &1471059848
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1471059849}
+  - component: {fileID: 1471059851}
+  - component: {fileID: 1471059850}
+  m_Layer: 5
+  m_Name: DirectionDial
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &1471059849
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1471059848}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 223431419}
+  m_Father: {fileID: 539898726}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 1, y: 1}
+  m_AnchorMax: {x: 1, y: 1}
+  m_AnchoredPosition: {x: -150, y: -350}
+  m_SizeDelta: {x: 130, y: 130}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &1471059850
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1471059848}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_RaycastTarget: 0
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: 34446130973821881, guid: 4d717a6ed299441bebac4075f02bb50b, type: 3}
+  m_Type: 0
+  m_PreserveAspect: 0
+  m_FillCenter: 1
+  m_FillMethod: 4
+  m_FillAmount: 1
+  m_FillClockwise: 1
+  m_FillOrigin: 0
+  m_UseSpriteMesh: 0
+  m_PixelsPerUnitMultiplier: 1
+--- !u!222 &1471059851
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1471059848}
+  m_CullTransparentMesh: 1
 --- !u!1 &1471101809
 GameObject:
   m_ObjectHideFlags: 0
@@ -215827,6 +216007,7 @@ MonoBehaviour:
   acceleration: 12
   maxBoostKph: 105
   chokeMaxKph: 25
+  maxHeldSeconds: 4
   boostExhaustOffset: {x: 0, y: 0.86, z: -1.6}
   exhaustOffset: {x: 0, y: 0.5, z: -2.4}
   puffLifetime: 0.8
