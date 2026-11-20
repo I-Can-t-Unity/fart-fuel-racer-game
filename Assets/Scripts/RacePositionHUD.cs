@@ -48,7 +48,13 @@ public class RacePositionHUD : MonoBehaviour
 
     public static RacePositionHUD Instance { get; private set; }
 
-    void Awake() => Instance = this;
+    void Awake()
+    {
+        Instance = this;
+        // Every race scene's HUD carries this component, so the minimap and wrong-way banner ride along.
+        gameObject.AddComponent<Minimap>();
+        gameObject.AddComponent<WrongWayWarning>();
+    }
 
     // Lets the AI see how far each car has got (same numbers as the panel).
     public bool TryGetMetres(Rigidbody body, out float metres)
