@@ -1,6 +1,5 @@
 using TMPro;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 // "WRONG WAY!" banner at the top of the screen, built at runtime from plain UI objects (no art assets).
@@ -32,15 +31,6 @@ public class WrongWayWarning : MonoBehaviour
     {
         if (instance == this) instance = null;
     }
-
-#if UNITY_EDITOR
-    // Editor-only test until the detection is hooked up: F9 shows/hides the banner.
-    void Update()
-    {
-        if (Keyboard.current != null && Keyboard.current.f9Key.wasPressedThisFrame)
-            banner.SetActive(!banner.activeSelf);
-    }
-#endif
 
     void Build()
     {
