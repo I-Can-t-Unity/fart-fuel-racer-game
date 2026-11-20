@@ -33,6 +33,20 @@ public static class WebBuildCacheVersioning
             versioned++;
             return "buildUrl + \"/" + fileName + "?v=" + hash.Substring(0, 16) + "\"";
         });
+        // Template files change between deployments too. A cached layout from a
+        // previous template can make canvas auto-sizing grow its own dimensions.
+        html = Regex.Replace(html, "(src|href)=\"(TemplateData/[^\"?]+)(?:\\?v=[a-f0-9]+)?\"", match =>
+        {
+            string relativePath = match.Groups[2].Value;
+            string path = Path.Combine(outputPath, relativePath);
+            if (!File.Exists(path)) return match.Value;
+            string hash;
+            using (var algorithm = SHA256.Create())
+            using (var file = File.OpenRead(path))
+                hash = System.BitConverter.ToString(algorithm.ComputeHash(file)).Replace("-", "").ToLowerInvariant();
+            versioned++;
+            return match.Groups[1].Value + "=\"" + relativePath + "?v=" + hash.Substring(0, 16) + "\"";
+        });
         File.WriteAllText(indexPath, html);
         Debug.Log("Versioned " + versioned + " Web build URLs for cache consistency.");
     }
