@@ -1,6 +1,4 @@
 using UnityEngine;
-using UnityEngine.Rendering;
-using UnityEngine.Rendering.Universal;
 
 public class CarFollowCamera : MonoBehaviour
 {
@@ -11,10 +9,13 @@ public class CarFollowCamera : MonoBehaviour
     [SerializeField] private Vector3 offset = new Vector3(0, 3.5f, -7f);
     [SerializeField, Min(0)] private float followSpeed = 6f;
 
+    [Header("Turbo blur")]
+    [SerializeField, Range(0f, 1f)] private float turboBlurIntensity = .85f;
+    [SerializeField, Min(.01f)] private float turboBlurFadeSeconds = .2f;
+
     private Camera viewCamera;
     private FartBoost targetBoost;
-    private Volume boostVolume;
-    private VolumeProfile boostProfile;
+    public float TurboBlurAmount { get; private set; }
     private float boostFovOffset;
     private float swapBlockShakeEnd;
     private Vector3 swapBlockShakeOffset;
@@ -66,38 +67,9 @@ public class CarFollowCamera : MonoBehaviour
             boostFovOffset = nextOffset;
         }
 
-        if (boosting && boostVolume == null && GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset)
-            CreateBoostVolume();
-        if (boostVolume != null)
-            boostVolume.weight = boostFovOffset / 3f;
-    }
-
-    private void CreateBoostVolume()
-    {
-        // Use per-object motion so the followed car stays sharper than the track.
-        UniversalAdditionalCameraData cameraData = viewCamera.GetUniversalAdditionalCameraData();
-        cameraData.renderPostProcessing = true;
-        var volumeObject = new GameObject("Boost Motion Blur");
-        volumeObject.transform.SetParent(transform, false);
-        int layer = 0;
-        int mask = cameraData.volumeLayerMask.value;
-        while (layer < 31 && mask != 0 && (mask & (1 << layer)) == 0)
-            layer++;
-        volumeObject.layer = layer;
-        if (mask == 0)
-            cameraData.volumeLayerMask = 1 << layer;
-
-        boostProfile = ScriptableObject.CreateInstance<VolumeProfile>();
-        MotionBlur blur = boostProfile.Add<MotionBlur>();
-        blur.mode.Override(MotionBlurMode.CameraAndObjects);
-        blur.quality.Override(MotionBlurQuality.Medium);
-        blur.intensity.Override(.85f);
-        blur.clamp.Override(.085f);
-        boostVolume = volumeObject.AddComponent<Volume>();
-        boostVolume.isGlobal = true;
-        boostVolume.priority = 100f;
-        boostVolume.sharedProfile = boostProfile;
-        boostVolume.weight = 0f;
+        TurboBlurAmount = Mathf.MoveTowards(TurboBlurAmount,
+            boosting ? turboBlurIntensity : 0f,
+            Time.deltaTime / Mathf.Max(.01f, turboBlurFadeSeconds));
     }
 
     private void OnDisable()
@@ -108,20 +80,7 @@ public class CarFollowCamera : MonoBehaviour
         if (viewCamera != null && boostFovOffset != 0f)
             viewCamera.fieldOfView -= boostFovOffset;
         boostFovOffset = 0f;
-        if (boostVolume != null)
-            boostVolume.weight = 0f;
-    }
-
-    private void OnDestroy()
-    {
-        if (boostVolume != null)
-            Destroy(boostVolume.gameObject);
-        if (boostProfile != null)
-        {
-            foreach (VolumeComponent component in boostProfile.components)
-                Destroy(component);
-            Destroy(boostProfile);
-        }
+        TurboBlurAmount = 0f;
     }
 
     private void Follow(float blend)
