@@ -111641,8 +111641,10 @@ Material:
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
   m_CustomRenderQueue: -1
-  stringTagMap: {}
-  disabledShaderPasses: []
+  stringTagMap:
+    RenderType: Opaque
+  disabledShaderPasses:
+  - MOTIONVECTORS
   m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
@@ -111739,7 +111741,7 @@ Material:
     - _ZWrite: 1
     m_Colors:
     - _BaseColor: {r: 0.22, g: 0.22, b: 0.24, a: 1}
-    - _Color: {r: 1, g: 1, b: 1, a: 1}
+    - _Color: {r: 0.21999997, g: 0.21999997, b: 0.23999995, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
   m_BuildTextureStacks: []
@@ -211772,7 +211774,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FuelPickupSpawner
   track: {fileID: 347017635}
   inventory: {fileID: 1501234021}
-  rowWaypoints: 0e0000001e00000048000000620000007f00000094000000bb000000dc000000f4000000
+  rowWaypoints: 3e0000004d0000008700000095000000a40000001a010000270100007d0100008b010000cb010000d90100001e0200002c0200006d0200007b02000089020000
   laneSpacing: 7
   abTestLaneSpacings: []
   gateOffset: 6

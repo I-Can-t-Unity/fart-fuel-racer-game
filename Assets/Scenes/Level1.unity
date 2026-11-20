@@ -130159,7 +130159,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FuelPickupSpawner
   track: {fileID: 347017635}
   inventory: {fileID: 1501234021}
-  rowWaypoints: 0e0000001e00000048000000620000007f00000094000000bb000000dc000000f4000000
+  rowWaypoints: 0f0000001b0000003800000041000000740000007c0000009e000000a6000000f2000000fa000000020100001f01000027010000
   laneSpacing: 7
   abTestLaneSpacings: []
   gateOffset: 6
