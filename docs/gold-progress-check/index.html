@@ -1,133 +1,70 @@
 <!DOCTYPE html>
-<html lang="en-us">
+<html lang="en">
   <head>
     <meta charset="utf-8">
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Unity Web Player | GameDevAlpha</title>
-    <link rel="shortcut icon" href="TemplateData/favicon.ico">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>GameDevAlpha</title>
     <link rel="stylesheet" href="TemplateData/style.css">
   </head>
   <body>
-    <div id="unity-container" class="unity-desktop">
-      <canvas id="unity-canvas" width=960 height=600 tabindex="-1"></canvas>
-      <div id="unity-loading-bar">
-        <div id="unity-logo"></div>
-        <div id="unity-progress-bar-empty">
-          <div id="unity-progress-bar-full"></div>
+    <div id="unity-container">
+      <canvas id="unity-canvas" width="960" height="600" tabindex="0" aria-label="GameDevAlpha"></canvas>
+      <div id="unity-loading" role="status">
+        Loading…
+        <div id="unity-progress" role="progressbar" aria-label="Loading game" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div id="unity-progress-fill"></div>
         </div>
       </div>
-      <div id="unity-warning"> </div>
-      <div id="unity-footer">
-        <div id="unity-logo-title-footer"></div>
-        <div id="unity-fullscreen-button"></div>
-        <div id="unity-build-title">GameDevAlpha</div>
-      </div>
+      <button id="unity-fullscreen-button" type="button">Fullscreen</button>
+      <div id="unity-warning" role="alert" hidden></div>
     </div>
+    <script src="TemplateData/fullscreen.js"></script>
     <script>
-      var canvas = document.querySelector("#unity-canvas");
+      var canvas = document.getElementById("unity-canvas");
+      var buildUrl = "Build";
+      var loaderUrl = buildUrl + "/gold-progress-check.loader.js?v=cebaa1dfca923621";
 
-      // Shows a temporary message banner/ribbon for a few seconds, or
-      // a permanent error message on top of the canvas if type=='error'.
-      // If type=='warning', a yellow highlight color is used.
-      // Modify or remove this function to customize the visually presented
-      // way that non-critical warnings and error messages are presented to the
-      // user.
-      function unityShowBanner(msg, type) {
-        var warningBanner = document.querySelector("#unity-warning");
-        function updateBannerVisibility() {
-          warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
-        }
-        var div = document.createElement('div');
-        div.innerHTML = msg;
-        warningBanner.appendChild(div);
-        if (type == 'error') div.style = 'background: red; padding: 10px;';
-        else {
-          if (type == 'warning') div.style = 'background: yellow; padding: 10px;';
-          setTimeout(function() {
-            warningBanner.removeChild(div);
-            updateBannerVisibility();
-          }, 5000);
-        }
-        updateBannerVisibility();
+      function showLoadError(message) {
+        var warning = document.getElementById("unity-warning");
+        warning.textContent = message;
+        warning.hidden = false;
+        document.getElementById("unity-loading").hidden = true;
       }
 
-      var buildUrl = "Build";
-      var loaderUrl = buildUrl + "/gold-progress-check.loader.js?v=9aca3b9be3ebf5a2";
       var config = {
         arguments: [],
-        dataUrl: buildUrl + "/gold-progress-check.data?v=2d9b8513e79f9cd8",
-        frameworkUrl: buildUrl + "/gold-progress-check.framework.js?v=19f532a2382c624c",
-        codeUrl: buildUrl + "/gold-progress-check.wasm?v=ea111146c498a38f",
+        dataUrl: buildUrl + "/gold-progress-check.data?v=e75706e851fe37e0",
+        frameworkUrl: buildUrl + "/gold-progress-check.framework.js?v=54cea2e206967d96",
+        codeUrl: buildUrl + "/gold-progress-check.wasm?v=7a3c47296f998283",
         streamingAssetsUrl: "StreamingAssets",
         companyName: "DefaultCompany",
         productName: "GameDevAlpha",
         productVersion: "0.1.0",
-        showBanner: unityShowBanner,
-        // errorHandler: function(err, url, line) {
-        //    alert("error " + err + " occurred at line " + line);
-        //    // Return 'true' if you handled this error and don't want Unity
-        //    // to process it further, 'false' otherwise.
-        //    return true;
-        // },
+        matchWebGLToCanvasSize: true,
+        showBanner: function (message, type) {
+          if (type === "error") showLoadError(message);
+          else console.warn(message);
+        }
       };
-
-      // By default, Unity keeps WebGL canvas render target size matched with
-      // the DOM size of the canvas element (scaled by window.devicePixelRatio)
-      // Set this to false if you want to decouple this synchronization from
-      // happening inside the engine, and you would instead like to size up
-      // the canvas DOM size and WebGL render target sizes yourself.
-      // config.matchWebGLToCanvasSize = false;
-
-      // If you would like all file writes inside Unity Application.persistentDataPath
-      // directory to automatically persist so that the contents are remembered when
-      // the user revisits the site the next time, uncomment the following line:
-      // config.autoSyncPersistentDataPath = true;
-      // This autosyncing is currently not the default behavior to avoid regressing
-      // existing user projects that might rely on the earlier manual
-      // JS_FileSystem_Sync() behavior, but in future Unity version, this will be
-      // expected to change.
-
-      if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-        // Mobile device style: fill the whole browser client area with the game canvas:
-
-        var meta = document.createElement('meta');
-        meta.name = 'viewport';
-        meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
-        document.getElementsByTagName('head')[0].appendChild(meta);
-        document.querySelector("#unity-container").className = "unity-mobile";
-        canvas.className = "unity-mobile";
-
-        // To lower canvas resolution on mobile devices to gain some
-        // performance, uncomment the following line:
-        // config.devicePixelRatio = 1;
-
-
-      } else {
-        // Desktop style: Render the game canvas in a window that can be maximized to fullscreen:
-        canvas.style.width = "960px";
-        canvas.style.height = "600px";
-      }
-
-      document.querySelector("#unity-loading-bar").style.display = "block";
 
       var script = document.createElement("script");
       script.src = loaderUrl;
-      script.onload = () => {
-        createUnityInstance(canvas, config, (progress) => {
-          document.querySelector("#unity-progress-bar-full").style.width = 100 * progress + "%";
-              }).then((unityInstance) => {
-                document.querySelector("#unity-loading-bar").style.display = "none";
-                document.querySelector("#unity-fullscreen-button").onclick = () => {
-                  unityInstance.SetFullscreen(1);
-                };
-
-              }).catch((message) => {
-                alert(message);
-              });
-            };
-
+      script.onload = function () {
+        createUnityInstance(canvas, config, function (progress) {
+          var percent = Math.round(progress * 100);
+          document.getElementById("unity-progress-fill").style.width = percent + "%";
+          document.getElementById("unity-progress").setAttribute("aria-valuenow", percent);
+        }).then(function () {
+          document.getElementById("unity-loading").hidden = true;
+        }).catch(function (error) {
+          console.error(error);
+          showLoadError("The game could not load. Reload the page to try again.");
+        });
+      };
+      script.onerror = function () {
+        showLoadError("The game could not load. Reload the page to try again.");
+      };
       document.body.appendChild(script);
-
     </script>
   </body>
 </html>
