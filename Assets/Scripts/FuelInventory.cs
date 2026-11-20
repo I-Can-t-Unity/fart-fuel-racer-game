@@ -399,7 +399,7 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
             return false;
         }
         CarDriver previous = currentCar;
-        next.SetInput(0, 0, false);
+        next.TakePlayerInputFrom(previous);
         previous.SetInput(0, 0, false);
         nextAI.PrepareControlHandoff();
         nextAI.enabled = false;
@@ -483,11 +483,11 @@ public class FuelInventory : MonoBehaviour, IFuelMixHolder
             AddCharge(currentCar);   // the 3rd charge announces SHIELD ON itself
             TurboUsed?.Invoke();
         }
-        // 4 s after a swap nothing can swap you again; the block stays on the track.
+        // During swap immunity the block is consumed, but cannot swap the player.
         else if(IsImmune)
         {
             lastResult = "protected";
-            return false;
+            Announce("SWAP PROTECTED!");
         }
         // Rule 2: a rival's colour = you swap cars with that rival (unless a shield blocks it).
         else

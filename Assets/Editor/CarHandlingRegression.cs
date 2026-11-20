@@ -171,6 +171,7 @@ public static class CarHandlingRegression
         Step(cars, 0f, 0f, 75);
         float settledY = body.position.y;
         car.ExternalInput = false;
+        float sampleSpeedKmh = 72f;
 
         float unassisted = SampleTorque(0f, 0f);
         float distant = SampleTorque(0f, 1f);
@@ -179,8 +180,19 @@ public static class CarHandlingRegression
         float opposite = SampleTorque(30f, -1f);
         Check(unassisted > 0f && Mathf.Abs(distant - unassisted) < 1f && Mathf.Abs(opposite - unassisted) < 1f,
             $"Distant bends and steering away leave engine torque available: {unassisted:F0}/{distant:F0}/{opposite:F0} Nm");
-        Check(approaching > 1f && approaching < unassisted - 1f && imminent < approaching - 1f,
-            $"Corner assist backs off torque progressively as the bend approaches: {unassisted:F0}/{approaching:F0}/{imminent:F0} Nm");
+        Check(Mathf.Abs(approaching - unassisted) < 1f && Mathf.Abs(imminent - unassisted) < 1f,
+            $"Corner assist leaves full throttle available below 85 km/h: {unassisted:F0}/{approaching:F0}/{imminent:F0} Nm");
+        Check(car.CornerSafeSpeed() * 3.6f >= 84.99f, "Tight bend does not request less than 85 km/h");
+
+        typeof(CarDriver).GetField("topSpeedKmh", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(car, 120f);
+        sampleSpeedKmh = 100f;
+        float straight = SampleTorque(30f, 0f);
+        Check(straight > 1f && float.IsPositiveInfinity(car.CornerSafeSpeed()),
+            "Straight steering keeps engine torque and turbo available beside a tight bend");
+        float turning = SampleTorque(30f, 1f);
+        Check(turning < straight - 1f && car.CornerSafeSpeed() * 3.6f >= 84.99f,
+            "Turning still activates corner assist above its minimum target speed");
+        sampleSpeedKmh = 72f;
 
         FartBoost boost = car.GetComponent<FartBoost>();
         boost.enabled = true;
@@ -207,7 +219,7 @@ public static class CarHandlingRegression
             {
                 body.position = new Vector3(0f, settledY, z);
                 body.rotation = Quaternion.identity;
-                body.linearVelocity = Vector3.forward * 20f;
+                body.linearVelocity = Vector3.forward * (sampleSpeedKmh / 3.6f);
                 body.angularVelocity = Vector3.zero;
                 Physics.SyncTransforms();
                 Step(cars, 1f, steer, 1);

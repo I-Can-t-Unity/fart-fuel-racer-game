@@ -108,9 +108,17 @@ public class FartBoost : MonoBehaviour
             // so the rest of the boost fires on the corner exit.
             float boostLimit = maxBoostKph / 3.6f;
             float cornerLimit = driver != null ? driver.CornerSafeSpeed() : float.PositiveInfinity;
-            if (Vector3.Dot(velocity, forward) < Mathf.Min(boostLimit, cornerLimit))
-                body.AddForce(forward * acceleration, ForceMode.Acceleration);
-            else if (cornerLimit < boostLimit && heldSeconds < maxHeldSeconds)
+            float speed = Vector3.Dot(velocity, forward);
+            float headroom = Mathf.Min(boostLimit, cornerLimit) - speed;
+            if (headroom > 0f && (driver == null || !driver.IsBraking))
+            {
+                // Ease out over the final 2 m/s instead of switching full thrust
+                // on and off at the limit. Never add more than this step's headroom.
+                float thrust = Mathf.Min(acceleration * Mathf.Clamp01(headroom / 2f),
+                    headroom / Time.fixedDeltaTime);
+                body.AddForce(forward * thrust, ForceMode.Acceleration);
+            }
+            if (cornerLimit < boostLimit && speed >= cornerLimit - .1f && heldSeconds < maxHeldSeconds)
             {
                 fartUntil += Time.fixedDeltaTime;
                 heldSeconds += Time.fixedDeltaTime;

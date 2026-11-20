@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public class FuelPickup : MonoBehaviour
@@ -24,6 +25,9 @@ public class FuelPickup : MonoBehaviour
     Color peakEmission;
     float blinkStartedAt;
     bool guideBlinkActive;
+    readonly HashSet<Collider> overlaps = new HashSet<Collider>();
+    CarDriver attemptedCar;
+    bool attemptedDuringImmunity;
 
     static Mesh jerryCanMesh;
 
@@ -118,17 +122,55 @@ public class FuelPickup : MonoBehaviour
 
     void OnTriggerEnter(Collider other)
     {
+        overlaps.Add(other);
+        TryCollectFrom(other);
+    }
+
+    void OnTriggerStay(Collider other)
+    {
+        // Control can change while this car is already inside the trigger.
+        overlaps.Add(other);
+        TryCollectFrom(other);
+    }
+
+    void OnTriggerExit(Collider other)
+    {
+        overlaps.Remove(other);
+        if (attemptedCar == null) return;
+        foreach (Collider overlap in overlaps)
+            if (overlap != null && overlap.attachedRigidbody == attemptedCar.Body)
+                return;
+        attemptedCar = null;
+    }
+
+    void OnDisable()
+    {
+        overlaps.Clear();
+        attemptedCar = null;
+    }
+
+    void TryCollectFrom(Collider other)
+    {
         if(!IsAvailable)
         {
             return;
         }
         if (inventory == null || inventory.CurrentCar == null)
             return;
+        if (RaceManager.Instance != null && !RaceManager.Instance.IsRacing)
+            return;
         Transform controlled = inventory.CurrentCar.transform;
         if (other.transform != controlled && !other.transform.IsChildOf(controlled))
             return;
         if (RequiresShield && !inventory.IsShielded)
             return;
+        // One attempt per controlled car/overlap, with a retry if swap immunity
+        // expires while still touching the block. Multiple car colliders must not
+        // duplicate collection attempts or analytics events each physics tick.
+        if (attemptedCar == inventory.CurrentCar && attemptedDuringImmunity == inventory.IsImmune)
+            return;
+        attemptedCar = inventory.CurrentCar;
+        attemptedDuringImmunity = inventory.IsImmune;
         bool collected = inventory.TryCollect(type);
         PlayerTouched?.Invoke(this, collected);
 
@@ -165,6 +207,8 @@ public class FuelPickup : MonoBehaviour
 
     void SetAvailable(bool available)
     {
+        overlaps.Clear();
+        attemptedCar = null;
         if (available && emissiveMaterial != null)
         {
             blinkStartedAt = Time.time;
