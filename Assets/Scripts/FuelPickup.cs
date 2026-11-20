@@ -83,7 +83,12 @@ public class FuelPickup : MonoBehaviour
         guideBlinkActive = active;
         if (emissiveMaterial == null)
         {
-            emissiveMaterial = new Material(pickupRenderer.sharedMaterial);
+            Material source = pickupRenderer.sharedMaterial;
+            // The referenced Resources material preserves the exact Lit emission
+            // keyword combination used by this runtime tutorial effect in builds.
+            Material template = Resources.Load<Material>("TutorialGuideGlow");
+            emissiveMaterial = new Material(template != null && template.shader == source.shader ? template : source);
+            emissiveMaterial.CopyPropertiesFromMaterial(source);
             peakEmission = Color.Lerp(emissiveMaterial.color, Color.white, .4f) * 4f;
             emissiveMaterial.EnableKeyword("_EMISSION");
             pickupRenderer.sharedMaterial = emissiveMaterial;
