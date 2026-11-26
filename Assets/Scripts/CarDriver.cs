@@ -71,6 +71,10 @@ public class CarDriver : MonoBehaviour
     [Tooltip("Braking at the corner entry (m/s²).")]
     [SerializeField, Min(0)] private float cornerEntryDecel = 12f;
 
+    [Header("Boost in bends")]
+    [Tooltip("Share of Max Cornering Acceleration a fuel boost may use in a bend. Lower = boost backs off earlier so the car holds its line.")]
+    [SerializeField, Range(0.3f, 1f)] private float boostCornerGrip = 0.7f;
+
     [Header("High-speed handling")]
     [Tooltip("Player steering speed at top speed, relative to low speed.")]
     [SerializeField, Range(0.2f, 1f)] private float highSpeedSteerRate = 0.85f;
@@ -93,6 +97,18 @@ public class CarDriver : MonoBehaviour
     [SerializeField, Min(0)] private float minSeparationSpeed = 1.2f;
     [SerializeField, Min(0)] private float maxBounceSpeed = 6f;
     [SerializeField, Min(0.02f)] private float bounceCooldown = 0.35f;
+
+    [Header("Impact feedback")]
+    [Tooltip("Impact speed (m/s, along the hit) that gives the full yaw kick and speed loss.")]
+    [SerializeField, Min(0.5f)] private float hardImpactSpeed = 9f;
+    [Tooltip("Spin given by a hard side/corner hit (deg/s). Glancing scrapes give none.")]
+    [SerializeField, Min(0)] private float maxImpactYawKick = 55f;
+    [Tooltip("Share of speed lost on a hard hit, so a crash is felt.")]
+    [SerializeField, Range(0f, 0.3f)] private float impactSpeedLoss = 0.08f;
+    [Tooltip("After a hit, yaw stability is off for this long so the kick shows...")]
+    [SerializeField, Min(0)] private float impactWobbleSeconds = 0.25f;
+    [Tooltip("...then eases back in over this long, so the car settles instead of snapping straight.")]
+    [SerializeField, Min(0.01f)] private float impactRecoverSeconds = 0.45f;
 
     private static readonly List<CarDriver> all = new List<CarDriver>();
     public static IReadOnlyList<CarDriver> All => all;
@@ -119,6 +135,7 @@ public class CarDriver : MonoBehaviour
     private float steerHeldSign;
     private float lastVehicleContact = float.NegativeInfinity;
     private float lastBounceTime = float.NegativeInfinity;
+    private float lastImpactTime = float.NegativeInfinity;
     private LoopTrackGenerator assistTrack;
     private bool searchedAssistTrack;
     private int assistTrackIndex = -1;
@@ -147,7 +164,29 @@ public class CarDriver : MonoBehaviour
         float forwardSpeed = Mathf.Max(0f, Vector3.Dot(body.linearVelocity, transform.forward));
         return Mathf.Sqrt(AssistSpeedLimitSquared(forwardSpeed));
     }
+    // Fastest speed (m/s) a BOOST may push the car to for the bend ahead. Unlike
+    // CornerSafeSpeed() this reads the track whether or not the player is steering yet
+    // (otherwise a boost runs flat out until the turn-in and the car goes wide), has no
+    // 85 km/h floor, and uses Boost Corner Grip so it stays inside what the tyres hold.
+    // Looks far enough ahead to bleed the boost off before the bend. Infinity on
+    // straights, shortcuts, off the road or when the track can't be read.
+    public float BoostCornerSafeSpeed()
+    {
+        if (body == null || !CanReadAssistTrack() || ShortcutTracker.IsOnBranch(body))
+            return float.PositiveInfinity;
+        float forwardSpeed = Mathf.Max(0f, Vector3.Dot(body.linearVelocity, transform.forward));
+        float decel = Mathf.Max(cornerEntryDecel, 0.1f);
+        float lookAhead = Mathf.Max(15f, forwardSpeed * cornerEntryLookAheadSeconds,
+            forwardSpeed * forwardSpeed / (2f * decel) + 5f);
+        return Mathf.Sqrt(BendSpeedLimitSquared(lookAhead, maxCorneringAcceleration * boostCornerGrip, 0f, decel));
+    }
+    public float TopSpeedMs => topSpeedKmh / 3.6f;
+    public float CornerEntryDecel => cornerEntryDecel;
+
     public event Action Respawned;
+    // A real hit (not a scrape): strength 0-1 and the push direction on this car.
+    // CarFollowCamera listens to this for the controlled car's camera shake.
+    public event Action<float, Vector3> Impacted;
     // When true, input comes from SetInput (AI) instead of keyboard/gamepad.
     public bool ExternalInput { get; set; }
 
@@ -179,6 +218,9 @@ public class CarDriver : MonoBehaviour
         throttleInput = previous.throttleInput;
         throttle = previous.throttle;
         steering = previous.steering;
+        // Also carry the player's current wheel angle, so the new car doesn't start
+        // from whatever angle the AI left it at and lag behind the player's input.
+        steeringInputSmoothed = previous.steeringInputSmoothed;
         braking = previous.braking;
         IsBraking = previous.IsBraking;
         resetRequested = false;
@@ -304,12 +346,18 @@ public class CarDriver : MonoBehaviour
         topSpeedTaper = other.topSpeedTaper;
         steerSlipAllowance = other.steerSlipAllowance;
         sideSlipDamping = other.sideSlipDamping;
+        boostCornerGrip = other.boostCornerGrip;
         bounceOnContact = other.bounceOnContact;
         carBounce = other.carBounce;
         wallBounce = other.wallBounce;
         minSeparationSpeed = other.minSeparationSpeed;
         maxBounceSpeed = other.maxBounceSpeed;
         bounceCooldown = other.bounceCooldown;
+        hardImpactSpeed = other.hardImpactSpeed;
+        maxImpactYawKick = other.maxImpactYawKick;
+        impactSpeedLoss = other.impactSpeedLoss;
+        impactWobbleSeconds = other.impactWobbleSeconds;
+        impactRecoverSeconds = other.impactRecoverSeconds;
     }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -535,6 +583,7 @@ public class CarDriver : MonoBehaviour
         currentSteering = steeringInputSmoothed = 0;
         steerHeldSeconds = steerHeldSign = 0f;
         assistTrackIndex = -1;
+        lastImpactTime = float.NegativeInfinity;
         lastVehicleContact = float.NegativeInfinity;
         throttle = 0;
         resetRequested = false;
@@ -679,6 +728,49 @@ public class CarDriver : MonoBehaviour
         return speedLimitSquared;
     }
 
+    // Same bend reading as AssistSpeedLimitSquared, with the look-ahead, lateral grip,
+    // minimum corner speed and braking rate passed in (used by boosts).
+    private float BendSpeedLimitSquared(float lookAhead, float lateralAccel, float minimumSquared, float approachDeceleration)
+    {
+        int count = assistTrack.centerline.Count;
+        int near = NearestTrackPoint(assistTrack, count);
+        Vector3 along = assistTrack.GetForward(near);
+        along = Vector3.ProjectOnPlane(along, Vector3.up).normalized;
+        Vector3 offset = body.position - assistTrack.GetPoint(near);
+        float lateral = Vector3.Dot(offset, new Vector3(-along.z, 0f, along.x));
+        bool onRoad = Mathf.Abs(offset.y) < 3f
+            && Mathf.Abs(lateral) <= assistTrack.roadWidth * 0.5f + assistTrack.curbWidth + 2f;
+        bool rightWay = Vector3.Dot(transform.forward, along) > 0.3f;
+        if (!onRoad || !rightWay)
+            return float.PositiveInfinity;
+
+        float speedLimitSquared = float.PositiveInfinity;
+        float travelled = -Vector3.Dot(offset, along);
+        int index = near;
+        for (int step = 0; step < count && travelled < lookAhead; step++)
+        {
+            int next = index + 1;
+            travelled += Vector3.Distance(assistTrack.GetPoint(index), assistTrack.GetPoint(next));
+            Vector3 before = assistTrack.GetForward(next - 1);
+            Vector3 after = assistTrack.GetForward(next + 1);
+            before.y = 0f;
+            after.y = 0f;
+            float angle = Vector3.Angle(before, after) * Mathf.Deg2Rad;
+            float turn = Mathf.Sign(Vector3.Cross(before, after).y); // +1 = right-hand bend
+            if (angle > 0.001f)
+            {
+                float bend = Vector3.Distance(assistTrack.GetPoint(next - 1), assistTrack.GetPoint(next + 1)) / angle;
+                float lineRadius = Mathf.Max((bend + lateral * turn) * cornerAssistBendMargin, 3f);
+                // v² = corner speed² + 2 × deceleration × distance remaining.
+                float approachSpeedSquared = Mathf.Max(lateralAccel * lineRadius, minimumSquared)
+                    + 2f * approachDeceleration * Mathf.Max(0f, travelled);
+                speedLimitSquared = Mathf.Min(speedLimitSquared, approachSpeedSquared);
+            }
+            index = next;
+        }
+        return speedLimitSquared;
+    }
+
     // Local search around the last point; full search if the car has jumped far away.
     private int NearestTrackPoint(LoopTrackGenerator track, int count)
     {
@@ -719,7 +811,8 @@ public class CarDriver : MonoBehaviour
         float desiredYaw = forwardSpeed * Mathf.Tan(currentSteering * Mathf.Deg2Rad) / wheelbase;
         float yaw = Vector3.Dot(body.angularVelocity, transform.up);
         float excessYaw = yaw - Mathf.Clamp(desiredYaw, Mathf.Min(0f, yaw), Mathf.Max(0f, yaw));
-        body.AddTorque(-transform.up * (excessYaw * yawStability * contactFraction), ForceMode.Acceleration);
+        // Let a hit's spin show, then ease the stability back in so the car settles smoothly.
+        body.AddTorque(-transform.up * (excessYaw * yawStability * contactFraction * ImpactRecovery), ForceMode.Acceleration);
 
         // Skipped right after a hit so bounces still carry.
         if (sideSlipDamping > 0f && !HasVehicleContact && Time.fixedTime - lastBounceTime > 0.4f)
@@ -814,6 +907,34 @@ public class CarDriver : MonoBehaviour
             && !otherCar.IsCountdownHeld && !otherCar.IsStopped;
         body.AddForce(normal * needed * (otherPushes ? 0.5f : 1f), ForceMode.VelocityChange);
         lastBounceTime = Time.fixedTime;
+        if (firstTouch)
+            ApplyImpactFeedback(normal, point, impact, otherPushes);
+    }
+
+    // 1 = full yaw stability, 0 = off right after a hit.
+    private float ImpactRecovery => Mathf.Clamp01(
+        (Time.fixedTime - lastImpactTime - impactWobbleSeconds) / impactRecoverSeconds);
+
+    // Makes a real hit visible: a yaw kick from where the car was struck, a little lost
+    // speed, and an event for the camera. Scales with impact speed, so taps stay subtle
+    // and only hard hits get the full effect. Each car in a car-car hit runs this itself.
+    private void ApplyImpactFeedback(Vector3 normal, Vector3 point, float impact, bool shared)
+    {
+        float strength = Mathf.Clamp01((impact - minSeparationSpeed) / Mathf.Max(hardImpactSpeed - minSeparationSpeed, 0.1f));
+        if (strength <= 0f || GroundedWheelCount < 2)
+            return;
+        // Off-centre hits spin the car; square-on hits (nose or tail) just push it.
+        Vector3 lever = point - body.worldCenterOfMass;
+        lever.y = 0f;
+        float spinShare = Vector3.Dot(Vector3.Cross(lever, normal), transform.up) / Mathf.Max(lever.magnitude, 0.5f);
+        float kick = Mathf.Clamp(spinShare, -1f, 1f) * strength * maxImpactYawKick * Mathf.Deg2Rad;
+        body.AddTorque(transform.up * kick * (shared ? 0.75f : 1f), ForceMode.VelocityChange);
+        Vector3 planar = Vector3.ProjectOnPlane(body.linearVelocity, Vector3.up);
+        body.AddForce(-planar * (impactSpeedLoss * strength), ForceMode.VelocityChange);
+        // Hits within the wobble window don't stack into a long loss of stability.
+        if (Time.fixedTime - lastImpactTime > impactWobbleSeconds)
+            lastImpactTime = Time.fixedTime;
+        Impacted?.Invoke(strength, normal);
     }
 
     private void TrackVehicleContact(Collision collision)
