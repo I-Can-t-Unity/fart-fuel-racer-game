@@ -29717,6 +29717,10 @@ MonoBehaviour:
   target: {fileID: 684248055}
   offset: {x: 0, y: 3.5, z: -7}
   followSpeed: 6
+  impactShakeDistance: 0.22
+  impactShakeSeconds: 0.3
+  turboBlurIntensity: 0.85
+  turboBlurFadeSeconds: 0.2
 --- !u!1 &331875443
 GameObject:
   m_ObjectHideFlags: 0
@@ -38294,6 +38298,7 @@ MonoBehaviour:
   throttleRise: 3
   throttleFall: 6
   cornerAssist: 1
+  cornerAssistMinimumSpeedKmh: 85
   cornerAssistRadius: 14
   cornerAssistDecel: 6
   cornerAssistDelay: 0.12
@@ -38302,6 +38307,7 @@ MonoBehaviour:
   cornerAssistBendMargin: 0.8
   cornerEntryLookAheadSeconds: 0.8
   cornerEntryDecel: 12
+  boostCornerGrip: 0.7
   highSpeedSteerRate: 0.85
   steerReturnRate: 1.5
   antiRollForce: 3500
@@ -38315,6 +38321,11 @@ MonoBehaviour:
   minSeparationSpeed: 1.2
   maxBounceSpeed: 6
   bounceCooldown: 0.35
+  hardImpactSpeed: 9
+  maxImpactYawKick: 55
+  impactSpeedLoss: 0.08
+  impactWobbleSeconds: 0.25
+  impactRecoverSeconds: 0.45
 --- !u!65 &408367764
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -38498,11 +38509,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FartBoost
   acceleration: 12
   maxBoostKph: 105
-  chokeMaxKph: 25
   maxHeldSeconds: 4
   boostExhaustOffset: {x: 0, y: 0.86, z: -1.6}
-  exhaustOffset: {x: 0, y: 0.5, z: -2.4}
-  puffLifetime: 0.8
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0
@@ -62364,6 +62372,7 @@ MonoBehaviour:
   throttleRise: 3
   throttleFall: 6
   cornerAssist: 1
+  cornerAssistMinimumSpeedKmh: 85
   cornerAssistRadius: 14
   cornerAssistDecel: 6
   cornerAssistDelay: 0.12
@@ -62372,6 +62381,7 @@ MonoBehaviour:
   cornerAssistBendMargin: 0.8
   cornerEntryLookAheadSeconds: 0.8
   cornerEntryDecel: 12
+  boostCornerGrip: 0.7
   highSpeedSteerRate: 0.85
   steerReturnRate: 1.5
   antiRollForce: 3500
@@ -62385,6 +62395,11 @@ MonoBehaviour:
   minSeparationSpeed: 1.2
   maxBounceSpeed: 6
   bounceCooldown: 0.35
+  hardImpactSpeed: 9
+  maxImpactYawKick: 55
+  impactSpeedLoss: 0.08
+  impactWobbleSeconds: 0.25
+  impactRecoverSeconds: 0.45
 --- !u!114 &684248057
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -127817,11 +127832,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FartBoost
   acceleration: 12
   maxBoostKph: 105
-  chokeMaxKph: 25
   maxHeldSeconds: 4
   boostExhaustOffset: {x: 0, y: 0.86, z: -1.6}
-  exhaustOffset: {x: 0, y: 0.5, z: -2.4}
-  puffLifetime: 0.8
 --- !u!114 &1464350122
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -127980,6 +127992,7 @@ MonoBehaviour:
   throttleRise: 3
   throttleFall: 6
   cornerAssist: 1
+  cornerAssistMinimumSpeedKmh: 85
   cornerAssistRadius: 14
   cornerAssistDecel: 6
   cornerAssistDelay: 0.12
@@ -127988,6 +128001,7 @@ MonoBehaviour:
   cornerAssistBendMargin: 0.8
   cornerEntryLookAheadSeconds: 0.8
   cornerEntryDecel: 12
+  boostCornerGrip: 0.7
   highSpeedSteerRate: 0.85
   steerReturnRate: 1.5
   antiRollForce: 3500
@@ -128001,6 +128015,11 @@ MonoBehaviour:
   minSeparationSpeed: 1.2
   maxBounceSpeed: 6
   bounceCooldown: 0.35
+  hardImpactSpeed: 9
+  maxImpactYawKick: 55
+  impactSpeedLoss: 0.08
+  impactWobbleSeconds: 0.25
+  impactRecoverSeconds: 0.45
 --- !u!65 &1464350125
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -130023,11 +130042,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FartBoost
   acceleration: 12
   maxBoostKph: 105
-  chokeMaxKph: 25
   maxHeldSeconds: 4
   boostExhaustOffset: {x: 0, y: 0.86, z: -1.6}
-  exhaustOffset: {x: 0, y: 0.5, z: -2.4}
-  puffLifetime: 0.8
 --- !u!114 &1501234023
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -130129,9 +130145,26 @@ MonoBehaviour:
   rowWaypoints: 0f0000001b0000003800000041000000740000007c0000009e000000a6000000f2000000fa000000020100001f01000027010000
   laneSpacing: 7
   abTestLaneSpacings: []
+  wallMargin: 1.5
+  edgeMargin: 3.5
   gateOffset: 6
   cubeSize: 1.2
   hoverHeight: 1.7
+  autoPlace: 1
+  rowSpacing: 170
+  minCornerRadius: 45
+  cornerClearance: 15
+  startClear: 60
+  finishClear: 150
+  rowShapes: 00000000
+  stagger: 8
+  trailOnLongBends: 1
+  trailMinLength: 80
+  trailSpacing: 25
+  respawnSeconds: 12
+  fairRespawnDistance: 15
+  reshuffleWhenRowReturns: 1
+  reshuffleSafeDistance: 45
 --- !u!43 &1501295929
 Mesh:
   m_ObjectHideFlags: 0
