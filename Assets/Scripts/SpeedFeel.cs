@@ -72,6 +72,12 @@ public class SpeedFeel : MonoBehaviour
     void Start()
     {
         cam = GetComponent<Camera>();
+        if (cam == null)
+        {
+            Debug.LogWarning("SpeedFeel needs a Camera on the same GameObject; disabling it to avoid moving scenery.", this);
+            enabled = false;
+            return;
+        }
         if (cam != null) baseFov = shownFov = cam.fieldOfView;
         if (speedNumber != null) speedoScale = speedNumber.rectTransform.localScale;
         if (boostVolume != null) boostVolume.weight = 0f;

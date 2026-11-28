@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>GameDevAlpha</title>
+    <link rel="stylesheet" href="TemplateData/style.css?v=449a965e7d8e6fb5">
+    <style>
+      html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+      #unity-container { position: fixed; inset: 0; width: 100%; height: 100%; overflow: hidden; }
+      #unity-canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+    </style>
+  </head>
+  <body>
+    <div id="unity-container">
+      <canvas id="unity-canvas" width="960" height="600" tabindex="0" aria-label="GameDevAlpha"></canvas>
+      <div id="unity-loading" role="status">
+        Loading…
+        <div id="unity-progress" role="progressbar" aria-label="Loading game" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div id="unity-progress-fill"></div>
+        </div>
+      </div>
+      <button id="unity-fullscreen-button" type="button">Fullscreen</button>
+      <div id="unity-warning" role="alert" hidden></div>
+    </div>
+    <script src="TemplateData/fullscreen.js?v=ac2605aa7eb97c0e"></script>
+    <script>
+      var canvas = document.getElementById("unity-canvas");
+      var buildUrl = "Build";
+      var loaderUrl = buildUrl + "/gold-progress-check.loader.js?v=cebaa1dfca923621";
+
+      function showLoadError(message) {
+        var warning = document.getElementById("unity-warning");
+        warning.textContent = message;
+        warning.hidden = false;
+        document.getElementById("unity-loading").hidden = true;
+      }
+
+      var config = {
+        arguments: [],
+        dataUrl: buildUrl + "/gold-progress-check.data?v=e75706e851fe37e0",
+        frameworkUrl: buildUrl + "/gold-progress-check.framework.js?v=54cea2e206967d96",
+        codeUrl: buildUrl + "/gold-progress-check.wasm?v=7a3c47296f998283",
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: "DefaultCompany",
+        productName: "GameDevAlpha",
+        productVersion: "0.1.0",
+        matchWebGLToCanvasSize: true,
+        showBanner: function (message, type) {
+          if (type === "error") showLoadError(message);
+          else console.warn(message);
+        }
+      };
+
+      var script = document.createElement("script");
+      script.src = loaderUrl;
+      script.onload = function () {
+        createUnityInstance(canvas, config, function (progress) {
+          var percent = Math.round(progress * 100);
+          document.getElementById("unity-progress-fill").style.width = percent + "%";
+          document.getElementById("unity-progress").setAttribute("aria-valuenow", percent);
+        }).then(function (unityInstance) {
+          window.setGameFullscreenPlayer(unityInstance);
+          document.getElementById("unity-loading").hidden = true;
+        }).catch(function (error) {
+          console.error(error);
+          showLoadError("The game could not load. Reload the page to try again.");
+        });
+      };
+      script.onerror = function () {
+        showLoadError("The game could not load. Reload the page to try again.");
+      };
+      document.body.appendChild(script);
+    </script>
+  </body>
+</html>

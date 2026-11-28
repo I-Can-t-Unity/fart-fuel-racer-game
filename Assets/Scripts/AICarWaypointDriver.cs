@@ -176,17 +176,19 @@ public class AICarWaypointDriver : MonoBehaviour
         driver.ExternalInput = true;
         driver.enabled = true;
 
+        // The player can take over this car after a swap (including practice cars),
+        // so it must drive exactly like the player's car.
+        FuelInventory player = FindPlayerInventory();
+        CarDriver playerDriver = player != null ? player.GetComponent<CarDriver>() : null;
+        if (playerDriver != null)
+            driver.CopyHandlingFrom(playerDriver);
+
         // Practice cars stay parked until the player takes them over.
         if (RaceManager.Instance != null && RaceManager.Instance.IsSwapPractice)
         {
             paintWithFuelColour = false;
             return;
         }
-
-        FuelInventory player = FindFirstObjectByType<FuelInventory>();
-        CarDriver playerDriver = player != null ? player.GetComponent<CarDriver>() : null;
-        if (playerDriver != null)
-            driver.CopyHandlingFrom(playerDriver);
 
         tank = GetComponent<AIFuelTank>();
         if (tank == null)
@@ -204,6 +206,21 @@ public class AICarWaypointDriver : MonoBehaviour
             router.RejoinedMainLine += OnRejoinedMainLine;
             router.RecoveredToMainLine += OnRecoveredToMainLine;
         }
+    }
+
+    // The player's FuelInventory: the switching controller (the one with the car roster).
+    // Every car carries an AI driver for handoffs, so that can't be used to tell them apart.
+    static FuelInventory FindPlayerInventory()
+    {
+        FuelInventory fallback = null;
+        foreach (FuelInventory inventory in FindObjectsByType<FuelInventory>(FindObjectsSortMode.None))
+        {
+            if (inventory.cars != null && inventory.cars.Length > 0)
+                return inventory;
+            if (fallback == null || inventory.name == "PlayerCar")
+                fallback = inventory;
+        }
+        return fallback;
     }
 
     void ArrangeStartGrid()

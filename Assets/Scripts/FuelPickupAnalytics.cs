@@ -105,7 +105,7 @@ public class FuelPickupAnalytics : MonoBehaviour
             choice = swapDirection;
             place = placeBefore;
         }
-        else if(result == "shielded")
+        else if(result == "shielded" || result == "protected")
         {
             choice = "blocked";
         }

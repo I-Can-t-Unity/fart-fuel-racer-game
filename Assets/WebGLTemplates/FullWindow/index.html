@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>{{{ PRODUCT_NAME }}}</title>
+    <link rel="stylesheet" href="TemplateData/style.css">
+    <style>
+      html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+      #unity-container { position: fixed; inset: 0; width: 100%; height: 100%; overflow: hidden; }
+      #unity-canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+    </style>
+  </head>
+  <body>
+    <div id="unity-container">
+      <canvas id="unity-canvas" width="{{{ WIDTH }}}" height="{{{ HEIGHT }}}" tabindex="0" aria-label="{{{ PRODUCT_NAME }}}"></canvas>
+      <div id="unity-loading" role="status">
+        Loading…
+        <div id="unity-progress" role="progressbar" aria-label="Loading game" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div id="unity-progress-fill"></div>
+        </div>
+      </div>
+      <button id="unity-fullscreen-button" type="button">Fullscreen</button>
+      <div id="unity-warning" role="alert" hidden></div>
+    </div>
+    <script src="TemplateData/fullscreen.js"></script>
+    <script>
+      var canvas = document.getElementById("unity-canvas");
+      var buildUrl = "Build";
+      var loaderUrl = buildUrl + "/{{{ LOADER_FILENAME }}}";
+
+      function showLoadError(message) {
+        var warning = document.getElementById("unity-warning");
+        warning.textContent = message;
+        warning.hidden = false;
+        document.getElementById("unity-loading").hidden = true;
+      }
+
+      var config = {
+        arguments: [],
+        dataUrl: buildUrl + "/{{{ DATA_FILENAME }}}",
+        frameworkUrl: buildUrl + "/{{{ FRAMEWORK_FILENAME }}}",
+#if USE_THREADS
+        workerUrl: buildUrl + "/{{{ WORKER_FILENAME }}}",
+#endif
+#if USE_WASM
+        codeUrl: buildUrl + "/{{{ CODE_FILENAME }}}",
+#endif
+#if SYMBOLS_FILENAME
+        symbolsUrl: buildUrl + "/{{{ SYMBOLS_FILENAME }}}",
+#endif
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: {{{ JSON.stringify(COMPANY_NAME) }}},
+        productName: {{{ JSON.stringify(PRODUCT_NAME) }}},
+        productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
+        matchWebGLToCanvasSize: true,
+        showBanner: function (message, type) {
+          if (type === "error") showLoadError(message);
+          else console.warn(message);
+        }
+      };
+
+#if BACKGROUND_FILENAME
+      canvas.style.background = "url('" + buildUrl + "/{{{ BACKGROUND_FILENAME.replace(/'/g, '%27') }}}') center / cover";
+#endif
+      var script = document.createElement("script");
+      script.src = loaderUrl;
+      script.onload = function () {
+        createUnityInstance(canvas, config, function (progress) {
+          var percent = Math.round(progress * 100);
+          document.getElementById("unity-progress-fill").style.width = percent + "%";
+          document.getElementById("unity-progress").setAttribute("aria-valuenow", percent);
+        }).then(function (unityInstance) {
+          window.setGameFullscreenPlayer(unityInstance);
+          document.getElementById("unity-loading").hidden = true;
+        }).catch(function (error) {
+          console.error(error);
+          showLoadError("The game could not load. Reload the page to try again.");
+        });
+      };
+      script.onerror = function () {
+        showLoadError("The game could not load. Reload the page to try again.");
+      };
+      document.body.appendChild(script);
+    </script>
+  </body>
+</html>

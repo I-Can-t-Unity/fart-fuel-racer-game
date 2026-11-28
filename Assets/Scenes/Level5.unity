@@ -26728,7 +26728,6 @@ GameObject:
   m_Component:
   - component: {fileID: 182767942}
   - component: {fileID: 182767944}
-  - component: {fileID: 182767943}
   m_Layer: 0
   m_Name: LampPosts
   m_TagString: Untagged
@@ -26786,38 +26785,6 @@ Transform:
   - {fileID: 1416522041}
   m_Father: {fileID: 331154902}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &182767943
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 182767941}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 76e51851e4151421da82b6999288390a, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SpeedFeel
-  topSpeedKmh: 120
-  boostDetectKmhPerSec: 45
-  fovStretch: 1
-  extraFov: 15
-  boostPullBack: 1
-  pullBackMetres: 1.5
-  topSpeedShake: 1
-  shakeFrom: 0.85
-  shakeAmount: 0.06
-  speedLines: 1
-  speedLinesParticles: {fileID: 0}
-  linesFrom: 0.45
-  maxLinesPerSecond: 80
-  turboFlash: 1
-  boostVolume: {fileID: 0}
-  wheelDust: 1
-  dustParticles: {fileID: 0}
-  maxDustPerSecond: 40
-  speedoColour: 1
-  speedNumber: {fileID: 0}
 --- !u!114 &182767944
 MonoBehaviour:
   m_ObjectHideFlags: 0

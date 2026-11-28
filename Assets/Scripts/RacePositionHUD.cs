@@ -48,7 +48,14 @@ public class RacePositionHUD : MonoBehaviour
 
     public static RacePositionHUD Instance { get; private set; }
 
-    void Awake() => Instance = this;
+    void Awake()
+    {
+        Instance = this;
+        // Every race scene's HUD carries this component, so the minimap and wrong-way banner ride along.
+        gameObject.AddComponent<Minimap>();
+        gameObject.AddComponent<WrongWayWarning>();
+        gameObject.AddComponent<WrongWayDetector>();
+    }
 
     // Lets the AI see how far each car has got (same numbers as the panel).
     public bool TryGetMetres(Rigidbody body, out float metres)
@@ -61,6 +68,42 @@ public class RacePositionHUD : MonoBehaviour
     }
 
     public Rigidbody PlayerBody => race != null ? race.carBody : null;
+
+    // Reuse the physical car's tracked point so crossings and stacked roads
+    // do not make direction detection jump to a different part of the lap.
+    public bool TryGetTrackForward(Rigidbody body, out Vector3 forward)
+    {
+        forward = Vector3.zero;
+        if (track == null || along == null || body == null) return false;
+        foreach (Racer racer in racers)
+        {
+            if (racer.body != body || racer.point < 0 || racer.lost) continue;
+            if (!racer.ignoreShortcut && ShortcutTracker.TryGetBranch(body, out ShortcutBranch branch)
+                && branch != null && branch.waypoints.Count >= 2)
+            {
+                float closest = float.PositiveInfinity;
+                for (int i = 1; i < branch.waypoints.Count; i++)
+                {
+                    Transform a = branch.waypoints[i - 1].point;
+                    Transform b = branch.waypoints[i].point;
+                    if (a == null || b == null) continue;
+                    Vector3 segment = b.position - a.position;
+                    if (segment.sqrMagnitude < .001f) continue;
+                    float t = Mathf.Clamp01(Vector3.Dot(body.position - a.position, segment) / segment.sqrMagnitude);
+                    float distance = (body.position - a.position - segment * t).sqrMagnitude;
+                    if (distance >= closest) continue;
+                    closest = distance;
+                    forward = segment;
+                }
+            }
+            else
+                forward = track.transform.TransformVector(track.GetForward(racer.point));
+            forward.y = 0f;
+            forward = forward.normalized;
+            return forward.sqrMagnitude > .01f;
+        }
+        return false;
+    }
 
     IEnumerator Start()
     {

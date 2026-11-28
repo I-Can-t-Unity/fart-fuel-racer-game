@@ -1,9 +1,8 @@
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
 // Fuel side effects on the car. A fart pushes it forward past its normal top
-// speed; a choke drags it down to a crawl. Turbo uses a pulsing exhaust light.
+// speed. Turbo uses a pulsing exhaust light.
 // Runs after CarDriver so it can override the wheel torques CarDriver sets.
 [DefaultExecutionOrder(100)]
 [RequireComponent(typeof(Rigidbody))]
@@ -11,35 +10,22 @@ public class FartBoost : MonoBehaviour
 {
     public float acceleration = 12f;
     public float maxBoostKph = 100f;
-    public float chokeMaxKph = 25f;
     [Tooltip("Longest a boost can be held back in bends; the held time is used after the bend.")]
     public float maxHeldSeconds = 4f;
 
     [Header("Boost exhaust")]
     [SerializeField] Vector3 boostExhaustOffset = new Vector3(0f, .86f, -1.6f);
 
-    [Header("Puffs")]
-    public Vector3 exhaustOffset = new Vector3(0, .5f, -2.4f);
-    public float puffLifetime = .8f;
-
-    struct Puff
-    {
-        public Transform transform;
-        public float born, size;
-    }
-
     Rigidbody body;
     CarDriver driver;
     WheelCollider[] wheels;
-    float fartUntil, chokeUntil, nextPuff, boostStarted;
+    float fartUntil, boostStarted;
     float heldSeconds;
-    Material chokeMaterial, exhaustMaterial;
+    Material exhaustMaterial;
     Light exhaustLight;
     LineRenderer exhaustBeam;
-    readonly List<Puff> puffs = new List<Puff>();
 
     public bool IsFarting => Time.time < fartUntil;
-    public bool IsChoking => Time.time < chokeUntil;
     public bool IsBoosting => isActiveAndEnabled && IsFarting
         && (driver == null || driver.CanDrive);
 
@@ -56,12 +42,11 @@ public class FartBoost : MonoBehaviour
         body = GetComponent<Rigidbody>();
         driver = GetComponent<CarDriver>();
         wheels = GetComponentsInChildren<WheelCollider>();
-        chokeMaterial = MakeMaterial(new Color(.15f, .15f, .15f));
         if (driver != null)
             driver.Respawned += ClearBoost;
     }
 
-    // Farts stack, and a fart clears a choked engine (and the other way round).
+    // Farts stack.
     public void Fart(float seconds)
     {
         if (driver != null && !driver.CanDrive)
@@ -72,16 +57,8 @@ public class FartBoost : MonoBehaviour
             heldSeconds = 0f;
         }
         fartUntil = Mathf.Max(fartUntil, Time.time) + seconds;
-        chokeUntil = 0;
     }
 
-    public void Choke(float seconds)
-    {
-        if (driver != null && !driver.CanDrive)
-            return;
-        chokeUntil = Mathf.Max(chokeUntil, Time.time) + seconds;
-        ClearBoost();
-    }
 
     void FixedUpdate()
     {
@@ -107,17 +84,35 @@ public class FartBoost : MonoBehaviour
             // Don't push past the corner's safe speed. Pause the timer while held back
             // so the rest of the boost fires on the corner exit.
             float boostLimit = maxBoostKph / 3.6f;
-            float cornerLimit = driver != null ? driver.CornerSafeSpeed() : float.PositiveInfinity;
-            if (Vector3.Dot(velocity, forward) < Mathf.Min(boostLimit, cornerLimit))
-                body.AddForce(forward * acceleration, ForceMode.Acceleration);
-            else if (cornerLimit < boostLimit && heldSeconds < maxHeldSeconds)
+            // Read the bend ahead whether or not the player is steering yet, so the boost
+            // backs off before the turn-in instead of pushing the car wide.
+            float cornerLimit = driver != null ? driver.BoostCornerSafeSpeed() : float.PositiveInfinity;
+            float speed = Vector3.Dot(velocity, forward);
+            // Boost speed carried into a bend: take back only the extra the boost added
+            // (never below the car's normal top speed), at the corner-entry braking rate.
+            if (driver != null && driver.GroundedWheelCount >= 2)
+            {
+                float floor = Mathf.Max(cornerLimit, driver.TopSpeedMs);
+                float excess = speed - floor;
+                if (excess > 0f)
+                    body.AddForce(-forward * Mathf.Min(driver.CornerEntryDecel * Mathf.Clamp01(excess / 1.5f),
+                        excess / Time.fixedDeltaTime), ForceMode.Acceleration);
+            }
+            float headroom = Mathf.Min(boostLimit, cornerLimit) - speed;
+            if (headroom > 0f && (driver == null || !driver.IsBraking))
+            {
+                // Ease out over the final 2 m/s instead of switching full thrust
+                // on and off at the limit. Never add more than this step's headroom.
+                float thrust = Mathf.Min(acceleration * Mathf.Clamp01(headroom / 2f),
+                    headroom / Time.fixedDeltaTime);
+                body.AddForce(forward * thrust, ForceMode.Acceleration);
+            }
+            if (cornerLimit < boostLimit && speed >= cornerLimit - .1f && heldSeconds < maxHeldSeconds)
             {
                 fartUntil += Time.fixedDeltaTime;
                 heldSeconds += Time.fixedDeltaTime;
             }
         }
-        else if (IsChoking && velocity.magnitude > chokeMaxKph / 3.6f)
-            body.AddForce(-velocity.normalized * acceleration, ForceMode.Acceleration);
     }
 
     void Update()
@@ -126,27 +121,6 @@ public class FartBoost : MonoBehaviour
             UpdateExhaust();
         else if (exhaustLight != null && exhaustLight.gameObject.activeSelf)
             exhaustLight.gameObject.SetActive(false);
-
-        if ((driver == null || driver.CanDrive) && IsChoking && Time.time >= nextPuff)
-        {
-            nextPuff = Time.time + .12f;
-            SpawnPuff(chokeMaterial, .8f);
-        }
-
-        for (int i = puffs.Count - 1; i >= 0; i--)
-        {
-            Puff puff = puffs[i];
-            float t = (Time.time - puff.born) / puffLifetime;
-            if (t >= 1)
-            {
-                Destroy(puff.transform.gameObject);
-                puffs.RemoveAt(i);
-                continue;
-            }
-            // Swell quickly, then shrink away while drifting up.
-            puff.transform.localScale = Vector3.one * puff.size * Mathf.Sin(Mathf.PI * Mathf.Sqrt(t));
-            puff.transform.position += Vector3.up * .8f * Time.deltaTime;
-        }
     }
 
     void UpdateExhaust()
@@ -196,32 +170,5 @@ public class FartBoost : MonoBehaviour
         if (exhaustLight != null)
             Destroy(exhaustLight.gameObject);
         Destroy(exhaustMaterial);
-        Destroy(chokeMaterial);
-        foreach (Puff puff in puffs)
-            Destroy(puff.transform.gameObject);
-    }
-
-    void SpawnPuff(Material material, float size)
-    {
-        GameObject puff = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        puff.name = "FartPuff";
-        Collider puffCollider = puff.GetComponent<Collider>();
-        puffCollider.enabled = false;
-        Destroy(puffCollider);
-
-        Renderer puffRenderer = puff.GetComponent<Renderer>();
-        puffRenderer.sharedMaterial = material;
-        puffRenderer.shadowCastingMode = ShadowCastingMode.Off;
-
-        puff.transform.position = transform.TransformPoint(exhaustOffset) + Random.insideUnitSphere * .25f;
-        puff.transform.localScale = Vector3.zero;
-        puffs.Add(new Puff { transform = puff.transform, born = Time.time, size = size * Random.Range(.8f, 1.2f) });
-    }
-
-    static Material MakeMaterial(Color color)
-    {
-        Shader shader = Shader.Find("Universal Render Pipeline/Lit");
-        if (shader == null) shader = Shader.Find("Standard");
-        return new Material(shader) { color = color };
     }
 }
