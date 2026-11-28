@@ -8,6 +8,10 @@ public class FuelPickup : MonoBehaviour
     public FuelType type;
     public FuelInventory inventory;
     public float respawnSeconds = 10f;
+    [Tooltip("Don't reappear while any car is this close (m). 0 = off. Set by the spawner.")]
+    public float fairRespawnDistance = 0f;
+    // All the race cars (set once by the spawner), for the fair-respawn check.
+    public static CarDriver[] Cars;
     public float spinSpeed = 90f;
     // Which row of cubes this is in and which lane, counted from 0 (set by the spawner).
     public int row = -1, lane = -1;
@@ -98,8 +102,12 @@ public class FuelPickup : MonoBehaviour
     {
         if (respawnAt >= 0 && Time.time >= respawnAt)
         {
-            respawnAt = -1;
-            SetAvailable(true);
+            if (CarTooClose()) respawnAt = Time.time + .25f;   // wait until the car has passed
+            else
+            {
+                respawnAt = -1;
+                SetAvailable(true);
+            }
         }
 
         if (guideBlinkActive && IsAvailable)
@@ -111,6 +119,30 @@ public class FuelPickup : MonoBehaviour
 
         transform.Rotate(0, spinSpeed * Time.deltaTime, 0, Space.World);
         transform.position = basePosition + Vector3.up * Mathf.Sin(Time.time * 2f + basePosition.x) * .15f;
+    }
+
+    bool CarTooClose()
+    {
+        if (fairRespawnDistance <= 0f || Cars == null) return false;
+        float d2 = fairRespawnDistance * fairRespawnDistance;
+        foreach (var car in Cars)
+            if (car != null && (car.transform.position - basePosition).sqrMagnitude < d2) return true;
+        return false;
+    }
+
+    // Changes this block's colour (used when a row reshuffles).
+    public void SetType(FuelType newType)
+    {
+        type = newType;
+        name = "Fuel_" + newType;
+        if (inventory == null) return;
+        Material m = inventory.MaterialOf(newType);
+        if (emissiveMaterial != null)
+        {
+            emissiveMaterial.color = m.color;
+            peakEmission = Color.Lerp(m.color, Color.white, .4f) * 4f;
+        }
+        else pickupRenderer.sharedMaterial = m;
     }
 
     // False while the cube has been taken and is waiting to respawn. The AI uses this to pick a lane.

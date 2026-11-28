@@ -154247,6 +154247,21 @@ MonoBehaviour:
   gateOffset: 6
   cubeSize: 1.2
   hoverHeight: 1.7
+  autoPlace: 1
+  rowSpacing: 150
+  minCornerRadius: 45
+  cornerClearance: 15
+  startClear: 60
+  finishClear: 150
+  rowShapes: 0000000001000000
+  stagger: 8
+  trailOnLongBends: 1
+  trailMinLength: 80
+  trailSpacing: 25
+  respawnSeconds: 10
+  fairRespawnDistance: 15
+  reshuffleWhenRowReturns: 1
+  reshuffleSafeDistance: 45
 --- !u!1001 &1503808536
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -190956,8 +190971,10 @@ Material:
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
   m_CustomRenderQueue: -1
-  stringTagMap: {}
-  disabledShaderPasses: []
+  stringTagMap:
+    RenderType: Opaque
+  disabledShaderPasses:
+  - MOTIONVECTORS
   m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
@@ -191054,7 +191071,7 @@ Material:
     - _ZWrite: 1
     m_Colors:
     - _BaseColor: {r: 0.22, g: 0.22, b: 0.24, a: 1}
-    - _Color: {r: 1, g: 1, b: 1, a: 1}
+    - _Color: {r: 0.21999997, g: 0.21999997, b: 0.23999995, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
   m_BuildTextureStacks: []
